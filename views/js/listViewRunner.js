@@ -97,9 +97,6 @@ printerCard.forEach(card => {
     });
 });
 
-function addListeners() {
-  printers.forEach(printer => {});
-}
 function grabElements(printer) {
   if (typeof elems[printer.index] != "undefined") {
     return elems[printer.index];
@@ -127,7 +124,6 @@ function grabElements(printer) {
   }
 }
 function updateState(printers) {
-  console.log(printers);
   printers.forEach(printer => {
     let elements = grabElements(printer);
     //Set the data
