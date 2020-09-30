@@ -81,6 +81,7 @@
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-standard": "^4.0.1",
     "gulp": "^4.0.2",
+    "gulp-cached": "^1.1.1",
     "gulp-concat": "^2.6.1",
     "gulp-declare": "^0.3.0",
     "gulp-imagemin": "^7.1.0",
@@ -118,7 +119,11 @@
   },
   "nodemonConfig": {
     "verbose": false,
-    "ignore": ["views/assets/*", "logs/*", "src/*"],
+    "ignore": [
+      "views/assets/*",
+      "logs/*",
+      "src/*"
+    ],
     "delay": "2500"
   }
 }
