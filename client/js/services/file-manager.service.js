@@ -159,6 +159,10 @@ export default class FileManagerService {
     } else {
       FileManagerService.selectedFiles.delete(path);
     }
+    const row = checkbox.closest(".list-group-item");
+    if (row) {
+      row.classList.toggle("file-row-selected", checkbox.checked);
+    }
     FileManagerService.updateBulkDeleteButton();
   }
 

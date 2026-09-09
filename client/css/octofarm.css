@@ -797,6 +797,19 @@ label {
   border-radius: 100%;
 }
 
+.file-select-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #f39c12;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.file-row-selected {
+  box-shadow: inset 4px 0 0 #f39c12;
+  background-color: rgba(243, 156, 18, 0.12);
+}
+
 .file-thumbnail-hover-preview {
   position: fixed;
   z-index: 10000;
