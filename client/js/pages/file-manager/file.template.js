@@ -88,12 +88,13 @@ export const getFileTemplate = (file, printerURL, id) => {
           class="col-lg-2"
             style="display:flex; justify-content:center; align-items:center;"
                 >
+                <input type="checkbox" class="file-select-checkbox mr-2" data-path="${file.fullPath}">
                 ${thumbnail}
                 </div>
                 <div class="col-lg-10">
                 <div class="row">
                 <div class="col-12">
-                <h5 class="mb-1 name"><input type="checkbox" class="file-select-checkbox mr-2" data-path="${file.fullPath}"> ${file.display}</h5>
+                <h5 class="mb-1 name">${file.display}</h5>
                 <small class="mb-1 name">${file.fullPath}</small>         
                 </div>
                 </div>

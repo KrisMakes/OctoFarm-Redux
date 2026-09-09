@@ -444,6 +444,21 @@ a.notyet {
   flex: 0 0 100%;
   max-width: 100%;
 }
+/* Keep the checkbox reachable at Ultra density while House Keeping is active,
+   since it lives inside the thumbnail column that Ultra otherwise hides entirely. */
+.fileBody.file-density-ultra.housekeeping-mode .list-group-item .col-lg-2 {
+  display: flex !important;
+  flex: 0 0 5% !important;
+  max-width: 5% !important;
+}
+.fileBody.file-density-ultra.housekeeping-mode .list-group-item .col-lg-2 img,
+.fileBody.file-density-ultra.housekeeping-mode .list-group-item .col-lg-2 i {
+  display: none;
+}
+.fileBody.file-density-ultra.housekeeping-mode .list-group-item .col-lg-10 {
+  flex: 0 0 95% !important;
+  max-width: 95% !important;
+}
 .fileBody.file-density-ultra .list-group-item .btn-group .btn {
   padding: 0.1rem 0.3rem;
   font-size: 0.65rem;
