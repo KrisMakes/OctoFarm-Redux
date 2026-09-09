@@ -13,7 +13,10 @@ import { printerIsOnline } from '../js/utils/octofarm.utils';
 import { printerTemplate } from '../js/pages/file-manager/file.template';
 import { ClientErrors } from '../js/exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../js/exceptions/application-error.handler';
+import { initFileManagerDensity } from '../js/pages/file-manager/file-manager-density.service';
 import '../js/services/gcode-scripts.service';
+
+initFileManagerDensity();
 
 let lastId = null;
 

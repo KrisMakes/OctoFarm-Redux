@@ -369,6 +369,61 @@ a.notyet {
   padding: 5px;
 }
 
+/* File manager row density control */
+.fileBody.file-density-compact .list-group-item {
+  padding: 0.35rem 0.5rem;
+}
+.fileBody.file-density-compact .list-group-item h5.name {
+  font-size: 0.85rem;
+  margin-bottom: 0.15rem;
+}
+.fileBody.file-density-compact .list-group-item small.name {
+  font-size: 0.7rem;
+}
+.fileBody.file-density-compact .list-group-item .usage {
+  display: none;
+}
+.fileBody.file-density-compact .list-group-item .col-lg-2 {
+  flex: 0 0 8%;
+  max-width: 8%;
+}
+.fileBody.file-density-compact .list-group-item .col-lg-10 {
+  flex: 0 0 92%;
+  max-width: 92%;
+}
+.fileBody.file-density-compact .list-group-item [id^="fileThumbnail-"] img {
+  max-height: 40px;
+}
+.fileBody.file-density-compact .list-group-item .btn-group .btn {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.7rem;
+}
+
+.fileBody.file-density-ultra .list-group-item {
+  padding: 0.2rem 0.5rem;
+}
+.fileBody.file-density-ultra .list-group-item h5.name {
+  font-size: 0.8rem;
+  margin-bottom: 0;
+}
+.fileBody.file-density-ultra .list-group-item small.name,
+.fileBody.file-density-ultra .list-group-item .usage,
+.fileBody.file-density-ultra .list-group-item .size,
+.fileBody.file-density-ultra .list-group-item p.float-right {
+  display: none;
+}
+.fileBody.file-density-ultra .list-group-item .col-lg-2 {
+  display: none;
+}
+.fileBody.file-density-ultra .list-group-item .col-lg-10 {
+  flex: 0 0 100%;
+  max-width: 100%;
+}
+.fileBody.file-density-ultra .list-group-item .btn-group .btn {
+  padding: 0.1rem 0.3rem;
+  font-size: 0.65rem;
+}
+
 .search-control:focus {
   border-width: 0;
   border-bottom-width: 1px;
