@@ -1526,21 +1526,14 @@ export class FileActions {
         if (!result) {
           return;
         }
-        let deletedCount = 0;
-        for (const fullPath of selectedPaths) {
-          const { status } = await OctoPrintClient.file(printer, fullPath, "delete");
-          if (status !== 404 && status !== 409) {
-            await OctoFarmClient.post("printers/removefile", {
-              i: printer._id,
-              fullPath,
-            });
-            deletedCount++;
-          }
-        }
+        const deletedList = await OctoFarmClient.post("printers/houseCleanFiles", {
+          id: printer._id,
+          pathList: selectedPaths,
+        });
         FileManagerService.selectedFiles.clear();
         UI.createAlert(
           "success",
-          `Successfully deleted ${deletedCount} of ${selectedPaths.length} selected file(s)...`,
+          `Successfully deleted ${deletedList.length} of ${selectedPaths.length} selected file(s)...`,
           3000,
           "clicked"
         );
