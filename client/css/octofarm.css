@@ -838,6 +838,12 @@ label {
   background-color: rgba(243, 156, 18, 0.12);
 }
 
+.housekeeping-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .file-thumbnail-hover-preview {
   position: fixed;
   z-index: 10000;

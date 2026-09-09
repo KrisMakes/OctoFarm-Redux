@@ -201,7 +201,7 @@ class Manager {
         </div>
         <div class="row">
           <div class="col-12">
-            <div id="fileHousekeepingActions" class="d-none d-flex align-items-center justify-content-between">
+            <div id="fileHousekeepingActions" class="d-none housekeeping-actions-row">
               <label class="mb-0" title="Select or deselect every file currently shown (respects search and result filter)">
                 <input type="checkbox" id="fileSelectAllVisible" class="mr-1">
                 Select All Visible
