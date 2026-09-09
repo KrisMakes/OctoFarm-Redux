@@ -126,7 +126,52 @@ setInterval(async () => {
   });
 }, 1000);
 
+const RESULT_FILTER_KEY = "fileResultFilter";
+
 export default class FileManagerService {
+  static selectedFiles = new Set();
+
+  static getResultFilter() {
+    return localStorage.getItem(RESULT_FILTER_KEY) || "all";
+  }
+
+  static setResultFilter(mode) {
+    localStorage.setItem(RESULT_FILTER_KEY, mode);
+    const successBtn = document.getElementById("filterSuccessBtn");
+    const failedBtn = document.getElementById("filterFailedBtn");
+    if (successBtn) {
+      successBtn.classList.toggle("active", mode === "success");
+    }
+    if (failedBtn) {
+      failedBtn.classList.toggle("active", mode === "failed");
+    }
+  }
+
+  static toggleResultFilter(mode) {
+    const current = FileManagerService.getResultFilter();
+    FileManagerService.setResultFilter(current === mode ? "all" : mode);
+  }
+
+  static handleSelectionChange(checkbox) {
+    const path = checkbox.dataset.path;
+    if (checkbox.checked) {
+      FileManagerService.selectedFiles.add(path);
+    } else {
+      FileManagerService.selectedFiles.delete(path);
+    }
+    FileManagerService.updateBulkDeleteButton();
+  }
+
+  static updateBulkDeleteButton() {
+    const btn = document.getElementById("fileDeleteSelected");
+    if (!btn) {
+      return;
+    }
+    const count = FileManagerService.selectedFiles.size;
+    btn.innerHTML = `<i class="fa-solid fa-trash-can"></i> Delete Selected (${count})`;
+    btn.disabled = count === 0;
+  }
+
   static async handleFiles(Afiles, printerInfo, print) {
     Afiles = [...Afiles];
 
@@ -715,9 +760,22 @@ export default class FileManagerService {
   static drawFiles(id, fileList, printerURL, currentFolder, recursive) {
     const fileElem = getFileListElement(id);
     if (fileElem) {
-      // Filter out files out of current folder scope
+      FileManagerService.selectedFiles.clear();
+      FileManagerService.updateBulkDeleteButton();
+      const resultFilter = FileManagerService.getResultFilter();
+      // Filter out files out of current folder scope and by last print result
       const currentFileList = fileList.filter((f) => {
-        return typeof recursive !== "undefined" || f.path === currentFolder;
+        const inScope = typeof recursive !== "undefined" || f.path === currentFolder;
+        if (!inScope) {
+          return false;
+        }
+        if (resultFilter === "success") {
+          return f.last === true;
+        }
+        if (resultFilter === "failed") {
+          return f.last === false;
+        }
+        return true;
       });
       // Show empty or filled list
       if (currentFileList.length > 0) {
@@ -743,6 +801,12 @@ export default class FileManagerService {
 
   static updateListeners(printer) {
 
+    const checkboxes = document.querySelectorAll(".file-select-checkbox");
+    checkboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        FileManagerService.handleSelectionChange(checkbox);
+      });
+    });
     const folders = document.querySelectorAll(".folderAction");
     folders.forEach((folder) => {
       folder.addEventListener("click", async (e) => {
@@ -1418,6 +1482,8 @@ export class FileActions {
             };
             await OctoFarmClient.post("printers/removefile", opt);
             document.getElementById(`file-${fullPath}`).remove();
+            FileManagerService.selectedFiles.delete(fullPath);
+            FileManagerService.updateBulkDeleteButton();
             UI.createAlert(
               "success",
               "Successfully deleted your file...",
@@ -1426,6 +1492,48 @@ export class FileActions {
             );
           }
         }
+      },
+    });
+  }
+
+  static async deleteSelected(printer) {
+    const selectedPaths = Array.from(FileManagerService.selectedFiles);
+    if (selectedPaths.length === 0) {
+      return;
+    }
+    bootbox.confirm({
+      message: `Are you sure you want to delete ${selectedPaths.length} selected file(s)?`,
+      buttons: {
+        cancel: {
+          label: "<i class=\"fa fa-times\"></i> Cancel",
+        },
+        confirm: {
+          label: "<i class=\"fa fa-check\"></i> Confirm",
+        },
+      },
+      async callback(result) {
+        if (!result) {
+          return;
+        }
+        let deletedCount = 0;
+        for (const fullPath of selectedPaths) {
+          const { status } = await OctoPrintClient.file(printer, fullPath, "delete");
+          if (status !== 404 && status !== 409) {
+            await OctoFarmClient.post("printers/removefile", {
+              i: printer._id,
+              fullPath,
+            });
+            deletedCount++;
+          }
+        }
+        FileManagerService.selectedFiles.clear();
+        UI.createAlert(
+          "success",
+          `Successfully deleted ${deletedCount} of ${selectedPaths.length} selected file(s)...`,
+          3000,
+          "clicked"
+        );
+        await FileManagerSortingService.loadSort(printer._id);
       },
     });
   }

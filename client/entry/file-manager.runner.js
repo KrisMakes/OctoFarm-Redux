@@ -1,6 +1,6 @@
 import OctoFarmClient from '../js/services/octofarm-client.service';
 import Calc from '../js/utils/calc.js';
-import FileManagerService from '../js/services/file-manager.service.js';
+import FileManagerService, { FileActions } from '../js/services/file-manager.service.js';
 import { dragAndDropEnable } from '../js/utils/dragAndDrop.js';
 import {
   returnBigFilamentSelectorTemplate,
@@ -14,9 +14,11 @@ import { printerTemplate } from '../js/pages/file-manager/file.template';
 import { ClientErrors } from '../js/exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../js/exceptions/application-error.handler';
 import { initFileManagerDensity } from '../js/pages/file-manager/file-manager-density.service';
+import { initFileThumbnailPreview } from '../js/pages/file-manager/file-manager-thumbnail-preview.service';
 import '../js/services/gcode-scripts.service';
 
 initFileManagerDensity();
+initFileThumbnailPreview();
 
 let lastId = null;
 
@@ -25,6 +27,26 @@ const multiUploadBtn = document.getElementById('multUploadBtn');
 if (multiUploadBtn) {
   multiUploadBtn.addEventListener('click', async () => {
     await FileManagerService.multiUpload();
+  });
+}
+
+FileManagerService.setResultFilter(FileManagerService.getResultFilter());
+const filterSuccessBtn = document.getElementById('filterSuccessBtn');
+const filterFailedBtn = document.getElementById('filterFailedBtn');
+if (filterSuccessBtn) {
+  filterSuccessBtn.addEventListener('click', async () => {
+    FileManagerService.toggleResultFilter('success');
+    if (lastId) {
+      await FileManagerSortingService.loadSort(lastId);
+    }
+  });
+}
+if (filterFailedBtn) {
+  filterFailedBtn.addEventListener('click', async () => {
+    FileManagerService.toggleResultFilter('failed');
+    if (lastId) {
+      await FileManagerSortingService.loadSort(lastId);
+    }
   });
 }
 
@@ -175,6 +197,9 @@ class Manager {
             <button title="Delete all file from OctoPrint" id="fileDeleteAll" type="button" class="btn btn-outline-danger mb-0 float-right">
               <i class="fa-solid fa-trash-can"></i> Delete All
             </button>
+            <button title="Delete the files you've checked below" id="fileDeleteSelected" type="button" class="btn btn-danger mb-0 mr-1 float-right" disabled>
+              <i class="fa-solid fa-trash-can"></i> Delete Selected (0)
+            </button>
             <button title="Run house keeping on file list" id="fileHouseKeeping" type="button" class="btn btn-warning text-dark mb-0 mr-1 float-right">
               <i class="fa-solid fa-broom"></i> House Keeping
             </button>
@@ -201,6 +226,7 @@ class Manager {
         uploadPrintFile: document.getElementById('fileUploadPrintBtn'),
         syncFiles: document.getElementById('fileReSync'),
         fileDeleteAll: document.getElementById('fileDeleteAll'),
+        fileDeleteSelected: document.getElementById('fileDeleteSelected'),
         fileHouseKeeping: document.getElementById('fileHouseKeeping'),
         back: document.getElementById('fileBackBtn'),
         createFolderBtn: document.getElementById('createFolderBtn'),
@@ -241,6 +267,10 @@ class Manager {
     fileButtons.fileManager.fileDeleteAll.addEventListener('click', async (e) => {
       await FileManagerService.deleteAllFiles(e, printer);
     });
+    fileButtons.fileManager.fileDeleteSelected.addEventListener('click', async () => {
+      await FileActions.deleteSelected(printer);
+    });
+    FileManagerService.updateBulkDeleteButton();
     fileButtons.fileManager.fileHouseKeeping.addEventListener('click', async (e) => {
       bootbox.prompt({
         title: "Clean all files older than 'X' days...",
