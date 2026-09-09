@@ -1181,9 +1181,8 @@ export class FileActions {
     const printer = await OctoFarmClient.getPrinter(id);
 
     const fileList = document.getElementById(`fileList-${id}`);
-    let input = document.getElementById("searchFiles").value.toUpperCase();
-    input = input.replace(/ /g, "_");
-    if (input === "") {
+    const rawInput = document.getElementById("searchFiles").value.trim();
+    if (rawInput === "") {
       // No search term so reset view
       document.getElementById("currentFolder").value = "local/";
       await FileManagerSortingService.loadSort(printer._id);
@@ -1192,15 +1191,18 @@ export class FileActions {
       await FileManagerSortingService.loadSort(printer._id, "recursive");
     }
     if (fileList) {
+      // Each whitespace-separated word must appear somewhere in the filename,
+      // in any order, so "desk pole" matches desk_light_pole_holder.gcode.
+      const searchTerms = rawInput
+        .toUpperCase()
+        .split(/\s+/)
+        .filter((term) => term.length > 0);
       const buttons = fileList.querySelectorAll("*[id^=\"file-\"]");
 
       for (const button of buttons) {
-        const file = button.id.replace("file-", "");
-        if (file.toUpperCase().indexOf(input) > -1) {
-          button.style.display = "";
-        } else {
-          button.style.display = "none";
-        }
+        const file = button.id.replace("file-", "").toUpperCase();
+        const matchesAllTerms = searchTerms.every((term) => file.indexOf(term) > -1);
+        button.style.display = matchesAllTerms ? "" : "none";
       }
     }
   }
