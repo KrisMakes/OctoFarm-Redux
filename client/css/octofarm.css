@@ -398,6 +398,14 @@ a.notyet {
   padding: 0.15rem 0.4rem;
   font-size: 0.7rem;
 }
+.fileBody.file-density-compact .list-group-item p.float-left {
+  font-size: 0.7rem;
+  line-height: 1.4;
+  margin-bottom: 0;
+}
+.fileBody.file-density-compact .list-group-item p.float-left br {
+  display: none;
+}
 .fileBody.file-density-compact .list-group-item.folderAction .fa-2x {
   font-size: 1.3em;
 }
@@ -438,6 +446,14 @@ a.notyet {
 .fileBody.file-density-ultra .list-group-item .btn-group .btn {
   padding: 0.1rem 0.3rem;
   font-size: 0.65rem;
+}
+.fileBody.file-density-ultra .list-group-item p.float-left {
+  font-size: 0.65rem;
+  line-height: 1.3;
+  margin-bottom: 0;
+}
+.fileBody.file-density-ultra .list-group-item p.float-left br {
+  display: none;
 }
 .fileBody.file-density-ultra .list-group-item.folderAction .fa-2x {
   font-size: 1.1em;
