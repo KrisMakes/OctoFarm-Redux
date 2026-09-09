@@ -25,7 +25,6 @@ const { fetchMongoDBConnectionString } = require('../app-env');
 const isDocker = require('is-docker');
 const { isNodemon, isNode, isPm2 } = require('../utils/env.utils');
 const { getCurrentBranch, checkIfWereInAGitRepo } = require('../utils/git.utils');
-const { returnPatreonData } = require('../services/patreon.service');
 
 const version = process.env[AppConstants.VERSION_KEY];
 
@@ -360,7 +359,6 @@ router.get('/system', ensureAuthenticated, ensureCurrentUserAndGroup, async (req
     currentGitBranch: await getCurrentBranch(),
     areWeGitRepo: checkIfWereInAGitRepo(),
     systemEnvironment: process.env[AppConstants.NODE_ENV_KEY],
-    patreonData: returnPatreonData(),
     currentUsers,
     taskManagerState: TaskManager.getTaskState(),
   });

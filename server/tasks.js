@@ -3,7 +3,6 @@ const { FilamentClean } = require('./services/filament-cleaner.service');
 const { initHistoryCache, getHistoryCache } = require('./cache/history.cache');
 const { TaskPresets } = require('./constants/task.constants');
 const { SystemRunner } = require('./services/system-information.service');
-const { grabLatestPatreonData } = require('./services/patreon.service');
 const { detectFarmPi } = require('./services/farmpi-detection.service');
 const { getPrinterManagerCache } = require('./cache/printer-manager.cache');
 const { getPrinterStoreCache } = require('./cache/printer-store.cache');
@@ -67,7 +66,6 @@ const SERVER_BOOT_TASK = async () => {
     await detectFarmPi(),
     await SystemRunner.profileCPUUsagePercent(),
     SystemRunner.profileMemoryUsagePercent(),
-    // await grabLatestPatreonData(),
     await updatePluginNoticesStore(),
     await updatePluginStore(),
     await softwareUpdateChecker.syncLatestOctoFarmRelease(false).then(() => {
@@ -118,10 +116,6 @@ const GENERATE_FILE_STATISTICS = async () => {
 
 const STATE_TRACK_COUNTERS = async () => {
   await getPrinterManagerCache().updateStateCounters();
-};
-
-const GRAB_LATEST_PATREON_DATA = async () => {
-  await grabLatestPatreonData();
 };
 
 const GENERATE_PRINTER_CONTROL_LIST = async () => {
@@ -177,7 +171,6 @@ class OctoFarmTasks {
   static RECURRING_BOOT_TASKS = [
     TaskStart(GITHUB_UPDATE_CHECK_TASK, TaskPresets.PERIODIC_DAY),
     TaskStart(UPDATE_OCTOPRINT_PLUGINS_LIST, TaskPresets.PERIODIC_DAY),
-    TaskStart(GRAB_LATEST_PATREON_DATA, TaskPresets.PERIODIC_DAY),
     TaskStart(CPU_PROFILING_TASK, TaskPresets.PERIODIC_10000MS),
     TaskStart(MEMORY_PROFILING_TASK, TaskPresets.PERIODIC_10000MS),
     TaskStart(SORT_CURRENT_OPERATIONS, TaskPresets.PERIODIC_1000MS),
