@@ -370,8 +370,9 @@ a.notyet {
 }
 
 /* File manager row density control */
+/* Row padding is set inline in the template, so overrides need !important. */
 .fileBody.file-density-compact .list-group-item {
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem 0.5rem !important;
 }
 .fileBody.file-density-compact .list-group-item h5.name {
   font-size: 0.85rem;
@@ -415,7 +416,7 @@ a.notyet {
 }
 
 .fileBody.file-density-ultra .list-group-item {
-  padding: 0.2rem 0.5rem;
+  padding: 0.2rem 0.5rem !important;
 }
 .fileBody.file-density-ultra .list-group-item h5.name {
   font-size: 0.8rem;
