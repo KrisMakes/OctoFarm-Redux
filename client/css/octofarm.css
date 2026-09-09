@@ -378,10 +378,9 @@ a.notyet {
   font-size: 0.85rem;
   margin-bottom: 0.15rem;
 }
-.fileBody.file-density-compact .list-group-item small.name {
-  font-size: 0.7rem;
-}
-.fileBody.file-density-compact .list-group-item .usage {
+.fileBody.file-density-compact .list-group-item small.name,
+.fileBody.file-density-compact .list-group-item .usage,
+.fileBody.file-density-compact .list-group-item p.float-right {
   display: none;
 }
 .fileBody.file-density-compact .list-group-item .col-lg-2 {
