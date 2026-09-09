@@ -127,6 +127,7 @@ setInterval(async () => {
 }, 1000);
 
 const RESULT_FILTER_KEY = "fileResultFilter";
+const HIDE_FOLDERS_KEY = "fileHideFolders";
 
 export default class FileManagerService {
   static selectedFiles = new Set();
@@ -181,6 +182,26 @@ export default class FileManagerService {
   static toggleResultFilter(mode) {
     const current = FileManagerService.getResultFilter();
     FileManagerService.setResultFilter(current === mode ? "all" : mode);
+  }
+
+  static getHideFolders() {
+    return localStorage.getItem(HIDE_FOLDERS_KEY) === "true";
+  }
+
+  static setHideFolders(hide) {
+    localStorage.setItem(HIDE_FOLDERS_KEY, String(hide));
+    const fileBody = document.getElementById("fileBody");
+    const toggleBtn = document.getElementById("hideFoldersBtn");
+    if (fileBody) {
+      fileBody.classList.toggle("hide-folders", hide);
+    }
+    if (toggleBtn) {
+      toggleBtn.classList.toggle("active", hide);
+    }
+  }
+
+  static toggleHideFolders() {
+    FileManagerService.setHideFolders(!FileManagerService.getHideFolders());
   }
 
   static handleSelectionChange(checkbox) {

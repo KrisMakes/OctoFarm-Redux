@@ -844,6 +844,10 @@ label {
   justify-content: space-between;
 }
 
+.fileBody.hide-folders .folderAction {
+  display: none;
+}
+
 .file-thumbnail-hover-preview {
   position: fixed;
   z-index: 10000;

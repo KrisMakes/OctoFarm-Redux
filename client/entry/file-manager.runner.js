@@ -59,6 +59,14 @@ if (filterUnprintedBtn) {
   });
 }
 
+FileManagerService.setHideFolders(FileManagerService.getHideFolders());
+const hideFoldersBtn = document.getElementById('hideFoldersBtn');
+if (hideFoldersBtn) {
+  hideFoldersBtn.addEventListener('click', () => {
+    FileManagerService.toggleHideFolders();
+  });
+}
+
 class Manager {
   static async drawPrinterList() {
     let printers = await OctoFarmClient.listPrinters();
