@@ -75,6 +75,9 @@ const coolDownEvent = (id, temps) => {
     getPrinterStoreCache().addPrinterEvent(id, eventListConstants.COOL_DOWN.id);
   }
   if (printerState.colour.category === "Complete") {
+    if (!temps[0]?.tool0 || !temps[0]?.bed) {
+      return;
+    }
     const { coolDown } = getPrinterStoreCache().getTempTriggers(id);
     if (
       parseFloat(temps[0].tool0.actual) < parseFloat(coolDown) &&

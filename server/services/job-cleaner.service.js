@@ -99,9 +99,10 @@ class JobCleanerService {
       let totalLength = 0;
       let totalWeight = 0;
       if (!!currentJob.expectedFilamentCosts) {
-        const keys = Object.keys(currentJob.expectedFilamentCosts);
         for (let s = 0; s < currentJob.expectedFilamentCosts.length; s++) {
-          const toolFilamentCosts = currentJob.expectedFilamentCosts[s][`tool${keys[s]}`];
+          const toolEntry = currentJob.expectedFilamentCosts[s];
+          const toolKey = Object.keys(toolEntry)[0];
+          const toolFilamentCosts = toolEntry[toolKey];
           if (!!toolFilamentCosts) {
             spoolCost += floatOrZero(toolFilamentCosts.cost);
             totalVolume += floatOrZero(toolFilamentCosts.volume);

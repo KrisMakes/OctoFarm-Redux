@@ -154,12 +154,12 @@ const FILAMENT_CLEAN_TASK = async () => {
  * @returns {{task, id, preset}}
  */
 function TaskStart(task, preset, milliseconds = 0) {
-  preset.milliseconds = preset.milliseconds || milliseconds;
+  const taskPreset = { ...preset, milliseconds: preset.milliseconds || milliseconds };
 
   return {
     id: task.name,
     task,
-    preset,
+    preset: taskPreset,
   };
 }
 

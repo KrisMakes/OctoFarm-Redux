@@ -7,9 +7,6 @@ const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const { patchPrinterValues } = require('../services/version-patches.service');
 const { isEmpty } = require('lodash');
 
-const Filament = require('../models/Filament');
-const Printers = require('../models/Printer');
-const { FileClean } = require('./file-cleaner.service');
 const { generatePrinterStatistics } = require('../services/printer-statistics.service');
 const { deleteTemperatureData } = require('./octoprint/utils/octoprint-websocket-helpers.utils');
 const { SettingsClean } = require('./settings-cleaner.service');
@@ -334,36 +331,6 @@ class PrinterManagerService {
     };
 
     await createNewPrinterBatches(printerList);
-  }
-
-  async updatePrinterFilamentSelections() {
-    const pList = getPrinterStoreCache().listPrintersInformation();
-    for (let i = 0; i < pList.length; i++) {
-      const printer = pList[i];
-      if (Array.isArray(printer.selectedFilament)) {
-        for (let f = 0; f < printer.selectedFilament.length; f++) {
-          if (printer.selectedFilament[f] !== null) {
-            printer.selectedFilament[f] = await Filament.findById(printer.selectedFilament[f]._id);
-            const currentFilament = await Runner.compileSelectedFilament(
-              farmPrinters[i].selectedFilament,
-              i
-            );
-            FileClean.generate(farmPrinters[i], currentFilament);
-          }
-        }
-      } else if (farmPrinters[i].selectedFilament != null) {
-        const newInfo = await Filament.findById(farmPrinters[i].selectedFilament._id);
-        const otherPrinter = await Printers.findById(farmPrinters[i]._id);
-        farmPrinters[i].selectedFilament = newInfo;
-        otherPrinter.selectedFilament = newInfo;
-        otherPrinter.save();
-        const currentFilament = await Runner.compileSelectedFilament(
-          farmPrinters[i].selectedFilament,
-          i
-        );
-        FileClean.generate(farmPrinters[i], currentFilament);
-      }
-    }
   }
 
   async checkForOctoPrintUpdates() {

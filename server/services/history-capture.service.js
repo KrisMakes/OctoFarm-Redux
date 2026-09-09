@@ -256,7 +256,7 @@ class HistoryCaptureService {
   }
 
   async snapPictureOfPrinter() {
-    if (!this.#camURL && this.#camURL === '') {
+    if (!this.#camURL || this.#camURL === '') {
       logger.error("Unable to snap picture from camera, url doesn't exist!", {
         cameraURL: this.#camURL,
       });
@@ -514,7 +514,7 @@ class HistoryCaptureService {
     let completionRatio = this.#success ? 1.0 : printPercentage / 100;
     for (let s = 0; s < this.#filamentSelection.length; s++) {
       const currentSpool = this.#filamentSelection[s];
-      if (!!currentSpool || this.#job?.filament['tool' + s]) {
+      if (!!currentSpool && this.#job?.filament['tool' + s]) {
         const currentGram = this.generateWeightOfJobForASpool(
           this.#job.filament['tool' + s].length / 1000,
           currentSpool,

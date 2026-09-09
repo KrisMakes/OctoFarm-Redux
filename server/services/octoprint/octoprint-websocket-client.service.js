@@ -165,7 +165,9 @@ class WebSocketClient {
         this.#messageNumber++;
       }
 
-      this.#onMessage(this.id, data);
+      Promise.resolve(this.#onMessage(this.id, data)).catch((e) => {
+        logger.error(`${this.url}: Failed to handle websocket message`, e);
+      });
     });
 
     this.#instance.on('close', (code, reason) => {

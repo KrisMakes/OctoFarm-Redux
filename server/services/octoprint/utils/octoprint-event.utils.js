@@ -149,7 +149,7 @@ const captureError = (id, data) => {
     .createErrorLog()
     .then(async (res) => {
       logger.info("Successfully captured error log data", res);
-      await ScriptRunner.check(currentPrinterInfo, "error", res._id);
+      await ScriptRunner.check(currentPrinterInfo, "error", res.newErrorLog._id);
       getPrinterStoreCache().resetJob(id);
     })
     .catch((e) => {
@@ -320,7 +320,7 @@ const printCaptureHelper = (id, data, state) => {
     .createHistoryRecord()
     .then(async (res) => {
       logger.info("Successfully captured history record data", res);
-      await ScriptRunner.check(currentPrinterInfo, scriptCheckTrigger, res._id);
+      await ScriptRunner.check(currentPrinterInfo, scriptCheckTrigger, res.saveHistory._id);
     })
     .catch((e) => {
       logger.error(

@@ -9,7 +9,8 @@ RUN apk add --no-cache --virtual .base-deps \
 
 ENV NODE_ENV=production
 
-RUN npm install -g npm@latest
+# npm's current major requires Node 22+; this image runs Node 14.
+RUN npm install -g npm@8
 RUN npm install -g pm2
 
 RUN adduser -D octofarm --home /app && \

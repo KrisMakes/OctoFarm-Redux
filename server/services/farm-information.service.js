@@ -139,6 +139,10 @@ const heatMapping = async (complete, active, offline, idle, disconnected) => {
       heatMap[4].data.shift();
     }
 
+    if (!farmStats || !farmStats[0]) {
+      return;
+    }
+
     farmStats[0].heatMap = heatMap;
     farmStats[0].markModified("heatMap");
     farmStats[0].save().catch((e) => logger.error(e));
