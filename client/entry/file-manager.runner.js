@@ -194,20 +194,24 @@ class Manager {
             <button title="Re-Sync OctoPrints file list back to OctoFarm" id="fileReSync" type="button" class="btn btn-primary mb-0 bg-colour-4">
               <i class="fas fa-sync"></i> Re-Sync
             </button>
-            <div id="fileHousekeepingActions" class="d-none float-right">
-              <button title="Delete all file from OctoPrint" id="fileDeleteAll" type="button" class="btn btn-outline-danger mb-0 mr-1">
-                <i class="fa-solid fa-trash-can"></i> Delete All
+            <button title="Toggle checkboxes to select and delete individual files" id="fileHouseKeeping" type="button" class="btn btn-warning text-dark mb-0 mr-1 float-right">
+              <i class="fa-solid fa-broom"></i> House Keeping
+            </button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12">
+            <div id="fileHousekeepingActions" class="d-none text-right">
+              <button title="Find and check files older than X days" id="fileHouseKeepingByAge" type="button" class="btn btn-warning text-dark mb-0 mr-1">
+                <i class="fa-solid fa-calendar-days"></i> Older Than X Days
               </button>
               <button title="Delete the files you've checked below" id="fileDeleteSelected" type="button" class="btn btn-danger mb-0 mr-1" disabled>
                 <i class="fa-solid fa-trash-can"></i> Delete Selected (0)
               </button>
-              <button title="Find and check files older than X days" id="fileHouseKeepingByAge" type="button" class="btn btn-warning text-dark mb-0 mr-1">
-                <i class="fa-solid fa-calendar-days"></i> Older Than X Days
+              <button title="Delete all file from OctoPrint" id="fileDeleteAll" type="button" class="btn btn-outline-danger mb-0">
+                <i class="fa-solid fa-trash-can"></i> Delete All
               </button>
             </div>
-            <button title="Toggle checkboxes to select and delete individual files" id="fileHouseKeeping" type="button" class="btn btn-warning text-dark mb-0 mr-1 float-right">
-              <i class="fa-solid fa-broom"></i> House Keeping
-            </button>
           </div>
         </div>
         `;
