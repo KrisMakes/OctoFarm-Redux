@@ -193,6 +193,18 @@ export default class FileManagerService {
     FileManagerService.updateBulkDeleteButton();
   }
 
+  static toggleSelectAllVisible(checked) {
+    const checkboxes = document.querySelectorAll(".file-select-checkbox");
+    checkboxes.forEach((checkbox) => {
+      if (checkbox.offsetParent === null) {
+        // Hidden by search or otherwise not currently shown, leave it alone.
+        return;
+      }
+      checkbox.checked = checked;
+      FileManagerService.handleSelectionChange(checkbox);
+    });
+  }
+
   static updateBulkDeleteButton() {
     const btn = document.getElementById("fileDeleteSelected");
     if (!btn) {
@@ -755,6 +767,10 @@ export default class FileManagerService {
     if (fileElem) {
       FileManagerService.selectedFiles.clear();
       FileManagerService.updateBulkDeleteButton();
+      const selectAllVisible = document.getElementById("fileSelectAllVisible");
+      if (selectAllVisible) {
+        selectAllVisible.checked = false;
+      }
       const resultFilter = FileManagerService.getResultFilter();
       // Filter out files out of current folder scope and by last print result
       const currentFileList = fileList.filter((f) => {
