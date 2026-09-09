@@ -194,7 +194,7 @@ class Manager {
             <button title="Re-Sync OctoPrints file list back to OctoFarm" id="fileReSync" type="button" class="btn btn-primary mb-0 bg-colour-4">
               <i class="fas fa-sync"></i> Re-Sync
             </button>
-            <button title="Toggle checkboxes to select and delete individual files" id="fileHouseKeeping" type="button" class="btn btn-warning text-dark mb-0 mr-1 float-right">
+            <button title="Toggle checkboxes to select and delete individual files" id="fileHouseKeeping" type="button" class="btn btn-warning text-dark mb-0 mr-1">
               <i class="fa-solid fa-broom"></i> House Keeping
             </button>
           </div>
