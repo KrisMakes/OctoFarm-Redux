@@ -173,11 +173,14 @@
                             <i class="fas fa-list pl-1"></i>
                         </div>
                         <div class="float-right mr-3 btn-group" id="fileResultFilterGroup" role="group" title="Filter by last print result">
-                            <button type="button" class="btn btn-sm btn-outline-success" id="filterSuccessBtn">
+                            <button type="button" class="btn btn-sm btn-outline-success" id="filterSuccessBtn" title="Successful only">
                                 <i class="fas fa-thumbs-up"></i>
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger" id="filterFailedBtn">
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="filterFailedBtn" title="Failed only">
                                 <i class="fas fa-thumbs-down"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="filterUnprintedBtn" title="Never printed only">
+                                <i class="fas fa-file-circle-question"></i>
                             </button>
                         </div>
                         <!-- Split dropright button -->

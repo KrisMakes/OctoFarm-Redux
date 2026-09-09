@@ -33,6 +33,7 @@ if (multiUploadBtn) {
 FileManagerService.setResultFilter(FileManagerService.getResultFilter());
 const filterSuccessBtn = document.getElementById('filterSuccessBtn');
 const filterFailedBtn = document.getElementById('filterFailedBtn');
+const filterUnprintedBtn = document.getElementById('filterUnprintedBtn');
 if (filterSuccessBtn) {
   filterSuccessBtn.addEventListener('click', async () => {
     FileManagerService.toggleResultFilter('success');
@@ -44,6 +45,14 @@ if (filterSuccessBtn) {
 if (filterFailedBtn) {
   filterFailedBtn.addEventListener('click', async () => {
     FileManagerService.toggleResultFilter('failed');
+    if (lastId) {
+      await FileManagerSortingService.loadSort(lastId);
+    }
+  });
+}
+if (filterUnprintedBtn) {
+  filterUnprintedBtn.addEventListener('click', async () => {
+    FileManagerService.toggleResultFilter('unprinted');
     if (lastId) {
       await FileManagerSortingService.loadSort(lastId);
     }

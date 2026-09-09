@@ -166,11 +166,15 @@ export default class FileManagerService {
     localStorage.setItem(RESULT_FILTER_KEY, mode);
     const successBtn = document.getElementById("filterSuccessBtn");
     const failedBtn = document.getElementById("filterFailedBtn");
+    const unprintedBtn = document.getElementById("filterUnprintedBtn");
     if (successBtn) {
       successBtn.classList.toggle("active", mode === "success");
     }
     if (failedBtn) {
       failedBtn.classList.toggle("active", mode === "failed");
+    }
+    if (unprintedBtn) {
+      unprintedBtn.classList.toggle("active", mode === "unprinted");
     }
   }
 
@@ -783,6 +787,9 @@ export default class FileManagerService {
         }
         if (resultFilter === "failed") {
           return f.last === false;
+        }
+        if (resultFilter === "unprinted") {
+          return f.last !== true && f.last !== false;
         }
         return true;
       });
