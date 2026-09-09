@@ -798,11 +798,16 @@ label {
 }
 
 .file-select-checkbox {
+  display: none;
   width: 18px;
   height: 18px;
   accent-color: #f39c12;
   cursor: pointer;
   vertical-align: middle;
+}
+
+.fileBody.housekeeping-mode .file-select-checkbox {
+  display: inline-block;
 }
 
 .file-row-selected {

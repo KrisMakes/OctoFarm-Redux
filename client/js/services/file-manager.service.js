@@ -130,6 +130,33 @@ const RESULT_FILTER_KEY = "fileResultFilter";
 
 export default class FileManagerService {
   static selectedFiles = new Set();
+  static housekeepingMode = false;
+
+  static toggleHousekeepingMode() {
+    FileManagerService.housekeepingMode = !FileManagerService.housekeepingMode;
+    const fileBody = document.getElementById("fileBody");
+    const actions = document.getElementById("fileHousekeepingActions");
+    const toggleBtn = document.getElementById("fileHouseKeeping");
+    if (fileBody) {
+      fileBody.classList.toggle("housekeeping-mode", FileManagerService.housekeepingMode);
+    }
+    if (actions) {
+      actions.classList.toggle("d-none", !FileManagerService.housekeepingMode);
+    }
+    if (toggleBtn) {
+      toggleBtn.classList.toggle("active", FileManagerService.housekeepingMode);
+    }
+    if (!FileManagerService.housekeepingMode) {
+      document.querySelectorAll(".file-select-checkbox:checked").forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+      document.querySelectorAll(".file-row-selected").forEach((row) => {
+        row.classList.remove("file-row-selected");
+      });
+      FileManagerService.selectedFiles.clear();
+      FileManagerService.updateBulkDeleteButton();
+    }
+  }
 
   static getResultFilter() {
     return localStorage.getItem(RESULT_FILTER_KEY) || "all";
@@ -513,7 +540,7 @@ export default class FileManagerService {
     });
   }
 
-  static async fileHouseKeeping(e, printer, days) {
+  static async fileHouseKeepingByAge(printer, days) {
     const houseCleanFiles = await OctoFarmClient.post(
       "printers/getHouseCleanList",
       {
@@ -521,79 +548,41 @@ export default class FileManagerService {
         days,
       }
     );
-    const prettyList = [];
 
-    let buttons;
-
-    if (houseCleanFiles.length === 0) {
-      prettyList.push(
-        "<div class=\"alert alert-danger\" role=\"alert\">No Files to Clean...</div>"
+    if (!houseCleanFiles || houseCleanFiles.length === 0) {
+      UI.createAlert(
+        "warning",
+        `No files older than ${days} day(s) were found...`,
+        3000,
+        "clicked"
       );
-      buttons = {
-        cancel: {
-          label: "OK",
-          className: "btn-secondary",
-        },
-        confirm: {
-          label: "OK",
-          className: "btn-secondary d-none",
-        },
-      };
-    } else {
-      for (const file of houseCleanFiles) {
-        prettyList.push(
-          `<div class="alert alert-danger" role="alert"><i class="fas fa-file-code fa-2x"></i> ${file}</div>`
-        );
-      }
-      buttons = {
-        confirm: {
-          label: "Yes",
-          className: "btn-success",
-        },
-        cancel: {
-          label: "No",
-          className: "btn-danger",
-        },
-      };
+      return;
     }
 
-    bootbox.confirm({
-      title: "Please confirm you want to delete the following files!",
-      message: prettyList,
-      buttons: buttons,
-      scrollable: true,
-      callback: async function (result) {
-        if (!!result) {
-          e.target.innerHTML =
-            "<i class='fas fa-sync fa-spin'></i> Cleaning...";
-          const deletedList = await OctoFarmClient.post(
-            "printers/houseCleanFiles",
-            {
-              id: printer._id,
-              pathList: houseCleanFiles,
-            }
-          );
-          const prettyDelete = [];
+    if (!FileManagerService.housekeepingMode) {
+      FileManagerService.toggleHousekeepingMode();
+    }
 
-          for (const file of deletedList) {
-            prettyDelete.push(`${file} <br>`);
-          }
+    await FileManagerSortingService.loadSort(printer._id, "recursive");
 
-          UI.createAlert(
-            "success",
-            "Deleted the following files: <br>" + prettyDelete,
-            5000,
-            "clicked"
-          );
-
-          setTimeout(async () => {
-            e.target.innerHTML =
-              "<i class=\"fa-solid fa-broom\"></i> House Keeping";
-            await FileManagerSortingService.loadSort(printer._id);
-          }, 500);
-        }
-      },
+    let matchedCount = 0;
+    houseCleanFiles.forEach((fullPath) => {
+      const checkbox = document.querySelector(
+        `.file-select-checkbox[data-path="${CSS.escape(fullPath)}"]`
+      );
+      if (checkbox) {
+        checkbox.checked = true;
+        FileManagerService.handleSelectionChange(checkbox);
+        matchedCount++;
+      }
     });
+
+    UI.createAlert(
+      "success",
+      `Checked ${matchedCount} file(s) older than ${days} day(s). Review below and click Delete Selected.`,
+      4000,
+      "clicked"
+    );
   }
 
   static async openFolder(folder, target, printer) {

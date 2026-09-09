@@ -194,13 +194,18 @@ class Manager {
             <button title="Re-Sync OctoPrints file list back to OctoFarm" id="fileReSync" type="button" class="btn btn-primary mb-0 bg-colour-4">
               <i class="fas fa-sync"></i> Re-Sync
             </button>
-            <button title="Delete all file from OctoPrint" id="fileDeleteAll" type="button" class="btn btn-outline-danger mb-0 float-right">
-              <i class="fa-solid fa-trash-can"></i> Delete All
-            </button>
-            <button title="Delete the files you've checked below" id="fileDeleteSelected" type="button" class="btn btn-danger mb-0 mr-1 float-right" disabled>
-              <i class="fa-solid fa-trash-can"></i> Delete Selected (0)
-            </button>
-            <button title="Run house keeping on file list" id="fileHouseKeeping" type="button" class="btn btn-warning text-dark mb-0 mr-1 float-right">
+            <div id="fileHousekeepingActions" class="d-none float-right">
+              <button title="Delete all file from OctoPrint" id="fileDeleteAll" type="button" class="btn btn-outline-danger mb-0 mr-1">
+                <i class="fa-solid fa-trash-can"></i> Delete All
+              </button>
+              <button title="Delete the files you've checked below" id="fileDeleteSelected" type="button" class="btn btn-danger mb-0 mr-1" disabled>
+                <i class="fa-solid fa-trash-can"></i> Delete Selected (0)
+              </button>
+              <button title="Find and check files older than X days" id="fileHouseKeepingByAge" type="button" class="btn btn-warning text-dark mb-0 mr-1">
+                <i class="fa-solid fa-calendar-days"></i> Older Than X Days
+              </button>
+            </div>
+            <button title="Toggle checkboxes to select and delete individual files" id="fileHouseKeeping" type="button" class="btn btn-warning text-dark mb-0 mr-1 float-right">
               <i class="fa-solid fa-broom"></i> House Keeping
             </button>
           </div>
@@ -228,6 +233,7 @@ class Manager {
         fileDeleteAll: document.getElementById('fileDeleteAll'),
         fileDeleteSelected: document.getElementById('fileDeleteSelected'),
         fileHouseKeeping: document.getElementById('fileHouseKeeping'),
+        fileHouseKeepingByAge: document.getElementById('fileHouseKeepingByAge'),
         back: document.getElementById('fileBackBtn'),
         createFolderBtn: document.getElementById('createFolderBtn'),
       },
@@ -271,15 +277,18 @@ class Manager {
       await FileActions.deleteSelected(printer);
     });
     FileManagerService.updateBulkDeleteButton();
-    fileButtons.fileManager.fileHouseKeeping.addEventListener('click', async (e) => {
+    fileButtons.fileManager.fileHouseKeeping.addEventListener('click', () => {
+      FileManagerService.toggleHousekeepingMode();
+    });
+    fileButtons.fileManager.fileHouseKeepingByAge.addEventListener('click', () => {
       bootbox.prompt({
-        title: "Clean all files older than 'X' days...",
+        title: "Select files older than 'X' days...",
         message:
-          '<div class="alert alert-warning text-dark" role="alert">This action is permanent, and does NOT affect your folder structure.</div>',
+          '<div class="alert alert-warning text-dark" role="alert">This will check the matching files below - nothing is deleted until you click Delete Selected.</div>',
         inputType: 'number',
         callback: async function (result) {
           if (!!result) {
-            await FileManagerService.fileHouseKeeping(e, printer, result);
+            await FileManagerService.fileHouseKeepingByAge(printer, result);
           }
         },
       });
