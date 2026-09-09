@@ -398,6 +398,21 @@ a.notyet {
   padding: 0.15rem 0.4rem;
   font-size: 0.7rem;
 }
+.fileBody.file-density-compact .list-group-item.folderAction .fa-2x {
+  font-size: 1.3em;
+}
+.fileBody.file-density-compact .list-group-item.folderAction h5 {
+  font-size: 0.85rem;
+  margin-bottom: 0.15rem;
+}
+.fileBody.file-density-compact .list-group-item.folderAction .col-lg-1 {
+  flex: 0 0 6%;
+  max-width: 6%;
+}
+.fileBody.file-density-compact .list-group-item.folderAction .col-lg-11 {
+  flex: 0 0 94%;
+  max-width: 94%;
+}
 
 .fileBody.file-density-ultra .list-group-item {
   padding: 0.2rem 0.5rem;
@@ -422,6 +437,21 @@ a.notyet {
 .fileBody.file-density-ultra .list-group-item .btn-group .btn {
   padding: 0.1rem 0.3rem;
   font-size: 0.65rem;
+}
+.fileBody.file-density-ultra .list-group-item.folderAction .fa-2x {
+  font-size: 1.1em;
+}
+.fileBody.file-density-ultra .list-group-item.folderAction h5 {
+  font-size: 0.8rem;
+  margin-bottom: 0;
+}
+.fileBody.file-density-ultra .list-group-item.folderAction .col-lg-1 {
+  flex: 0 0 5%;
+  max-width: 5%;
+}
+.fileBody.file-density-ultra .list-group-item.folderAction .col-lg-11 {
+  flex: 0 0 95%;
+  max-width: 95%;
 }
 
 .search-control:focus {
