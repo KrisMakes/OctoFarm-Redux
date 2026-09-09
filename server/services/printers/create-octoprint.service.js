@@ -54,6 +54,7 @@ class OctoPrintPrinter {
     message: '',
   };
   healthChecksPass = true;
+  healthCheckFailures = [];
   onboarding = undefined;
   activeControlUser = null;
   //Communications

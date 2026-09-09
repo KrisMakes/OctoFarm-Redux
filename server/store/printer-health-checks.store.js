@@ -62,31 +62,49 @@ const updatePrinterHealthChecks = async () => {
 
 const checkAndUpdatePrinterFlag = (id, checks) => {
   let healthChecksPass = true;
+  const healthCheckFailures = [];
 
   const { printerURL, webSocketURL, cameraURL, match } = checks.printerChecks;
 
-  if (!printerURL || !webSocketURL || !cameraURL || !match) healthChecksPass = false;
+  if (!printerURL || !webSocketURL || !cameraURL || !match) {
+    healthChecksPass = false;
+    healthCheckFailures.push("Printer Settings");
+  }
 
   const { userCheck, stateCheck, profileCheck, settingsCheck, systemCheck } =
     checks.apiChecksRequired;
 
-  if (!userCheck || !stateCheck || !profileCheck || !settingsCheck || !systemCheck)
+  if (!userCheck || !stateCheck || !profileCheck || !settingsCheck || !systemCheck) {
     healthChecksPass = false;
+    healthCheckFailures.push("Required API");
+  }
 
   const { totalPingPong } = checks.websocketChecks;
 
-  if (totalPingPong > 5) healthChecksPass = false;
+  if (totalPingPong > 5) {
+    healthChecksPass = false;
+    healthCheckFailures.push("Websocket Connection");
+  }
 
   const { baud, port, profile } = checks.connectionChecks;
 
-  if (!baud || !port || !profile) healthChecksPass = false;
+  if (!baud || !port || !profile) {
+    healthChecksPass = false;
+    healthCheckFailures.push("Printer Connection Defaults");
+  }
 
   const { camSetup, historySetup } = checks.webcamChecks;
 
-  if (!camSetup) healthChecksPass = false;
+  if (!camSetup) {
+    healthChecksPass = false;
+    healthCheckFailures.push("Webcam Settings");
+  }
 
   const { ffmpegPath, ffmpegVideoCodex, timelapseEnabled } = historySetup;
-  if (!ffmpegPath || !ffmpegVideoCodex || !timelapseEnabled) healthChecksPass = false;
+  if (!ffmpegPath || !ffmpegVideoCodex || !timelapseEnabled) {
+    healthChecksPass = false;
+    healthCheckFailures.push("History Collection Settings");
+  }
 
   const log_throttle = {};
   const log_timeout = {};
@@ -103,7 +121,8 @@ const checkAndUpdatePrinterFlag = (id, checks) => {
   });
 
   getPrinterStoreCache().updatePrinterLiveValue(id, {
-    healthChecksPass: healthChecksPass
+    healthChecksPass: healthChecksPass,
+    healthCheckFailures: healthCheckFailures
   });
 };
 

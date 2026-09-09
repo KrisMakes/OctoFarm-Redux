@@ -75,6 +75,7 @@ class PrinterStore {
         multiUserIssue: printer.multiUserIssue,
         restartRequired: printer.restartRequired,
         healthChecksPass: printer.healthChecksPass,
+        healthCheckFailures: printer.healthCheckFailures,
         octoPi: printer.octoPi,
         corsCheck: printer.corsCheck,
         octoResourceMonitor: printer.octoResourceMonitor,

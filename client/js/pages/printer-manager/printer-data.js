@@ -133,18 +133,28 @@ function updatePrinterInfo(printer) {
 function checkIfPrinterHealthOK(printer) {
   const healthAlert = document.getElementById(`healthIssues-${printer._id}`);
   if (printer?.healthChecksPass === false) {
+    const failures = printer?.healthCheckFailures;
+    const failureSummary =
+      !!failures && failures.length > 0
+        ? failures.join(", ")
+        : "Unknown check";
+    healthAlert.setAttribute(
+      "title",
+      `Failed health check: ${failureSummary}`
+    );
     UI.removeDisplayNoneFromElement(healthAlert);
     updateLogLine(
       "healthCheck-" + printer._id,
       alertsLogMesssageBox,
       createAlertsLogString({
         id: "healthCheck-" + printer._id,
-        name: "Failed health check!",
+        name: `Failed health check: ${failureSummary}`,
         printerName: printer.printerName,
         colour: "Active",
       })
     );
   } else {
+    healthAlert.setAttribute("title", "No current printer health issues!");
     UI.addDisplayNoneToElement(healthAlert);
     removeLogLine({ id: "healthCheck-" + printer._id });
   }
