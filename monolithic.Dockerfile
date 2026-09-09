@@ -1,5 +1,10 @@
 FROM node:14.16-stretch
 
+# Debian Stretch is EOL; its mirrors were pulled from deb.debian.org/security.debian.org.
+# Point apt at the permanent archive and stop checking Release file expiry.
+RUN echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/10no--check-valid-until \
+    && printf 'deb http://archive.debian.org/debian stretch main\ndeb http://archive.debian.org/debian-security stretch/updates main\n' > /etc/apt/sources.list
+
 # Update Local Repository Index
 RUN apt-get update
 # Upgrade packages in the base image and apply security updates
