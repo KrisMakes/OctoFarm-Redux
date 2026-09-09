@@ -29,7 +29,8 @@ WORKDIR /app/server
 ENV NODE_ENV=production
 ENV MONGO=mongodb://127.0.0.1:27017/octofarm
 
-RUN npm install -g npm@latest
+# Pinned: npm's current major requires Node 22+, but this image is on Node 14.
+RUN npm install -g npm@8
 RUN npm install -g pm2
 
 RUN npm ci --omit=dev
