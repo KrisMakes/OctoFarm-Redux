@@ -585,19 +585,22 @@ export default class FileManagerService {
     });
   }
 
-  static async fileHouseKeepingByAge(printer, days) {
+  static async fileHouseKeepingByAge(printer, days, excludedFolders = []) {
     const houseCleanFiles = await OctoFarmClient.post(
       "printers/getHouseCleanList",
       {
         id: printer._id,
         days,
+        excludedFolders,
       }
     );
 
     if (!houseCleanFiles || houseCleanFiles.length === 0) {
       UI.createAlert(
         "warning",
-        `No files older than ${days} day(s) were found...`,
+        `No files older than ${days} day(s) were found${
+          excludedFolders.length > 0 ? " outside the excluded folders" : ""
+        }...`,
         3000,
         "clicked"
       );

@@ -128,12 +128,13 @@ router.post(
   validateBodyMiddleware(P_VALID.HOUSE_KEEPING),
   async (req, res) => {
     // Check required fields
-    const { id, days } = req.body;
+    const { id, days, excludedFolders } = req.body;
     logger.info("File house clean requested!", {
       printerID: id,
-      days
+      days,
+      excludedFolders
     });
-    const fileList = getPrinterStoreCache().getHouseCleanFileList(id, days);
+    const fileList = getPrinterStoreCache().getHouseCleanFileList(id, days, excludedFolders);
 
     res.send(fileList);
   }

@@ -309,15 +309,55 @@ class Manager {
       FileManagerService.toggleHousekeepingMode();
     });
     fileButtons.fileManager.fileHouseKeepingByAge.addEventListener('click', () => {
-      bootbox.prompt({
+      const escapeHtml = (str) =>
+        str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const folderList = printer.fileList.folderList;
+      const excludeFoldersHtml = folderList.length > 0
+        ? `
+          <div class="form-group text-left">
+            <label>Exclude folders (everything inside stays untouched)</label>
+            <div id="houseKeepingExcludeFolders">
+              ${folderList
+                .map(
+                  (folder, index) => `
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="hkExcludeFolder${index}" data-folder-path="${escapeHtml(folder.name)}">
+                  <label class="custom-control-label" for="hkExcludeFolder${index}">${escapeHtml(folder.name)}</label>
+                </div>`
+                )
+                .join('')}
+            </div>
+          </div>`
+        : '';
+      bootbox.dialog({
         title: "Select files older than 'X' days...",
-        message:
-          '<div class="alert alert-warning text-dark" role="alert">This will check the matching files below - nothing is deleted until you click Delete Selected.</div>',
-        inputType: 'number',
-        callback: async function (result) {
-          if (!!result) {
-            await FileManagerService.fileHouseKeepingByAge(printer, result);
-          }
+        message: `
+          <div class="alert alert-warning text-dark" role="alert">This will check the matching files below - nothing is deleted until you click Delete Selected.</div>
+          <div class="form-group text-left">
+            <label for="houseKeepingDays">Days</label>
+            <input type="number" min="1" class="form-control" id="houseKeepingDays" value="30">
+          </div>
+          ${excludeFoldersHtml}
+        `,
+        buttons: {
+          confirm: {
+            label: 'Find Files',
+            className: 'btn-warning text-dark',
+            callback: async function () {
+              const days = document.getElementById('houseKeepingDays').value;
+              if (!days) {
+                return false;
+              }
+              const excludedFolders = Array.from(
+                document.querySelectorAll('#houseKeepingExcludeFolders input:checked')
+              ).map((checkbox) => checkbox.dataset.folderPath);
+              await FileManagerService.fileHouseKeepingByAge(printer, days, excludedFolders);
+            },
+          },
+          cancel: {
+            label: 'Cancel',
+            className: 'btn-secondary',
+          },
         },
       });
     });

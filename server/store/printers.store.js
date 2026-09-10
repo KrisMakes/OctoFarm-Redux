@@ -1164,9 +1164,9 @@ class PrinterStore {
     return FileClean.generateSingle(newFile, printer.selectedFilament, printer.costSettings);
   }
 
-  getHouseCleanFileList(id, days) {
+  getHouseCleanFileList(id, days, excludedFolders = []) {
     const printer = this.#findMePrinter(id);
-    return FileClean.listFilesOlderThanX(printer.fileList.fileList, days);
+    return FileClean.listFilesOlderThanX(printer.fileList.fileList, days, excludedFolders);
   }
 
   async houseCleanFiles(id, pathList) {

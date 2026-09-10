@@ -267,11 +267,18 @@ class FileCleanerService {
     return strings;
   }
 
-  static listFilesOlderThanX(fileList, days) {
+  static listFilesOlderThanX(fileList, days, excludedFolders = []) {
     const today = new Date();
     today.setDate(today.getDate() - days);
+    const isExcluded = (filePath) =>
+      excludedFolders.some(
+        (folder) => filePath === folder || filePath.startsWith(`${folder}/`)
+      );
     const deleteList = [];
     for (const file of fileList) {
+      if (isExcluded(file.path)) {
+        continue;
+      }
       if (new Date(file.date * 1000) < today) {
         deleteList.push(file.fullPath);
       }

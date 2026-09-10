@@ -36,7 +36,9 @@ module.exports = {
   },
   HOUSE_KEEPING: {
     id: ["required", "string", "mongoose_object_id"],
-    days: ["required"]
+    days: ["required"],
+    excludedFolders: ["array"],
+    "excludedFolders.*": ["string"]
   },
   BULK_FILE_DELETE: {
     id: ["required", "string", "mongoose_object_id"],
