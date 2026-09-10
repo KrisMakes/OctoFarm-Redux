@@ -67,6 +67,13 @@ if (hideFoldersBtn) {
   });
 }
 
+const fileSelectAllVisible = document.getElementById('fileSelectAllVisible');
+if (fileSelectAllVisible) {
+  fileSelectAllVisible.addEventListener('change', (e) => {
+    FileManagerService.toggleSelectAllVisible(e.target.checked);
+  });
+}
+
 class Manager {
   static async drawPrinterList() {
     let printers = await OctoFarmClient.listPrinters();
@@ -218,12 +225,7 @@ class Manager {
         </div>
         <div class="row">
           <div class="col-12">
-            <div id="fileHousekeepingActions" class="d-none housekeeping-actions-row">
-              <label class="mb-0" title="Select or deselect every file currently shown (respects search and result filter)">
-                <input type="checkbox" id="fileSelectAllVisible" class="mr-1">
-                Select All Visible
-              </label>
-              <div>
+            <div id="fileHousekeepingActions" class="d-none text-right">
               <button title="Find and check files older than X days" id="fileHouseKeepingByAge" type="button" class="btn btn-warning text-dark mb-0 mr-1">
                 <i class="fa-solid fa-calendar-days"></i> Older Than X Days
               </button>
@@ -233,7 +235,6 @@ class Manager {
               <button title="Delete all file from OctoPrint" id="fileDeleteAll" type="button" class="btn btn-outline-danger mb-0">
                 <i class="fa-solid fa-trash-can"></i> Delete All
               </button>
-              </div>
             </div>
           </div>
         </div>
@@ -261,7 +262,6 @@ class Manager {
         fileDeleteSelected: document.getElementById('fileDeleteSelected'),
         fileHouseKeeping: document.getElementById('fileHouseKeeping'),
         fileHouseKeepingByAge: document.getElementById('fileHouseKeepingByAge'),
-        fileSelectAllVisible: document.getElementById('fileSelectAllVisible'),
         back: document.getElementById('fileBackBtn'),
         createFolderBtn: document.getElementById('createFolderBtn'),
       },
@@ -307,9 +307,6 @@ class Manager {
     FileManagerService.updateBulkDeleteButton();
     fileButtons.fileManager.fileHouseKeeping.addEventListener('click', () => {
       FileManagerService.toggleHousekeepingMode();
-    });
-    fileButtons.fileManager.fileSelectAllVisible.addEventListener('change', (e) => {
-      FileManagerService.toggleSelectAllVisible(e.target.checked);
     });
     fileButtons.fileManager.fileHouseKeepingByAge.addEventListener('click', () => {
       bootbox.prompt({

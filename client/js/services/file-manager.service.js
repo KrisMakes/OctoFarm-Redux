@@ -138,6 +138,7 @@ export default class FileManagerService {
     const fileBody = document.getElementById("fileBody");
     const actions = document.getElementById("fileHousekeepingActions");
     const toggleBtn = document.getElementById("fileHouseKeeping");
+    const selectAllWrapper = document.getElementById("fileSelectAllVisibleWrapper");
     if (fileBody) {
       fileBody.classList.toggle("housekeeping-mode", FileManagerService.housekeepingMode);
     }
@@ -146,6 +147,9 @@ export default class FileManagerService {
     }
     if (toggleBtn) {
       toggleBtn.classList.toggle("active", FileManagerService.housekeepingMode);
+    }
+    if (selectAllWrapper) {
+      selectAllWrapper.classList.toggle("d-none", !FileManagerService.housekeepingMode);
     }
     if (!FileManagerService.housekeepingMode) {
       document.querySelectorAll(".file-select-checkbox:checked").forEach((checkbox) => {
@@ -156,6 +160,10 @@ export default class FileManagerService {
       });
       FileManagerService.selectedFiles.clear();
       FileManagerService.updateBulkDeleteButton();
+      const selectAllCheckbox = document.getElementById("fileSelectAllVisible");
+      if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+      }
     }
   }
 
