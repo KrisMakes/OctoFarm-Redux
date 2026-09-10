@@ -86,9 +86,9 @@ export const getFileTemplate = (file, printerURL, id) => {
                 <div
                             id="fileThumbnail-${file.fullPath}"
           class="col-lg-2"
-            style="display:flex; justify-content:center; align-items:center;"
+            style="display:flex; justify-content:center; align-items:center; position:relative;"
                 >
-                <input type="checkbox" class="file-select-checkbox mr-2" data-path="${file.fullPath}">
+                <input type="checkbox" class="file-select-checkbox file-select-checkbox-pinned" data-path="${file.fullPath}">
                 ${thumbnail}
                 </div>
                 <div class="col-lg-10">

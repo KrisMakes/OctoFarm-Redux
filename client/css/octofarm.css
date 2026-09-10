@@ -825,6 +825,16 @@ label {
   display: inline-block;
 }
 
+.file-select-checkbox-pinned {
+  /* Pinned to a fixed corner instead of flex-centered with the thumbnail,
+     so it lines up with the header's Select All checkbox regardless of
+     viewport width or density level. */
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+}
+
 #fileSelectAllVisible {
   width: 18px;
   height: 18px;
