@@ -845,7 +845,8 @@ label {
 }
 
 .fileBody.hide-folders .folderAction {
-  display: none;
+  /* Folder rows carry an inline display:block from the template. */
+  display: none !important;
 }
 
 .file-thumbnail-hover-preview {
