@@ -167,7 +167,13 @@
                     </h5>
                     <div id="backBtn" class="float-right" disabled></div>
                 </div>
-                <div class="col-12 mt-2 d-flex align-items-center justify-content-between flex-wrap">
+                <div class="col-12 mt-2 file-toolbar-row">
+                    <div class="d-flex align-items-center">
+                        <label id="fileSelectAllVisibleWrapper" class="d-none mb-0" title="Select or deselect every file currently shown (respects search and result filter)">
+                            <input type="checkbox" id="fileSelectAllVisible" class="mr-1">
+                            Select All Visible
+                        </label>
+                    </div>
                     <div class="btn btn-secondary form-group mb-0">
                         <form class="form-inline">
                             <div class="form-group">
@@ -180,10 +186,6 @@
                         </form>
                     </div>
                     <div class="d-flex align-items-center flex-wrap">
-                        <label id="fileSelectAllVisibleWrapper" class="d-none mb-0 mr-3" title="Select or deselect every file currently shown (respects search and result filter)">
-                            <input type="checkbox" id="fileSelectAllVisible" class="mr-1">
-                            Select All Visible
-                        </label>
                         <button type="button" class="btn btn-sm btn-outline-light mr-3" id="hideFoldersBtn" title="Hide folders from this list">
                             <i class="fas fa-folder"></i> <i class="fas fa-eye-slash"></i>
                         </button>
