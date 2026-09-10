@@ -80,15 +80,16 @@ export const getFileTemplate = (file, printerURL, id) => {
       href="#"
           class="list-group-item list-group-item-action flex-column align-items-start ${bgColour}"
             style="display: block;
-            padding: 0.7rem 0.1rem;"
+            padding: 0.7rem 0.1rem;
+            position: relative;"
             >
+            <input type="checkbox" class="file-select-checkbox file-select-checkbox-pinned" data-path="${file.fullPath}">
             <div class="row">
                 <div
                             id="fileThumbnail-${file.fullPath}"
           class="col-lg-2"
-            style="display:flex; justify-content:center; align-items:center; position:relative;"
+            style="display:flex; justify-content:center; align-items:center;"
                 >
-                <input type="checkbox" class="file-select-checkbox file-select-checkbox-pinned" data-path="${file.fullPath}">
                 ${thumbnail}
                 </div>
                 <div class="col-lg-10">
