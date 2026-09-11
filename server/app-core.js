@@ -66,11 +66,12 @@ function setupExpressServer() {
 
   app.use('/images', express.static('../images'));
 
+  // Dev serves freshly built js/css from the client watch output; anything not
+  // found there (vendor, images, config) falls through to the shipped tree.
   if (process.env.NODE_ENV === 'development') {
     app.use('/assets', express.static('../client/assets'));
-  }else{
-    app.use('/assets', express.static('./assets'));
   }
+  app.use('/assets', express.static('./assets'));
   app.use(cookieParser());
   app.use(express.urlencoded({ extended: false, limit: '2mb' }));
   app.use(

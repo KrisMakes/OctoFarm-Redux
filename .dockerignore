@@ -11,3 +11,10 @@
 /.build
 /.cache
 Makefile
+
+# The image runs only server/; the client tree is build-time only and its
+# node_modules alone is ~100MB.
+**/node_modules
+/client
+/screenshots
+*.map
