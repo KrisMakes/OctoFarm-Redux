@@ -106,7 +106,7 @@ const captureJobData = (id, data) => {
   }
 };
 
-const capturePrinterState = (id, data) => {
+const capturePrinterState = (id, data, job, progress) => {
   if (!!data) {
     const { text } = data;
     let returnState = "";
@@ -122,8 +122,8 @@ const capturePrinterState = (id, data) => {
       returnState = text;
       returnStateDescription = "Current status from OctoPrint";
 
-      const progress = getPrinterStoreCache().getPrinterProgress(id);
-      if (progress?.completion === 100) {
+      // OctoPrint keeps the last completion after the file is unselected, so require a loaded file.
+      if (progress?.completion === 100 && !!job?.file?.name) {
         returnState = "Complete";
         returnStateDescription = "Your current print is Completed!";
       }

@@ -148,7 +148,12 @@ class OctoprintWebsocketMessageService {
     setWebsocketAlive(printerID);
     const { current } = data;
 
-    capturePrinterState(printerID, current[OP_WS_MSG_KEYS.state]);
+    capturePrinterState(
+      printerID,
+      current[OP_WS_MSG_KEYS.state],
+      current[OP_WS_MSG_KEYS.job],
+      current[OP_WS_MSG_KEYS.progress]
+    );
 
     captureTemperatureData(printerID, current[OP_WS_MSG_KEYS.temps]);
 
