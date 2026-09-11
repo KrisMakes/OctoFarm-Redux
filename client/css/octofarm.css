@@ -560,11 +560,18 @@ a.notyet {
 }
 /* Reserve room for the ETA date ("Fri Sep 11 2026: 08:28"), which is long enough to
    wrap onto a second line while an active print's shorter counterparts don't - without
-   this, an idle "No Active Print" panel ends up shorter than an active one. */
+   this, an idle "No Active Print" panel ends up shorter than an active one. Safari in
+   particular doesn't reliably re-stretch these flex columns to match each other once
+   their content is injected via innerHTML after the initial layout, so the row itself
+   also gets a min-height as a belt-and-suspenders fix that doesn't depend on that
+   stretch behaviour at all. */
 [id^="printTimeElapsed-"],
 [id^="remainingTime-"] {
   display: inline-block;
-  min-height: 56px;
+  min-height: 64px;
+}
+.printTimeRow {
+  min-height: 96px;
 }
 .camExtra {
   pointer-events: none;
