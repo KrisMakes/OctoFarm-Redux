@@ -11,6 +11,7 @@ import {
 import { ClientErrors } from '../js/exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../js/exceptions/application-error.handler';
 import { updateCameraImage } from '../js/services/proxy-camera.service';
+import { startCameraStreamWatchdog } from '../js/services/camera-stream-watchdog.service';
 
 // Keeping hold of this, may return a use for later...
 // function checkUpdateAndNotify(updateResponse) {
@@ -150,3 +151,4 @@ function setupEventSource() {
 }
 
 setupEventSource();
+startCameraStreamWatchdog();
