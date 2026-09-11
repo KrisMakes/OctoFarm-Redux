@@ -813,7 +813,7 @@ export function drawCombinedView(printer, clientSettings) {
                         <div class="col-sm-12 col-md-6 col-lg-6 text-center">
                            <div class="row">
                             <div class="col-12">
-                              <small id="displayLayerProgressData-${printer._id}"></small>
+                              <small class="layerProgressData" id="displayLayerProgressData-${printer._id}"></small>
                              </div>
                             <div class="col-6">
                                 <span id="printTimeElapsed-${printer._id}">Loading...</span>
