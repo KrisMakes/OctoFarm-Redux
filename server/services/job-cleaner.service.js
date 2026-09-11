@@ -121,7 +121,8 @@ class JobCleanerService {
       };
     }
 
-    if (!!printerProgress) {
+    // OctoPrint keeps the last completion after the file is unselected (e.g. on disconnect).
+    if (!!printerProgress && !!printerJob?.file?.name) {
       currentJob.progress = Math.floor(printerProgress.completion);
       currentJob.printTimeRemaining = printerProgress.printTimeLeft;
       currentJob.printTimeElapsed = printerProgress.printTime;
