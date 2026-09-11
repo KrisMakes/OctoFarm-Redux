@@ -29,11 +29,11 @@ function calcSpoolWeightAsString(length, filament, completionRatio) {
   return (completionRatio * volume * density).toFixed(2);
 }
 
-function getCostAsString(grams, spool, completionRatio) {
+function getCostAsString(grams, spool) {
   if (!spool) {
     return '0.00';
   }
-  return completionRatio * ((spool.spools.price / spool.spools.weight) * grams).toFixed(2);
+  return ((spool.spools.price / spool.spools.weight) * grams).toFixed(2);
 }
 
 function getSpoolLabel(id) {
@@ -86,7 +86,7 @@ function getSpool(filamentSelection, job, success, time) {
         volume: (completionRatio * metric.volume).toFixed(2),
         length: ((completionRatio * metric.length) / 1000).toFixed(2),
         weight: spoolWeight,
-        cost: getCostAsString(spoolWeight, filamentEntry, completionRatio),
+        cost: getCostAsString(spoolWeight, filamentEntry),
         type: filamentEntry?.spools?.profile?.material || '',
       },
     });

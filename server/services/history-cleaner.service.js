@@ -75,11 +75,11 @@ class HistoryCleanerService {
     return `${spool.name} ${spoolLeftoverConditional} - ${spool.profile?.material}`;
   }
 
-  static getCostAsString(grams, spool, completionRatio) {
+  static getCostAsString(grams, spool) {
     if (!spool) {
       return '0.00';
     }
-    return completionRatio * ((spool.spools.price / spool.spools.weight) * grams).toFixed(2);
+    return ((spool.spools.price / spool.spools.weight) * grams).toFixed(2);
   }
 
   static getJobAnalysis(job, printTime) {
@@ -174,11 +174,7 @@ class HistoryCleanerService {
             volume: (completionRatio * metric.volume).toFixed(2),
             length: ((completionRatio * metric.length) / 1000).toFixed(2),
             weight: spoolWeight,
-            cost: HistoryCleanerService.getCostAsString(
-              spoolWeight,
-              filamentEntry,
-              completionRatio
-            ),
+            cost: HistoryCleanerService.getCostAsString(spoolWeight, filamentEntry),
             type: filamentEntry?.spools?.profile?.material,
             manufacturer: filamentEntry?.spools?.profile?.manufacturer,
           },
