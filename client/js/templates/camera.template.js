@@ -17,7 +17,6 @@ export const drawCamera = (id, { url, flipV, flipH, rotate90, hidden, aspectRati
   }
 
   return `<img
-        loading="lazy"
         class="camImg ${hidden ? hideMe : ""}${changeAspect}"
         id="camera${modal}-${id}"
         width="100%"
