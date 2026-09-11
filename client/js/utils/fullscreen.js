@@ -27,18 +27,18 @@ export const activateFullScreenView = (printer) => {
     for (let e = 0; e < printer.currentProfile.extruder.count; e++) {
       toolList += `
         <b>Tool ${e}: </b><span id="fullScreen-${printer._id}-temperature-${e}">
-                    <i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</span><br>
+                    <i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span><br>
       `
     }
 
     if (printer.currentProfile.heatedBed) {
       environment += `
-          <b>Bed: </b><span id="fullScreen-badTemp-${printer._id}"><i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</span><br>
+          <b>Bed: </b><span id="fullScreen-badTemp-${printer._id}"><i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span><br>
         `;
     }
     if (printer.currentProfile.heatedChamber) {
       environment += `
-         <b>Chamber: </b><span id="fullScreen-chamberTemp-${printer._id}"><i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</span>
+         <b>Chamber: </b><span id="fullScreen-chamberTemp-${printer._id}"><i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span>
         `;
     }
   }

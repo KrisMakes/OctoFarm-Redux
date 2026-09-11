@@ -207,13 +207,13 @@ export function drawPanelView(printer, clientSettings) {
     if (printer.currentProfile.heatedBed) {
       environment += `<small
     class="mb-0 float-left"
-          ><b>Bed: </b><span id="badTemp-${printer._id}"><i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</span>
+          ><b>Bed: </b><span id="badTemp-${printer._id}"><i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span>
           </small>`;
     }
     if (printer.currentProfile.heatedChamber) {
       environment += `<small
     class="mb-0 float-right"
-        ><b>Chamber: </b><span  id="chamberTemp-${printer._id}"><i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</span>
+        ><b>Chamber: </b><span  id="chamberTemp-${printer._id}"><i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span>
           </small>`;
     }
   }
@@ -418,12 +418,12 @@ export function drawCameraView(printer, clientSettings) {
 
     if (printer.currentProfile.heatedBed) {
       environment += `
-          <span class="float-left"><b>Bed: </b><span id="badTemp-${printer._id}"><i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</span></span>
+          <span class="float-left"><b>Bed: </b><span id="badTemp-${printer._id}"><i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span></span>
 `;
     }
     if (printer.currentProfile.heatedChamber) {
       environment += `
-         <span class="float-right"><b>Chamber: </b><span id="chamberTemp-${printer._id}"><i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</span></span>
+         <span class="float-right"><b>Chamber: </b><span id="chamberTemp-${printer._id}"><i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span></span>
  `;
     }
   }
@@ -623,13 +623,13 @@ export function drawCombinedView(printer, clientSettings) {
     if (printer.currentProfile.heatedBed) {
       environment +=
         '<div class="btn-group btn-block mb-1" role="group" aria-label="Basic example">';
-      environment += `<button type="button" class="btn btn-secondary btn-sm" disabled><b>Bed: </b></button><button type="button" class="btn btn-secondary btn-sm" disabled><span id="badTemp-${printer._id}"><i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</span></button>`;
+      environment += `<button type="button" class="btn btn-secondary btn-sm" disabled><b>Bed: </b></button><button type="button" class="btn btn-secondary btn-sm" disabled><span id="badTemp-${printer._id}"><i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span></button>`;
       environment += '</div>';
     }
     if (printer.currentProfile.heatedChamber) {
       environment +=
         '<div class="btn-group btn-block mb-1" role="group" aria-label="Basic example">';
-      environment += `<button type="button" class="btn btn-secondary btn-sm" disabled><b>Chamber: </b></button><button type="button" class="btn btn-secondary btn-sm" disabled><span  id="chamberTemp-${printer._id}"><i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</span></button>`;
+      environment += `<button type="button" class="btn btn-secondary btn-sm" disabled><b>Chamber: </b></button><button type="button" class="btn btn-secondary btn-sm" disabled><span  id="chamberTemp-${printer._id}"><i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span></button>`;
       environment += '</div>';
     }
   }

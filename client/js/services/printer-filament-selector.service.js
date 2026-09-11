@@ -63,7 +63,7 @@ export const returnMiniFilamentSelectorTemplate = (printerID, toolNumber) => {
             <select class="custom-select bg-secondary text-light" id="tool-${printerID}-${toolNumber}-miniFilamentSelect"></select>
             <div class="input-group-append">
                 <label id="${printerID}-temperature-${toolNumber}" class="input-group-text" for="tool-${printerID}-${toolNumber}-miniFilamentSelect">
-                    <i class="far fa-circle "></i> 0°C <i class="fas fa-bullseye"></i> 0°C</label>
+                    <i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</label>
             </div>
         </div>
     `;
