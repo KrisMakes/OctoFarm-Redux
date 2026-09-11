@@ -1,5 +1,9 @@
 const hideMe = "d-none";
 
+// Safari only: lets the watchdog read pixel data from the stream via canvas to detect a
+// genuinely stalled connection, instead of reconnecting every camera on a blind timer.
+const isSafari = () => /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
+
 export const drawCamera = (id, { url, flipV, flipH, rotate90, hidden, aspectRatio, modal = "" }) => {
   let changeAspect = "";
   switch(aspectRatio) {
@@ -22,5 +26,6 @@ export const drawCamera = (id, { url, flipV, flipH, rotate90, hidden, aspectRati
         width="100%"
         style="transform: ${flipH} ${flipV} ${rotate90}"
         src="${url}"
+        ${isSafari() ? 'crossorigin="anonymous"' : ""}
      alt=""/>`;
 };
