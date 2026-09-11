@@ -1,96 +1,73 @@
-[comment]: <> ([![Latest Release]&#40;https://img.shields.io/github/release/octofarm/octofarm?style=appveyor&#41;]&#40;https://img.shields.io/github/v/tag/octofarm/octofarm?sort=date&#41;)
-![Docker Pulls](https://img.shields.io/docker/pulls/octofarm/octofarm?style=appveyor)
-[![GitHub stars](https://img.shields.io/github/stars/octofarm/octofarm?style=appveyor)](https://github.com/NotExpectedYet/OctoFarm/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/octofarm/octofarm?style=appveyor)](https://github.com/NotExpectedYet/OctoFarm/network)
-[![GitHub license](https://img.shields.io/github/license/octofarm/octofarm?style=appveyor)](https://github.com/NotExpectedYet/octofarm/blob/master/LICENSE.txt)
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/octofarm/octofarm/ci?style=appveyor)
-![GitHub issues](https://img.shields.io/github/issues/octofarm/octofarm?color=green&style=appveyor)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=appveyor)](https://GitHub.com/octofarm/octofarm/graphs/commit-activity)
-[![Download Dockerhub](https://img.shields.io/badge/DOCKERHUB-OCTOFARM-<COLOR>.svg?style=appveyor)](https://hub.docker.com/r/octofarm/octofarm)
+![Status](https://img.shields.io/badge/status-private%20fork-orange)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
+![Based on](https://img.shields.io/badge/based%20on-OctoFarm-9b59b6)
 
-# OctoFarm [![Latest Release](https://img.shields.io/github/release/octofarm/octofarm)](https://img.shields.io/github/v/tag/octofarm/octofarm?sort=date)
+# OctoFarm-Redux
 
 <div align="center">
-  <a href="https://github.com/NotExpectedYet/OctoFarm">
-    <img src="https://github.com/OctoFarm/OctoFarm/blob/master/server/assets/images/logo.png?raw=true" alt="Logo" width="400px">
-  </a>
+  <img src="server/assets/images/navbar-logo.png" alt="OctoFarm-Redux logo" width="180px">
 
   <p align="center">
-    OctoFarm is a single pane of glass that combines multiple OctoPrint instances into a single interface. It utilises the OctoPrint API and websocket systems to monitor and allow management of your 3d printer farm. <br/>
+    OctoFarm-Redux is a personal, private fork of <a href="https://github.com/OctoFarm/OctoFarm">OctoFarm</a> - a single pane of glass that combines multiple OctoPrint instances into one interface, monitoring and managing a 3D printer farm over the OctoPrint API and websocket systems.
   </p>
 
   <p align="center">
-    A free and open source makers farm management software
-    <br />
-    <a href="https://docs.octofarm.net"><strong>Explore the documentation</strong></a>
-    <br />
-    <br />
-    ·
-    <a href="https://github.com/octofarm/octofarm/issues">Report a bug</a>
-    ·
-    <a href="https://github.com/OctoFarm/OctoFarm/discussions/new">Request a feature or ask a question</a>
+    Upstream OctoFarm has gone unmaintained, so this fork exists to keep bugfixes and small improvements landing on top of it. It is not a public project or a community fork - just an actively maintained, improved version kept up to date for personal use.
   </p>
 </div>
 
-- [About OctoFarm](#about-octofarm)
-- [Need help?](#need-help)
+- [About](#about)
+- [What's different from upstream](#whats-different-from-upstream)
 - [Getting Started](#getting-started)
-- [Installation Production](#installation-production)
 - [Installation Development](#installation-development)
+- [Deployment](#deployment)
 - [License](#license)
-- [Contact](#contact)
 - [Acknowledgements](#acknowledgements)
 
-## About OctoFarm
+## About
 
 ![OctoFarm Dashboard][DashboardScreenshot]
 
-OctoFarm was built to fill a need that anyone with multiple 3D printers with Octoprint will have run into. How do I
-manage multiple printers from one place? That's where OctoFarm steps in, add your OctoPrint instances to the system and
-it will scan and keep you up to date on the status of your printers.
+OctoFarm was built to solve a problem anyone running multiple 3D printers on OctoPrint runs into: how do you manage
+several printers from one place? Add your OctoPrint instances and it scans and keeps you up to date on the status of
+your whole farm.
 
-Built by a maker, for makers to get more out of their OctoPrint run farms.
-
-- Manager your OctoPrint instances right down to triggering Updates and Plugin installs.
-- Keep a track of all the live data on your farm with a selection of views.
-- Manage your OctoPrint file system.
+- Manage your OctoPrint instances, right down to triggering updates and plugin installs.
+- Keep track of all the live data on your farm with a selection of views.
+- Manage your OctoPrint file system, including age-based house-keeping with per-folder exclusions.
 - Get an overview of your farm with the customisable dashboard.
-- Manage and track filament on your farm.
+- Manage and track filament/spool usage and cost on your farm.
 - Track history and logs for all of your instances.
-- Supports a wide variety of OctoPrint plugins to augment the OctoFarm system with more information.
+- Supports a wide variety of OctoPrint plugins to augment the system with more information.
 
-## Need help?
+## What's different from upstream
 
-Feel free to join any of the OctoFarm communities or follow OctoFarms progress on it's blog.
+This fork carries fixes and small improvements that either never landed upstream or don't apply to a personal,
+single-maintainer setup:
 
-- [OctoFarms Website](https://octofarm.net/) - Having issues...
-- [OctoFarms Documentation](https://docs.octofarm.net/)
-- [OctoFarm Blog](https://octofarm.net/blog/) - Having issues...
-- [Community Support on Facebook](https://www.facebook.com/groups/octofarm/)
-- [Community Support on Discord](https://discord.gg/vjabMUn/)
-- [General Question or Feature Request?](https://github.com/OctoFarm/OctoFarm/discussionss/)
-- [Fancy donating to the project?](https://octofarm.net/sponsorship/)
+- The Patreon/supporter feature has been fully removed.
+- Spool cost was being silently under-reported on cancelled/failed prints (double-applied completion-ratio bug) -
+  fixed.
+- File manager house-keeping ("delete files older than X days") can now exclude specific folders from the sweep.
+- Various icon/favicon fixes for correct rendering in Safari.
 
 ## Getting Started
 
-Before installing, it is best to read the getting started documents here:
+Before installing, it's worth reading through upstream OctoFarm's own documentation for general usage - this fork
+doesn't change how the application works day-to-day, only fixes and small additions on top:
 [Getting Started](https://docs.octofarm.net/getting-started/)
 
-## Installation Production
-Check out the OctoFarm documentation website for installation instructions on various platforms
-[Getting Started](https://docs.octofarm.net/installation/)
-
 ## Installation Development
+
 ### Requirements
 - Git
 - NodeJS > v14
 - npm
 
-
-1. Clone the OctoFarm
+1. Clone the repo
 
 ```sh
-git clone https://github.com/NotExpectedYet/OctoFarm.git
+git clone https://github.com/DaniSim-Dev/OctoFarm-Redux.git
 ```
 
 2. Install the mono-repo eslint dependencies (eslint, prettier and nodemon)
@@ -105,8 +82,7 @@ npm install
 npm run setup-dev
 ```
 
-4. Create an `.env` file in the OctoFarm folder's root directory. e.g. `OctoFarm/.env`.
-   Paste in the contents below.
+4. Create an `.env` file in the project root, e.g. `OctoFarm-Redux/.env`.
 ```dotenv
 NODE_ENV=development
 MONGO=mongodb://127.0.0.1:27017/octofarm
@@ -118,7 +94,7 @@ OCTOFARM_PORT=4000
 npm run build-client
 ```
 
-6. (Optional): Watch for client changes, requires a secondary console.
+6. (Optional) Watch for client changes, requires a secondary console.
 ```sh
 npm run dev-client
 ```
@@ -128,34 +104,30 @@ npm run dev-client
 ```sh
 npm run server-dev
 ```
-- The developer version uses nodemon for live server reloading on changes. It will output all the logs to the console.
+- The developer version uses nodemon for live server reloading on changes, and outputs all logs to the console.
 
-## Contributing
+## Deployment
 
-I don't mind taking contributions to the code. Just be warned OctoFarm is an ever evolving environment due to how it was originally a learning project for myself and JavaScript. 
+The running instance is built from `monolithic.Dockerfile` (bundles MongoDB in one image) rather than the plain
+`Dockerfile` at the repo root, which expects an external Mongo:
 
-It's a great repository if anyone would like to practice their code clean-up and refactoring skills. 
+```sh
+docker build -f monolithic.Dockerfile -t octofarm-redux:local .
+```
 
-Currently I'm planning to fix this with V2.0 but that is held on a private repository. 
-
-If you'd like to contribute something, then please take a look at the open project on this repository, or feel free to open a discussion with your plans. 
+Client-side changes need a client rebuild (`cd client && npm run build`) before committing - the prebuilt webpack
+output is committed under `server/assets/`, and a client-only edit without a rebuild ships stale JS.
 
 ## License
 
-This work [is licensed](https://github.com/OctoFarm/OctoFarm/blob/master/LICENSE.txt) under the [GNU Affero General Public License v3](https://www.gnu.org/licenses/agpl-3.0.html).
+This work [is licensed](LICENSE.txt) under the [GNU Affero General Public License v3](https://www.gnu.org/licenses/agpl-3.0.html).
 
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-
-## Contact
-
-You can contact me at [info@notexpectedyet.com](mailto:info@notexpectedyet.com)
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 ## Acknowledgements
 
-- [My Patreons](https://www.patreon.com/NotExpectedYet) - You all keep me going and afford me a financial incentive to keep OctoFarm up to date with new features and fixes! Biggest thanks of all.
-- [Gina Häußge](https://octoprint.org/) - Without OctoPrint none of this would be possible. Massive thanks to the work
-  of Gina and everyone who helps out with that.
-- [JetBrains IDE](https://www.jetbrains.com/webstorm/) - Thanks to JebBrains for allowing a free license to use with
-  developing my application. Their IDE is top notch!
+- [Gina Häußge](https://octoprint.org/) - without OctoPrint none of this, upstream or fork, would be possible.
+- [OctoFarm](https://github.com/OctoFarm/OctoFarm) and its original maintainer - this fork exists on top of their
+  work.
 
-[DashboardScreenshot]: https://github.com/NotExpectedYet/OctoFarm/blob/master/screenshots/dashboard.png?raw=true
+[DashboardScreenshot]: screenshots/dashboard.png
