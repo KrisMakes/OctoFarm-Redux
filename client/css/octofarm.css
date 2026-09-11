@@ -558,6 +558,14 @@ a.notyet {
   display: block;
   min-height: 22px;
 }
+/* Reserve room for the ETA date ("Fri Sep 11 2026: 08:28"), which is long enough to
+   wrap onto a second line while an active print's shorter counterparts don't - without
+   this, an idle "No Active Print" panel ends up shorter than an active one. */
+[id^="printTimeElapsed-"],
+[id^="remainingTime-"] {
+  display: inline-block;
+  min-height: 56px;
+}
 .camExtra {
   pointer-events: none;
   display: none;
