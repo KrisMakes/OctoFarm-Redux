@@ -19,3 +19,7 @@ pnpm-lock.yaml
 /client/assets/css
 /client/build/*
 
+# Webpack build output is committed, but its source maps are not.
+/server/assets/js/*.map
+/server/assets/css/*.map
+

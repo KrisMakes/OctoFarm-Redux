@@ -48,7 +48,7 @@ module.exports = (env, options) => {
       path: fullDir,
     },
     mode: isProd ? 'production' : 'development',
-    devtool: 'source-map',
+    devtool: isProd ? false : 'source-map',
     target: "web",
     node: {
       global: false,
