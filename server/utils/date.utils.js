@@ -32,18 +32,6 @@ const last12Month = function () {
   return dates;
 };
 
-const getDatesBetweenDates = function (startDate, endDate) {
-  let dates = [];
-  //to avoid modifying the original date
-  const theDate = new Date(startDate);
-  while (theDate < endDate) {
-    console.log(theDate);
-
-    theDate.setDate(theDate.getDate() + 1);
-  }
-  return dates;
-};
-
 const generateTodayTextString = () => {
   let dateString = "";
   const today = new Date();
@@ -55,6 +43,5 @@ const generateTodayTextString = () => {
 module.exports = {
   getFirstDayOfLastMonth,
   last12Month,
-  getDatesBetweenDates,
   generateTodayTextString
 };

@@ -27,9 +27,26 @@ const printerActionLimits = rateLimit({
   }
 });
 
+// The global limiter is 10000 requests per 5 seconds, which is no obstacle at all
+// to a password guesser. Credential endpoints get their own, much tighter budget.
+const authenticationLimits = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes in milliseconds
+  limit: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Only failed attempts should count, otherwise a busy shared browser locks itself out.
+  skipSuccessfulRequests: true,
+  handler: function (req, res /*next*/) {
+    return res.status(429).json({
+      error: "Too many authentication attempts. Please try again in 15 minutes."
+    });
+  }
+});
+
 //TODO rest of the endpoints
 
 module.exports = {
   octofarmGlobalLimits,
-  printerActionLimits
+  printerActionLimits,
+  authenticationLimits
 };

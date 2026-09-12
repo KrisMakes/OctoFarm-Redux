@@ -32,7 +32,7 @@ router.delete(
         res.send({ alerts: "success", status: 200 });
       })
       .catch((err) => {
-        console.log(err);
+        logger.error("Unable to delete alert", err.toString());
         res.send({ alerts: "error", status: 500 });
       });
     //Return printers added...

@@ -1071,46 +1071,44 @@ class PrinterStore {
   }
 
   listCommonFilesOnAllPrinters(ids) {
+    const normalisePath = (path) => path.replace(/ /g, "_");
+
+    // One normalised path set per printer, built once. The previous version scanned
+    // the accumulated list with findIndex for every file of every printer -- and
+    // re-ran the regex on both sides of each comparison, twice logging the candidate
+    // to stdout -- which is O(printers * files^2) on a farm with large file lists.
+    const pathSetsByPrinter = [];
     const uniqueFilesListFromAllPrinters = [];
-    // Create unique list of files
-    ids.forEach((id) => {
+    const seenPaths = new Set();
+
+    for (const id of ids) {
       const currentPrinter = this.#findMePrinter(id);
       const fileList = currentPrinter?.fileList?.fileList;
-      if (fileList) {
-        for (let file of fileList) {
-          const index = findIndex(uniqueFilesListFromAllPrinters, function (o) {
-            console.log(o)
-            console.log(o)
-            const cleanNameFromList = o.path.replace(/ /g, "_")
-            const cleanFileName = file.path.replace(/ /g, "_")
-            return cleanNameFromList === cleanFileName;
-          });
-          if (index === -1) {
-            uniqueFilesListFromAllPrinters.push(file);
-          }
+      // A printer with no cached file list cannot be shown to have the file. It used
+      // to be skipped entirely, so fileChecks never recorded a false for it and a
+      // file present on only some printers was reported as common to all -- the bulk
+      // command then tried to print a file that printer did not have.
+      if (!fileList) {
+        pathSetsByPrinter.push(new Set());
+        continue;
+      }
+      const pathSet = new Set();
+      for (const file of fileList) {
+        const cleanPath = normalisePath(file.path);
+        pathSet.add(cleanPath);
+        if (!seenPaths.has(cleanPath)) {
+          seenPaths.add(cleanPath);
+          uniqueFilesListFromAllPrinters.push(file);
         }
       }
-    });
-    const filesThatExistOnAllPrinters = [];
-    // Check if that file exists on all of the printers...
-    for (let fileToCheck of uniqueFilesListFromAllPrinters) {
-      const fileChecks = [];
-      for (let id of ids) {
-        const currentPrinter = this.#findMePrinter(id);
-        const fileList = currentPrinter?.fileList?.fileList;
-        if (!!fileList) {
-          fileChecks.push(fileList.some((el) => el.path.replace(/ /g, "_") === fileToCheck.path.replace(/ /g, "_")));
-        }
-      }
-      if (
-        fileChecks.every(function (e) {
-          return e === true;
-        })
-      ) {
-        filesThatExistOnAllPrinters.push(fileToCheck);
-      }
+      pathSetsByPrinter.push(pathSet);
     }
-    return filesThatExistOnAllPrinters;
+
+    // Check if that file exists on all of the printers...
+    return uniqueFilesListFromAllPrinters.filter((fileToCheck) => {
+      const cleanPath = normalisePath(fileToCheck.path);
+      return pathSetsByPrinter.every((pathSet) => pathSet.has(cleanPath));
+    });
   }
 
   async generatePrinterConnectionLogs(id) {

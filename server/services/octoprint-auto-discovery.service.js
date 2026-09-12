@@ -54,10 +54,14 @@ ssdp.on("DeviceFound", (res) => {
               }
             }
           } catch (e) {
-            logger.error(err);
-            console.log(err);
+            // Logged `err` here, which is the parseString callback's argument and is
+            // always null by this point -- the real exception was discarded.
+            logger.error("Failed to read discovered device information", e.toString());
           }
         });
+      })
+      .catch((e) => {
+        logger.error(`Unable to fetch device description from ${res.location}`, e.toString());
       });
   }
 });

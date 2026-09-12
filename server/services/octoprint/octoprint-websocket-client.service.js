@@ -214,7 +214,6 @@ class WebSocketClient {
           });
           this.reconnect(code);
           logger.error('Socket Abnormally closed by server... reconnecting! Code 1006 - ' + reason);
-          debugger;
           break;
         default:
           // Abnormal closure
@@ -230,7 +229,6 @@ class WebSocketClient {
             stateColour: mapStateToCategory('Offline'),
             stateDescription: 'Printer connection was closed. Will reconnect shortly!',
           });
-          debugger;
           logger.error(`Socket Abnormally closed... reconnecting! Code: ${code} - ${reason}`);
           this.reconnect(code);
           break;

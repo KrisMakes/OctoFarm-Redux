@@ -112,8 +112,11 @@ const generateMilisecondsTime = function (miliseconds) {
     if (!miliseconds) {
       string = "No Interval";
     }
-    return string;
   }
+  // This return used to sit inside the else, so the "No Interval" guard branch fell
+  // off the end of the function and returned undefined -- which rendered literally
+  // in the System > Tasks table.
+  return string;
 };
 
 module.exports = {

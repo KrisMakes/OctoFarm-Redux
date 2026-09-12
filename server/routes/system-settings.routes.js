@@ -13,6 +13,9 @@ const UserDB = require('../models/User.js');
 const PrintersDB = require('../models/Printer.js');
 const AlertsDB = require('../models/Alerts.js');
 const GcodeDB = require('../models/CustomGcode.js');
+const ErrorLogDB = require('../models/ErrorLog.js');
+const FarmStatisticsDB = require('../models/FarmStatistics.js');
+const TempHistoryDB = require('../models/TempHistory.js');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const Logger = require('../handlers/logger.js');
 const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_SYSTEM_SETTINGS);
@@ -34,7 +37,24 @@ const S_VALID = require('../constants/validate-settings.constants');
 const { validateParamsMiddleware } = require('../middleware/validators');
 const M_VALID = require('../constants/validate-mongo.constants');
 const { sanitizeString } = require('../utils/sanitize-utils');
-const { databaseNamesList } = require('../constants/database.constants');
+// databaseNamesList (constants/database.constants) is generated from serverDatabaseKeys, and four of the names it
+// produces (CustomGcodeDB, ErrorLogDB, FarmStatisticsDB, TempHistoryDB) never matched
+// a variable in this file -- the old `eval(databaseName)` lookup threw ReferenceError
+// for each of them. An explicit map cannot drift from the models that are imported.
+const DATABASE_MODELS = {
+  AlertsDB,
+  ClientSettingsDB,
+  CustomGcodeDB: GcodeDB,
+  ErrorLogDB,
+  FarmStatisticsDB,
+  HistoryDB,
+  PrintersDB,
+  ProfilesDB,
+  RoomDataDB,
+  ServerSettingsDB,
+  TempHistoryDB,
+  UserDB,
+};
 const { TaskManager } = require('../services/task-manager.service');
 const { SystemRunner } = require('../services/system-information.service');
 const { listActiveClientsRes } = require('../services/server-side-events.service');
@@ -136,6 +156,11 @@ router.get(
   async (req, res) => {
     const databaseName = req.paramString('databaseName');
     getPrinterManagerCache().killAllConnections();
+
+    // Every branch used to fall through to a second res.send() and a second
+    // rebootOctoFarm() below it, so wiping EverythingDB wrote the response twice
+    // (ERR_HTTP_HEADERS_SENT) and restarted twice -- and an unknown name was logged
+    // as an error and then reported to the client as a success.
     if (databaseName === 'EverythingDB') {
       await ServerSettingsDB.deleteMany({});
       await ClientSettingsDB.deleteMany({});
@@ -147,25 +172,22 @@ router.get(
       await PrintersDB.deleteMany({});
       await AlertsDB.deleteMany({});
       await GcodeDB.deleteMany({});
-      res.send({
-        message: 'Successfully deleted databases, server will restart...',
-      });
       logger.info('Database completely wiped.... Restarting server...');
-      await SystemCommands.rebootOctoFarm();
     } else if (databaseName === 'FilamentDB') {
       await SpoolsDB.deleteMany({});
       await ProfilesDB.deleteMany({});
       logger.info('Successfully deleted Filament database.... Restarting server...');
-      await SystemCommands.rebootOctoFarm();
-    } else if (databaseNamesList.includes(databaseName)) {
-      await eval(databaseName).deleteMany({});
+    } else if (DATABASE_MODELS[databaseName]) {
+      await DATABASE_MODELS[databaseName].deleteMany({});
+      logger.info(databaseName + ' successfully deleted.... Restarting server...');
     } else {
       logger.error('Unknown DB Name', databaseName);
+      return res.status(400).send({ message: `Unknown database ${databaseName}` });
     }
+
     res.send({
       message: `Successfully deleted ${databaseName}, server will restart...`,
     });
-    logger.info(databaseName + ' successfully deleted.... Restarting server...');
     await SystemCommands.rebootOctoFarm();
   }
 );
@@ -181,8 +203,8 @@ router.get(
     if (databaseName === 'FilamentDB') {
       returnedObjects.push(await ProfilesDB.find({}));
       returnedObjects.push(await SpoolsDB.find({}));
-    } else if (databaseNamesList.includes(databaseName)) {
-      returnedObjects.push(await eval(databaseName).find({}));
+    } else if (DATABASE_MODELS[databaseName]) {
+      returnedObjects.push(await DATABASE_MODELS[databaseName].find({}));
     }
     logger.info('Returning to client database object: ' + databaseName);
     res.send({ databases: returnedObjects });

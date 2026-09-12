@@ -13,55 +13,72 @@ const { generatePrinterStatistics } = require('../services/printer-statistics.se
 const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const { validateParamsMiddleware } = require('../middleware/validators');
 const M_VALID = require('../constants/validate-mongo.constants');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
+const Logger = require('../handlers/logger.js');
+
+const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_HISTORY);
+
+// Resolve one spool and inline its profile document, the shape the history views
+// expect. Returns null for an unset tool or an id that no longer resolves, rather
+// than dereferencing a missing document.
+const resolveSpoolWithProfile = async (spoolId) => {
+  if (!spoolId || spoolId === 0) {
+    return null;
+  }
+  const spool = await Spools.findById(spoolId);
+  if (!spool) {
+    logger.warning(`History update referenced a spool that no longer exists: ${spoolId}`);
+    return null;
+  }
+  const profile = await Profiles.findById(spool.spools.profile);
+  if (!profile) {
+    logger.warning(`Spool ${spoolId} references a profile that no longer exists`);
+    return null;
+  }
+  spool.spools.profile = profile.profile;
+  return spool;
+};
 
 router.post('/update', ensureAuthenticated, async (req, res) => {
   // Check required fields
   const note = req.bodyString('note');
   const filamentId = req.body.filamentId;
   const id = req.bodyString('id');
+
+  if (!Array.isArray(filamentId)) {
+    return res.status(400).send('filamentId must be an array of spool ids');
+  }
+
   const history = await HistoryRoutes.findById(id);
+  if (!history) {
+    return res.status(404).send('No history entry with that id');
+  }
+
   if (history.printHistory.notes !== note) {
     history.printHistory.notes = note;
   }
 
+  // Rebuild the selection one tool at a time. The previous version compared each
+  // entry's _id against the whole filamentId *array* (so the skip branch never
+  // fired), and its zero case ran a nested forEach that nulled every tool -- wiping
+  // spools that earlier iterations of the same loop had just assigned.
+  const existingSelection = Array.isArray(history.printHistory.filamentSelection)
+    ? history.printHistory.filamentSelection
+    : [history.printHistory.filamentSelection].filter((entry) => !!entry);
+
+  const newSelection = [];
   for (let f = 0; f < filamentId.length; f++) {
-    if (Array.isArray(history.printHistory.filamentSelection)) {
-      if (
-        typeof history.printHistory.filamentSelection[f] !== 'undefined' &&
-        history.printHistory.filamentSelection[f] !== null &&
-        history.printHistory.filamentSelection[f]._id === filamentId
-      ) {
-        //Skip da save
-      } else {
-        if (filamentId[f] !== 0) {
-          const spool = await Spools.findById(filamentId[f]);
-          const profile = await Profiles.findById(spool.spools.profile);
-          spool.spools.profile = profile.profile;
-          history.printHistory.filamentSelection[f] = spool;
-        } else {
-          filamentId.forEach((theID, index) => {
-            history.printHistory.filamentSelection[index] = null;
-          });
-        }
-      }
-    } else {
-      console.log(filamentId[f])
-      if (
-        history.printHistory.filamentSelection !== null &&
-        history.printHistory.filamentSelection._id == filamentId
-      ) {
-        //Skip da save
-      } else {
-        history.printHistory.filamentSelection = [];
-        if (filamentId[f] !== 0) {
-          const spool = await Spools.findById(filamentId[f]);
-          const profile = await Profiles.findById(spool.spools.profile);
-          spool.spools.profile = profile.profile;
-          history.printHistory.filamentSelection[f] = spool;
-        }
-      }
+    const requestedId = filamentId[f];
+    const current = existingSelection[f];
+    if (!!current && !!requestedId && String(current._id) === String(requestedId)) {
+      // Unchanged for this tool, keep the entry we already have.
+      newSelection[f] = current;
+      continue;
     }
+    newSelection[f] = await resolveSpoolWithProfile(requestedId);
   }
+  history.printHistory.filamentSelection = newSelection;
+
   history.markModified('printHistory');
   await history.save();
   await getHistoryCache().initCache();

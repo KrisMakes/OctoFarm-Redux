@@ -61,7 +61,11 @@ function setupExpressServer() {
   app.set('views', viewsPath);
   app.set('view engine', 'ejs');
   app.use(expressLayouts);
-  app.use(express.static(viewsPath));
+  // Deliberately NOT express.static(viewsPath): that mount sits in front of every
+  // auth middleware and served the whole template tree -- layout.ejs, login.ejs and
+  // partials/functions/pretty.js -- as raw source to anonymous callers. Nothing in
+  // the templates links to a file inside the views folder; they only reference
+  // /assets and app routes.
 
   app.use('/images', express.static('../images'));
 
@@ -166,7 +170,12 @@ function serveOctoFarmRoutes(app) {
 
   app.get('/*splat', function (req, res) {
     const originalURL = sanitizeString(req.originalUrl);
-    if (originalURL.endsWith('.min.js')) {
+    // Only page navigations should fall back to the dashboard. A missing asset used
+    // to redirect here too, so the browser got 200 text/html for a stylesheet and
+    // refused it with a MIME error -- and caches happily stored that 200.
+    const pathOnly = originalURL.split('?')[0];
+    const looksLikeAFile = pathOnly.startsWith('/assets/') || /\.[a-z0-9]{2,5}$/i.test(pathOnly);
+    if (looksLikeAFile) {
       res.status(404);
       res.send('Resource not found ' + originalURL);
       return;

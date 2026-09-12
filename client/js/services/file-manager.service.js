@@ -43,16 +43,18 @@ const flashReturn = (element) => {
   element.innerHTML = defaultReSync;
 };
 
-const handleUploadFromQueue = async (current, index) => {
+const handleUploadFromQueue = async (current) => {
   if (!current.active) {
-    fileUploads.activate(index);
+    // Mark and remove by record, not by position. The queue shifts as items finish,
+    // so any index captured before the await points at the wrong entry afterwards.
+    current.active = true;
     const currentDate = new Date();
     let file = await current.upload(current);
 
     file = JSON.parse(file);
     file.index = current.index;
     file.uploadDate = currentDate.getTime() / 1000;
-    fileUploads.remove();
+    fileUploads.remove(current);
     await OctoFarmClient.post("printers/newFiles", file);
 
     const body = {
@@ -104,13 +106,14 @@ setInterval(async () => {
   }
 
   //Auto refresh of files
-  // If there are files in the queue, plow through until uploaded... currently single file at a time.
+  // If there are files in the queue, plow through until uploaded.
+  // Snapshot the batch up front: handleUploadFromQueue removes each item as it
+  // completes, so reading fileUploads.n(ind - 1) on every step of the loop skipped
+  // entries once the queue had shifted underneath it.
   if (fileUploads.size() > 0 && !QUEUE_PAUSED) {
-    for (let ind = 1; ind <= uploadQueueSize; ind++) {
-      const queueItem = fileUploads.n(ind - 1);
-      if (!!queueItem) {
-        await handleUploadFromQueue(queueItem, ind - 1);
-      }
+    const batch = fileUploads.all().slice(0, uploadQueueSize);
+    for (const queueItem of batch) {
+      await handleUploadFromQueue(queueItem);
     }
   }
   const allUploads = fileUploads.all();
@@ -381,6 +384,9 @@ export default class FileManagerService {
 
   static fileUpload(file) {
     return new Promise(function (resolve) {
+      // `file` is reassigned to the raw File further down, so keep the queue record
+      // here -- the failure handlers below need it to drop the right entry.
+      const queueRecord = file;
       FileManagerService.removeNoFiles();
       // Grab folder location
       const { currentFolder } = file;
@@ -457,7 +463,7 @@ export default class FileManagerService {
             uploadsSpinnerIcon.innerHTML = "<i class='fas fa-spinner'></i>";
           }
         } else {
-          fileUploads.remove();
+          fileUploads.remove(queueRecord);
           resolve(xhr.response);
           UI.createAlert(
             "error",
@@ -475,7 +481,7 @@ export default class FileManagerService {
           3000,
           ""
         );
-        fileUploads.remove();
+        fileUploads.remove(queueRecord);
       };
 
       const fileTypes = allowedFileTypes.split(",");

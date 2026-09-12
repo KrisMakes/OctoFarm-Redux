@@ -18,6 +18,7 @@ const {
   editUser
 } = require("../services/users.service");
 const { validateParamsMiddleware } = require("../middleware/validators");
+const { authenticationLimits } = require("../middleware/rate-limiting");
 const M_VALID = require("../constants/validate-mongo.constants");
 const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
 const Logger = require("../handlers/logger");
@@ -37,6 +38,7 @@ router.get("/login", async (_req, res) => {
 // Login Handle
 router.post(
   "/login",
+  authenticationLimits,
   passport.authenticate("local", {
     // Dont add or we wont reach remember_me cookie successRedirect: "/dashboard",
     failureRedirect: "/users/login",
@@ -44,9 +46,18 @@ router.post(
   }),
   async function (req, res, next) {
     const prevSession = req.session;
-    req.session.regenerate((err) => {
-      logger.error("Unable to regenerate session!", err);
-      Object.assign(req.session, prevSession);
+    // regenerate() is asynchronous against the Mongo session store. This used to log
+    // an error unconditionally (err is null on success) and carry on without waiting,
+    // so the restored login state raced the redirect. Wait for it, and only log a
+    // real failure.
+    await new Promise((resolve) => {
+      req.session.regenerate((err) => {
+        if (err) {
+          logger.error("Unable to regenerate session!", err);
+        }
+        Object.assign(req.session, prevSession);
+        resolve();
+      });
     });
 
     if (!req.body.remember_me) {
@@ -87,7 +98,7 @@ router.get("/register", async (_req, res) => {
 });
 
 // Register Handle
-router.post("/register", async (req, res) => {
+router.post("/register", authenticationLimits, async (req, res) => {
   const name = req.bodyString("name");
   const username = req.bodyString("username");
   const password = req.bodyString("password");
@@ -96,6 +107,12 @@ router.post("/register", async (req, res) => {
   const errors = [];
 
   const serverSettings = SettingsClean.returnSystemSettings();
+
+  // The GET handler redirects away when registration is off, but this one never
+  // checked, so a direct POST created an account regardless of the setting.
+  if (serverSettings.server.registration !== true) {
+    return res.redirect("login");
+  }
   let currentUsers = await fetchUsers(true);
 
   // Check required fields
@@ -122,8 +139,6 @@ router.post("/register", async (req, res) => {
       errors,
       name,
       username,
-      password,
-      password2,
       userCount: currentUsers.length
     });
   } else {
@@ -140,8 +155,6 @@ router.post("/register", async (req, res) => {
           errors,
           name,
           username,
-          password,
-          password2,
           userCount: currentUsers.length
         });
       } else {
