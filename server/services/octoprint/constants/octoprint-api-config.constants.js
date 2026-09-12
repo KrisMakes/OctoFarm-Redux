@@ -34,7 +34,7 @@ const basicDataRetrievalFunction = (data, captureKeys, printer, database) => {
   for (const [key, value] of captureKeys) {
     if (data.hasOwnProperty(key)) {
       printer[value] = data[key];
-      database.updateOne({
+      database.update({
         [value]: data[key]
       });
     } else {
@@ -49,7 +49,7 @@ const settingsRetrievalFunction = (data, captureKeys, printer, database) => {
   for (const [key, value] of captureKeys) {
     if (data.hasOwnProperty(key)) {
       printer[value] = data[key];
-      database.updateOne({
+      database.update({
         [value]: data[key]
       });
     } else {
@@ -95,7 +95,7 @@ const settingsRetrievalFunction = (data, captureKeys, printer, database) => {
     printer.settingsAppearance.color = data["appearance"].color;
   }
 
-  database.updateOne({
+  database.update({
     camURL: printer.camURL,
     settingsAppearance: printer.settingsAppearance,
     costSettings: printer.costSettings,
@@ -131,7 +131,7 @@ const userRetrievalFunction = (data, _captureKeys, printer, database) => {
     printer["currentUser"] = findCurrentUserForOctoFarmConnection(printer["userList"]);
   }
 
-  database.updateOne({
+  database.update({
     currentUser: printer["currentUser"],
     userList: printer["userList"]
   });
@@ -154,7 +154,7 @@ const pluginRetrievalFunction = (data, _captureKeys, printer, database) => {
     return !plugin.enabled;
   });
 
-  database.updateOne({
+  database.update({
     pluginsListEnabled: printer.pluginsListEnabled,
     pluginsListDisabled: printer.pluginsListDisabled
   });
@@ -196,7 +196,7 @@ const updatesInformationRetrievalFunction = (data, _captureKeys, printer, databa
   }
   printer.octoPrintUpdate = octoPrintUpdate;
   printer.octoPrintPluginUpdates = pluginUpdates;
-  database.updateOne({
+  database.update({
     octoPrintUpdate: octoPrintUpdate,
     octoPrintPluginUpdates: pluginUpdates
   });
@@ -226,7 +226,7 @@ const filesRetrievalFunction = (data, _captureKeys, printer, database) => {
     folderCount: printerLocations.length
   };
 
-  database.updateOne({
+  database.update({
     storage: printer.storage,
     fileList: {
       fileList: printerFiles,
@@ -244,7 +244,7 @@ const piSupportRetrievalFunction = (data, _captureKeys, printer, database) => {
 
   printer.octoPi = octoPi;
 
-  database.updateOne({
+  database.update({
     octoPi: printer.octoPi
   });
 
