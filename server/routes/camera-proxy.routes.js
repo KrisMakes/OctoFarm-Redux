@@ -32,22 +32,31 @@ router.get(
 
     logger.debug(`Proxying camera stream for ${id} from ${camURL}`);
 
-    // timeout covers waiting for response headers only, so it will not cut off
-    // a stream that is delivering frames.
-    const upstream = request({ url: camURL, timeout: 10000 });
+    // This is an inactivity timeout, not just a connect timeout, so it has to be
+    // longer than the gap between frames of the slowest camera worth supporting.
+    const upstream = request({ url: camURL, timeout: 30000 });
+
+    // Tear the upstream connection down when the browser navigates away or
+    // swaps the image, or mjpg-streamer runs out of its handful of client slots.
+    let clientGone = false;
+    req.on("close", () => {
+      clientGone = true;
+      upstream.destroy();
+    });
 
     upstream.on("error", (e) => {
-      logger.error(`Camera stream failed for ${id}`, e.toString());
+      // Destroying the stream above makes it emit an abort. A viewer closing a
+      // camera is the normal path out of here, not a failure worth logging.
+      if (clientGone) {
+        return;
+      }
+      logger.warning(`Camera stream ended for ${id}`, e.toString());
       if (res.headersSent) {
         res.end();
       } else {
         res.sendStatus(502);
       }
     });
-
-    // Tear the upstream connection down when the browser navigates away or
-    // swaps the image, or mjpg-streamer runs out of its handful of client slots.
-    req.on("close", () => upstream.destroy());
 
     upstream.pipe(res);
   }
