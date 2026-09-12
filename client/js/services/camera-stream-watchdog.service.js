@@ -65,8 +65,9 @@ const checkCameraStreams = () => {
     try {
       signature = sampleFrameSignature(img, entry.canvas);
     } catch (e) {
-      // Camera doesn't support CORS (crossorigin load failed/tainted canvas) -
-      // can't safely sample it, so leave it alone rather than guess on a timer.
+      // The canvas is tainted because the camera is on another origin and sends
+      // no CORS headers, which is the normal case: requesting CORS on the image
+      // made Safari refuse to load it at all. Nothing to sample, so leave it be.
       entry.tainted = true;
       return;
     }

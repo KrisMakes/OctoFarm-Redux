@@ -73,6 +73,15 @@ function setupExpressServer() {
   app.use('/assets', express.static('./assets'));
   app.use(cookieParser());
   app.use(express.urlencoded({ extended: false, limit: '2mb' }));
+  // Express 5 leaves req.body undefined when no parser matched -- a request
+  // with no body at all, which several endpoints here send. Express 4 handed
+  // back {}, and 85 call sites still assume that, so restore it in one place.
+  app.use((req, res, next) => {
+    if (req.body === undefined) {
+      req.body = {};
+    }
+    next();
+  });
   app.use(
     session({
       secret: fetchSuperSecretKey(),
