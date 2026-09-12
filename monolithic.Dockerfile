@@ -1,27 +1,23 @@
-FROM node:14.16-stretch
+# Base is MongoDB's own image rather than a node image with MongoDB bolted on.
+# It pins the server at 6.0 (the newest Mongoose 6.6 supports) on a distribution
+# that is still in support — Debian stretch went EOL in 2020 and bullseye in
+# August 2026, so neither can be patched any more.
+FROM mongo:6.0
 
-# Debian Stretch is EOL; its mirrors were pulled from deb.debian.org/security.debian.org.
-# Point apt at the permanent archive and stop checking Release file expiry.
-RUN echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/10no--check-valid-until \
-    && printf 'deb http://archive.debian.org/debian stretch main\ndeb http://archive.debian.org/debian-security stretch/updates main\n' > /etc/apt/sources.list
-
-# Update Local Repository Index
-RUN apt-get update
-# Upgrade packages in the base image and apply security updates
-RUN DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -yq
-# Install package utils
-RUN DEBIAN_FRONT=noninteractive apt-get install -yq apt-utils
-# Install MongoDB
-RUN DEBIAN_FRONT=noninteractive apt-get install -yq ca-certificates
-RUN wget -qO - https://www.mongodb.org/static/pgp/server-4.4.asc | apt-key add
-RUN echo 'deb http://repo.mongodb.org/apt/debian stretch/mongodb-org/4.4 main' | tee /etc/apt/sources.list.d/mongodb.list
-RUN apt-get update
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -yq mongodb-org
-
-# Remove package files fetched for install
-RUN apt-get clean
-# Remove unwanted files
-RUN rm -rf /var/lib/apt/lists/
+# Node 22 LTS from NodeSource. The "nodistro" repository is distribution
+# agnostic, so this does not pin us to the base image's Ubuntu release.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -yq ca-certificates curl gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+      | gpg -o /etc/apt/keyrings/nodesource.gpg --dearmor \
+    && echo 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main' \
+      > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -yq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -yq nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY . /app
 WORKDIR /app/server
@@ -29,8 +25,6 @@ WORKDIR /app/server
 ENV NODE_ENV=production
 ENV MONGO=mongodb://127.0.0.1:27017/octofarm
 
-# Pinned: npm's current major requires Node 22+, but this image is on Node 14.
-RUN npm install -g npm@8
 RUN npm install -g pm2
 
 RUN npm ci --omit=dev
@@ -40,4 +34,6 @@ WORKDIR /app
 
 COPY docker/monolithic-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
+# The base image's CMD would otherwise be appended to the entrypoint as an argument.
+CMD []
 ENTRYPOINT ["bash", "/usr/local/bin/entrypoint.sh"]
