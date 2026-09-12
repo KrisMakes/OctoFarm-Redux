@@ -3,9 +3,6 @@ const router = express.Router();
 const { ensureAuthenticated } = require("../middleware/auth");
 const { stringify } = require("flatted");
 const { getEventEmitterCache } = require("../cache/event-emitter.cache");
-//Global store of dashboard info... wonder if there's a cleaner way of doing all this?!
-let clientInformation = null;
-
 const printerTicker = require("../services/printer-connection-log.service.js");
 const { ensureCurrentUserAndGroup } = require("../middleware/users.js");
 
@@ -44,6 +41,13 @@ router.get("/get/", ensureAuthenticated, ensureCurrentUserAndGroup, function (re
 
 if (interval === false) {
   interval = setInterval(async function () {
+    // Every read below feeds the payload and nothing else, so with no attached
+    // clients this whole tick -- a full printer list plus a flatted stringify,
+    // twice a second -- is wasted work.
+    if (Object.keys(clients).length === 0) {
+      return;
+    }
+
     let printersInformation = getPrinterStoreCache().listPrintersInformationForPrinterManager();
     printersInformation = printersInformation.map((p) => {
       p.registeredEvents = getEventEmitterCache().get(p._id);
@@ -59,10 +63,12 @@ if (interval === false) {
       currentTickerList: currentTickerList,
       currentActionList: currentActionList
     };
-    clientInformation = stringify(infoDrop);
-    for (clientId in clients) {
-      clients[clientId].write("retry:" + 10000 + "\n");
-      clients[clientId].write("data: " + clientInformation + "\n\n"); // <- Push a message to a single attached client
+    const clientInformation = stringify(infoDrop);
+    // `const id`, not the module-level clientId counter this used to reuse --
+    // see the matching comment in sse.printer-monitoring.routes.js.
+    for (const id of Object.keys(clients)) {
+      clients[id].write("retry:" + 10000 + "\n");
+      clients[id].write("data: " + clientInformation + "\n\n"); // <- Push a message to a single attached client
     }
   }, 500);
 }

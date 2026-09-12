@@ -42,9 +42,9 @@ class EventEmitterService {
     this.#logEventCount();
     return this;
   }
-  off(event, fn) {
+  off(event) {
     logger.debug("Turning event listener off", event);
-    return this.#removeListener(event, fn);
+    return this.#removeListener(event);
   }
 
   once(event, fn) {

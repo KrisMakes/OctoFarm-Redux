@@ -78,9 +78,8 @@ class PrinterManagerService {
 
   async enablePrinterFromQueue(id) {
     if (!!id) {
-      const currentID = JSON.parse(JSON.stringify(id));
-      const printer = getPrinterStoreCache().getPrinter(currentID);
-      if (!printer.enabling) {
+      const printer = getPrinterStoreCache().getPrinter(id);
+      if (printer && !printer.enabling) {
         await printer?.enablePrinter();
         return;
       }
@@ -200,8 +199,8 @@ class PrinterManagerService {
       const printer = getPrinterStoreCache().getPrinterInformation(id);
       await getPrinterStoreCache().deletePrinter(printer._id);
       removedPrinterList.push({
-        printerURL: JSON.parse(JSON.stringify(printer.printerURL)),
-        printerId: JSON.parse(JSON.stringify(printer._id)),
+        printerURL: printer.printerURL,
+        printerId: printer._id,
       });
       await deleteTemperatureData(printer._id);
     }

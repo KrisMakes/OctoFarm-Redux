@@ -135,37 +135,34 @@ async function ensureSystemSettingsInitiated() {
 function serveOctoFarmRoutes(app) {
   app.use(ensureClientServerVersion);
 
-  app.use('/', require('./routes/index', { page: 'route' }));
-  app.use(
-    '/camera',
-    ensureAuthenticated,
-    require('./routes/camera-proxy.routes.js', { page: 'route' })
-  );
+  app.use('/', require('./routes/index'));
+  // The router applies ensureAuthenticated to its own route already.
+  app.use('/camera', require('./routes/camera-proxy.routes.js'));
   app.use(
     '/octoprint/:id/*item',
     ensureAuthenticated,
     validateParamsMiddleware(M_VALID.MONGO_ID),
     proxyOctoPrintClientRequests
   );
-  app.use('/users', require('./routes/users.routes.js', { page: 'route' }));
+  app.use('/users', require('./routes/users.routes.js'));
   app.use(
     '/printers',
     printerActionLimits,
-    require('./routes/printer-manager.routes.js', { page: 'route' })
+    require('./routes/printer-manager.routes.js')
   );
-  app.use('/settings', require('./routes/system-settings.routes.js', { page: 'route' }));
-  app.use('/filament', require('./routes/filament-manager.routes.js', { page: 'route' }));
-  app.use('/history', require('./routes/history.routes.js', { page: 'route' }));
-  app.use('/scripts', require('./routes/local-scripts-manager.routes.js', { page: 'route' }));
-  app.use('/input', require('./routes/external-data-collection.routes.js', { page: 'route' }));
-  app.use('/client', require('./routes/printer-sorting.routes.js', { page: 'route' }));
-  app.use('/printersInfo', require('./routes/sse.printer-manager.routes.js', { page: 'route' })); // DEPRECATE IN FAVOR OF EVENTS, WILL TAKE SOME WORK
-  app.use('/dashboardInfo', require('./routes/sse.dashboard.routes.js', { page: 'route' })); // DEPRECATE IN FAVOR OF EVENTS, WILL TAKE SOME WORK - This may as well be an API call
+  app.use('/settings', require('./routes/system-settings.routes.js'));
+  app.use('/filament', require('./routes/filament-manager.routes.js'));
+  app.use('/history', require('./routes/history.routes.js'));
+  app.use('/scripts', require('./routes/local-scripts-manager.routes.js'));
+  app.use('/input', require('./routes/external-data-collection.routes.js'));
+  app.use('/client', require('./routes/printer-sorting.routes.js'));
+  app.use('/printersInfo', require('./routes/sse.printer-manager.routes.js')); // DEPRECATE IN FAVOR OF EVENTS, WILL TAKE SOME WORK
+  app.use('/dashboardInfo', require('./routes/sse.dashboard.routes.js')); // DEPRECATE IN FAVOR OF EVENTS, WILL TAKE SOME WORK - This may as well be an API call
   app.use(
     '/monitoringInfo',
-    require('./routes/sse.printer-monitoring.routes.js', { page: 'route' })
+    require('./routes/sse.printer-monitoring.routes.js')
   ); // DEPRECATE IN FAVOR OF EVENTS, WILL TAKE SOME WORK
-  app.use('/events', require('./routes/sse.events.routes.js', { page: 'route' }));
+  app.use('/events', require('./routes/sse.events.routes.js'));
 
   app.get('/*splat', function (req, res) {
     const originalURL = sanitizeString(req.originalUrl);

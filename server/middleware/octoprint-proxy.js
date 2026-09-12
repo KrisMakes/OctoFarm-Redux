@@ -16,15 +16,28 @@ module.exports = {
       "str"
     );
 
-    const { printerURL, apikey } = getPrinterStoreCache().getPrinter(id);
+    const printer = getPrinterStoreCache().getPrinter(id);
+    if (!printer) {
+      logger.warning(`Refusing to proxy a request for unknown printer ${id}`);
+      return res.sendStatus(404);
+    }
+    const { printerURL, apikey } = printer;
     let redirectedRequest;
 
     const redirectUrl = `${printerURL}/${item}`;
     if (req.headers["content-type"] && req.headers["content-type"].match(/^multipart\/form-data/)) {
-      let defaultHeaders = {
+      // Forward the upload headers only. This used to Object.assign onto
+      // req.headers, which both mutated the live request object and shipped the
+      // browser's whole header set to the printer -- including the OctoFarm
+      // session cookie, which has no business on a third-party device, plus a
+      // Host and Content-Length belonging to a different request.
+      const headers = {
+        "Content-Type": req.headers["content-type"],
         "X-Api-Key": apikey
+      };
+      if (req.headers["content-length"]) {
+        headers["Content-Length"] = req.headers["content-length"];
       }
-      const headers = Object.assign(req.headers, defaultHeaders);
 
       redirectedRequest = request({
         url: redirectUrl,
@@ -45,7 +58,7 @@ module.exports = {
           "Content-Type": "application/json",
           "X-Api-Key": apikey
         },
-        json: req.readable ? false : true,
+        json: !req.readable,
         qs: req.query,
         // Pass redirect back to the browser
         followRedirect: true
@@ -58,8 +71,8 @@ module.exports = {
       // Handles everything else
       redirectedRequest.pipe(res);
     }
-    redirectedRequest.on("error", function () {
-      logger.error("Error pipe broken for mjpeg stream");
+    redirectedRequest.on("error", function (e) {
+      logger.error(`OctoPrint proxy request to ${redirectUrl} failed`, e.toString());
     });
     //client quit normally
     redirectedRequest.on("end", function () {

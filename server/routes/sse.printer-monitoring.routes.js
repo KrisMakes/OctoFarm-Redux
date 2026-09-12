@@ -7,8 +7,6 @@ const Logger = require("../handlers/logger.js");
 const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_SSE_OLD);
-//Global store of dashboard info... wonder if there's a cleaner way of doing all this?!
-let clientInformation = null;
 let clientId = 0;
 const clients = {}; // <- Keep a map of attached clients
 let interval = false;
@@ -99,29 +97,43 @@ async function sendData() {
     logger.error("Unable to clean and write information to influx database!", e.toString());
   }
 
+  // The influx export above is its own consumer and has to keep running whether
+  // or not anyone is watching. Everything below only builds the payload for
+  // attached browsers, so there is nothing to do when none are attached.
+  if (Object.keys(clients).length === 0) {
+    return;
+  }
+
   let printersInformation = getPrinterStoreCache().listPrintersInformationForMonitoringViews();
 
-  printersInformation = await filterMe(printersInformation);
+  printersInformation = filterMe(printersInformation);
   printersInformation = sortMe(printersInformation);
   const printerControlList = getPrinterManagerCache().getPrinterControlList();
 
-  for (clientId in clients) {
+  // `const id`, not the module-level clientId counter this used to reuse: a
+  // browser connecting during one of the awaits below ran ++clientId and moved
+  // the loop variable onto itself, so the client being served was skipped and
+  // the new one was written twice with the wrong user's settings.
+  for (const id of Object.keys(clients)) {
     let clientSettings = SettingsClean.returnClientSettings(
-      clients[clientId]?.req?.user?.clientSettings._id || null
+      clients[id]?.req?.user?.clientSettings?._id || null
     );
     if (typeof clientSettings === "undefined") {
       await SettingsClean.start();
       clientSettings = SettingsClean.returnClientSettings(
-        clients[clientId]?.req?.user?.clientSettings._id || null
+        clients[id]?.req?.user?.clientSettings?._id || null
       );
+    }
+    // The client may have disconnected during the await above.
+    if (!clients[id]) {
+      continue;
     }
     const infoDrop = {
       printersInformation: printersInformation,
       printerControlList: printerControlList,
       clientSettings: clientSettings
     };
-    clientInformation = stringify(infoDrop);
-    clients[clientId].res.write("data: " + clientInformation + "\n\n");
+    clients[id].res.write("data: " + stringify(infoDrop) + "\n\n");
   }
 }
 
@@ -148,8 +160,13 @@ router.get("/get/", ensureAuthenticated, ensureCurrentUserAndGroup, async functi
 });
 
 if (interval === false) {
-  interval = setInterval(async function () {
-    await sendData();
+  interval = setInterval(function () {
+    // Nothing awaits this callback, and the process installs no
+    // unhandledRejection handler, so an unhandled throw in here would take the
+    // whole server down rather than dropping a single tick.
+    sendData().catch((e) => {
+      logger.error("Failed to send monitoring information to clients", e.toString());
+    });
   }, 1000);
 }
 

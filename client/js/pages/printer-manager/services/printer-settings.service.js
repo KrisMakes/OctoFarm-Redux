@@ -704,7 +704,14 @@ class PrinterSettingsService {
 
     const alertsTable = document.getElementById("printerAltersTableBody");
     alertsTable.innerHTML = "";
-    printerScripts.forEach(async (s) => {
+    // Resolved once, up front. This loop used to be `forEach(async …)`: the
+    // callbacks were never awaited, so setupAlertsTab returned before any
+    // dropdown was filled, and each row re-awaited alertsDrop() for what is a
+    // module-level constant string. If the user opened another printer while
+    // those callbacks were still pending, innerHTML = "" had already detached
+    // the rows and the trigger values were written to orphaned nodes.
+    const triggerOptions = await Script.alertsDrop();
+    printerScripts.forEach((s) => {
       alertsTable.insertAdjacentHTML(
         "beforeend",
         `
@@ -729,7 +736,7 @@ class PrinterSettingsService {
       );
       document.getElementById(`activePrinter-${s._id}`).checked = s.active;
       const triggerSelect = document.getElementById(`triggerPrinter-${s._id}`);
-      triggerSelect.innerHTML = await Script.alertsDrop();
+      triggerSelect.innerHTML = triggerOptions;
       triggerSelect.value = s.trigger;
     });
   }

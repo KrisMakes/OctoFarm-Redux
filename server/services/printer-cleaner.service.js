@@ -34,7 +34,7 @@ class PrinterCleanerService {
       printerID: farmPrinter._id,
       pluginDisplay: { $ne: "OctoKlipper" }
     })
-      .sort({ _id: 1 })
+      .sort({ _id: -1 })
       .limit(1000);
 
     const klipperLogs = await PluginLogs.find({
@@ -125,76 +125,46 @@ class PrinterCleanerService {
     }
 
     if (typeof tempHistory !== "undefined") {
+      // Build one series pair per tool. This used to run inside a loop over all
+      // 720 records, reassigning currentTempLogs every iteration -- 719 wasted
+      // rebuilds, and the surviving set came from the *last* (oldest) record, so
+      // any tool missing from that one record was dropped from the whole chart.
+      // Union the keys across every record instead so a tool that appears partway
+      // through the window still gets a series.
+      const toolNames = new Set();
       for (const element of tempHistory) {
-        let hist = element.currentTemp;
-        const reFormatTempHistory = async function (tempHis) {
-          // create a new object to store full name.
-          let keys = Object.keys(tempHis);
-          let array = [];
-
-          for (let k = 0; k < keys.length; k++) {
-            if (keys[k] !== "time") {
-              let target = {};
-              let actual = {};
-              target = {
-                name: keys[k] + "-target",
-                data: []
-              };
-              actual = {
-                name: keys[k] + "-actual",
-                data: []
-              };
-              array.push(target);
-              array.push(actual);
-            }
+        for (const key of Object.keys(element.currentTemp)) {
+          if (key !== "time") {
+            toolNames.add(key);
           }
-
-          // return our new object.
-          return array;
-        };
-        currentTempLogs = await reFormatTempHistory(hist);
+        }
       }
-      if (currentTempLogs.length > 0) {
-        for (let h = 0; h < tempHistory.length; h++) {
-          let hist = tempHistory[h].currentTemp;
-          let keys = Object.keys(hist);
-          for (let k = 0; k < keys.length; k++) {
-            if (keys[k] !== "time") {
-              let actual = {
-                x: hist["time"],
-                y: hist[keys[k]].actual
-              };
-              let target = {
-                x: hist["time"],
-                y: hist[keys[k]].target
-              };
+      // Keep a name -> series lookup while filling them. The previous version
+      // rebuilt two whole arrays of names with .map() and scanned them with
+      // .indexOf() for every tool of every one of the 720 records.
+      const seriesByName = new Map();
+      for (const toolName of toolNames) {
+        const target = { name: toolName + "-target", data: [] };
+        const actual = { name: toolName + "-actual", data: [] };
+        seriesByName.set(target.name, target);
+        seriesByName.set(actual.name, actual);
+        currentTempLogs.push(target, actual);
+      }
 
-              //get array position...
-              let arrayTarget = currentTempLogs
-                .map(function (e) {
-                  return e.name;
-                })
-                .indexOf(keys[k] + "-target");
-              let arrayActual = currentTempLogs
-                .map(function (e) {
-                  return e.name;
-                })
-                .indexOf(keys[k] + "-actual");
-              if (currentTempLogs[arrayTarget]?.data.length <= tempHistory.length) {
-                currentTempLogs[arrayTarget].data.push(target);
-              }
-              if (currentTempLogs[arrayActual]?.data.length <= tempHistory.length) {
-                currentTempLogs[arrayActual].data.push(actual);
-              }
-            }
+      for (const record of tempHistory) {
+        const hist = record.currentTemp;
+        for (const key of Object.keys(hist)) {
+          if (key === "time") {
+            continue;
           }
+          seriesByName.get(key + "-target").data.push({ x: hist.time, y: hist[key].target });
+          seriesByName.get(key + "-actual").data.push({ x: hist.time, y: hist[key].actual });
         }
       }
     }
 
     currentErrorLogs = orderBy(currentErrorLogs, ["date"], ["desc"]);
     currentOctoFarmLogs = orderBy(currentOctoFarmLogs, ["date"], ["desc"]);
-    currentTempLogs = orderBy(currentTempLogs, ["date"], ["desc"]);
     currentPluginManagerLogs = orderBy(currentPluginManagerLogs, ["date"], ["desc"]);
     currentKlipperLogs = orderBy(currentKlipperLogs, ["date"], ["desc"]);
     currentUserActionLogs = orderBy(currentUserActionLogs, ["date"], ["desc"]);

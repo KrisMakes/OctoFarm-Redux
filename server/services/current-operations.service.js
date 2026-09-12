@@ -15,8 +15,14 @@ const getCurrentOperations = () => {
   return currentOperations;
 };
 
-const sortCurrentOperations = async () => {
-  const farmPrinters = getPrinterStoreCache().listPrintersInformation();
+/**
+ * @param printerList optional pre-built list. Both callers already hold one, and
+ *   this used to take no parameters at all and rebuild it -- listPrintersInformation
+ *   deep-clones every printer and re-runs FileClean over every file, so on the
+ *   1000ms task that whole pass was happening twice a second instead of once.
+ */
+const sortCurrentOperations = async (printerList) => {
+  const farmPrinters = printerList ?? getPrinterStoreCache().listPrintersInformation();
   const complete = [];
   const active = [];
   const idle = [];

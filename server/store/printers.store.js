@@ -27,16 +27,16 @@ class PrinterStore {
     this.#printersList = [];
   }
 
+  // Returns undefined when the id is unknown. This used to index the list with
+  // findIndex's result, so a miss evaluated printersList[-1] -- same undefined,
+  // but by accident rather than intent. Callers still have to expect undefined:
+  // a websocket message can land after its printer has been deleted.
   #findMePrinter = (id) => {
     if (typeof id !== 'string') {
       id = id.toString();
     }
 
-    return this.#printersList[
-      findIndex(this.#printersList, function (o) {
-        return o._id === id;
-      })
-    ];
+    return this.#printersList.find((o) => o._id === id);
   };
 
   #removeFromStore = (id) => {
@@ -1248,7 +1248,7 @@ class PrinterStore {
       path = folder.path;
       name = `${path}/${name}`;
     }
-    const display = JSON.parse(JSON.stringify(name));
+    const display = name;
     const newFolder = {
       name: name,
       path,

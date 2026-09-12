@@ -25,6 +25,29 @@ const Logger = require('./handlers/logger');
 const { SettingsClean } = require('./services/settings-cleaner.service');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVER_TASKS);
 
+/**
+ * Run each step in order, logging and swallowing individual failures.
+ *
+ * These call sites used to read `await Promise.allSettled([await a(), await b()])`.
+ * The inner awaits resolved every step before the array was even built, so the
+ * steps ran in series anyway AND a rejection propagated out of the task instead
+ * of being settled -- one failing step aborted the rest of boot. The series
+ * order is load-bearing (SystemRunner.profileMemoryUsagePercent() silently
+ * no-ops unless initialiseSystemInformation() has already populated
+ * totalMemory), so keep running them in order and restore only the isolation.
+ *
+ * @param steps object of label -> function, run in insertion order
+ */
+const runStepsInOrder = async (steps) => {
+  for (const [label, step] of Object.entries(steps)) {
+    try {
+      await step();
+    } catch (e) {
+      logger.error(`Task step "${label}" failed, continuing with the rest`, e.toString());
+    }
+  }
+};
+
 const I_AM_ALIVE = () => {
   notifySubscribers('iAmAlive', MESSAGE_TYPES.AM_I_ALIVE, {
     ok: true,
@@ -36,24 +59,26 @@ const INITIALISE_PRINTERS_TASK = async () => {
   await getPrinterManagerCache();
   await getPrinterManagerCache().initialisePrinters();
   await getPrinterManagerCache().updateStateCounters();
-  await Promise.allSettled([
-    await getPrinterStoreCache(),
-    await getEventEmitterCache(),
-    await initHistoryCache(),
-    await getInfluxCleanerCache(),
-  ]);
+  await runStepsInOrder({
+    getPrinterStoreCache: () => getPrinterStoreCache(),
+    getEventEmitterCache: () => getEventEmitterCache(),
+    initHistoryCache: () => initHistoryCache(),
+    getInfluxCleanerCache: () => getInfluxCleanerCache(),
+  });
   const pList = getPrinterStoreCache().listPrintersInformation();
-  await Promise.allSettled([
-    await initFarmInformation(),
-    await generatePrinterHeatMap(),
-    await FilamentClean.start(),
-    await getHistoryCache().generateMonthlyStats(),
-    await getPrinterManagerCache().generatePrintersStatisticsCache(),
-    await getPrinterManagerCache().generatePrintersControlDropList(),
-    FileClean.statistics(pList),
-    await sortCurrentOperations(pList),
-    await getPrinterManagerCache().startPrinterEnableQueue(),
-  ]);
+  await runStepsInOrder({
+    initFarmInformation: () => initFarmInformation(),
+    generatePrinterHeatMap: () => generatePrinterHeatMap(),
+    filamentClean: () => FilamentClean.start(),
+    generateMonthlyStats: () => getHistoryCache().generateMonthlyStats(),
+    generatePrintersStatisticsCache: () =>
+      getPrinterManagerCache().generatePrintersStatisticsCache(),
+    generatePrintersControlDropList: () =>
+      getPrinterManagerCache().generatePrintersControlDropList(),
+    fileStatistics: () => FileClean.statistics(pList),
+    sortCurrentOperations: () => sortCurrentOperations(pList),
+    startPrinterEnableQueue: () => getPrinterManagerCache().startPrinterEnableQueue(),
+  });
 
   setTimeout(async () => {
     await updatePrinterHealthChecks(true);
@@ -61,17 +86,20 @@ const INITIALISE_PRINTERS_TASK = async () => {
 };
 
 const SERVER_BOOT_TASK = async () => {
-  await Promise.allSettled([
-    await SystemRunner.initialiseSystemInformation(),
-    await detectFarmPi(),
-    await SystemRunner.profileCPUUsagePercent(),
-    SystemRunner.profileMemoryUsagePercent(),
-    await updatePluginNoticesStore(),
-    await updatePluginStore(),
-    await softwareUpdateChecker.syncLatestOctoFarmRelease(false).then(() => {
+  // initialiseSystemInformation has to stay first: profileMemoryUsagePercent
+  // only records a sample once it has populated totalMemory.
+  await runStepsInOrder({
+    initialiseSystemInformation: () => SystemRunner.initialiseSystemInformation(),
+    detectFarmPi: () => detectFarmPi(),
+    profileCPUUsagePercent: () => SystemRunner.profileCPUUsagePercent(),
+    profileMemoryUsagePercent: () => SystemRunner.profileMemoryUsagePercent(),
+    updatePluginNoticesStore: () => updatePluginNoticesStore(),
+    updatePluginStore: () => updatePluginStore(),
+    syncLatestOctoFarmRelease: async () => {
+      await softwareUpdateChecker.syncLatestOctoFarmRelease(false);
       softwareUpdateChecker.checkReleaseAndLogUpdate();
-    }),
-  ]);
+    },
+  });
 };
 
 const SORT_CURRENT_OPERATIONS = async () => {
@@ -81,10 +109,6 @@ const SORT_CURRENT_OPERATIONS = async () => {
 
 const GENERATE_PRINTER_HEAT_MAP = async () => {
   await generatePrinterHeatMap();
-};
-
-const CRASH_TEST_TASK = async () => {
-  throw new Error('big error');
 };
 
 const GITHUB_UPDATE_CHECK_TASK = async () => {

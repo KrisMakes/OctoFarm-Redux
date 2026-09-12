@@ -10,6 +10,9 @@ const Logger = require("../../../handlers/logger");
 const { LOGGER_ROUTE_KEYS } = require("../../../constants/logger.constants");
 const logger = new Logger(LOGGER_ROUTE_KEYS.OP_UTIL_WEBSOCKET_HELPER);
 
+// printer-cleaner.service.js reads the newest 720 temp rows and presents them as
+// one hour, so one row every 5s is the rate that assumption depends on.
+const TEMP_SAMPLE_INTERVAL_MS = 5000;
 const tempTimers = {};
 
 const captureLogData = (id, data) => {
@@ -31,32 +34,27 @@ const captureTemperatureData = (id, data) => {
       tools: PrinterClean.sortTemps(temps)
     });
 
+    // Sample against a real clock rather than counting messages. The old counter
+    // added 4000 per push against a >= 5000 threshold, which stored every *third*
+    // push (~9s at OctoPrint's ~3s cadence), not the every-second-push (~6s) its
+    // comment claimed. That stretched the "newest 720 rows is one hour" window
+    // printer-cleaner.service.js relies on to nearly two hours, and drifted again
+    // whenever OctoPrint throttled its push rate.
     if (!tempTimers[id]) {
       tempTimers[id] = 0;
     }
 
-    // 1 hour in miliseconds = 3600 * 1000 = 3,600,000
-    // 5 seconds = 5000 miliseconds.
-    // 1 hour has 3,600,000 / 5000 = 720 points of 5000 miliseconds. To pull a hour out of database reference 720 points.
-    // Temp data comes every 3 seconds or 3000 miliseconds, so we increment 4000 to the timer to capture every 2 times it comes in. Averaging around 6 seconds...
-
-    if (tempTimers[id] >= 5000) {
+    const now = Date.now();
+    if (now - tempTimers[id] >= TEMP_SAMPLE_INTERVAL_MS) {
+      tempTimers[id] = now;
       const datebaseTemp = {
         currentTemp: temps[0],
         printer_id: id
       };
       const newTemp = new TempHistoryDB(datebaseTemp);
-      newTemp
-        .save()
-        .then((res) => {
-          logger.debug("Successfully saved temp data to database", res);
-        })
-        .catch((e) => {
-          logger.error("Couldn't save temperature data", e);
-        });
-      tempTimers[id] = 0;
-    } else {
-      tempTimers[id] = tempTimers[id] + 4000;
+      newTemp.save().catch((e) => {
+        logger.error("Couldn't save temperature data", e);
+      });
     }
 
     coolDownEvent(id, temps);

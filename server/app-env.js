@@ -14,7 +14,7 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.SERVER_ENVIRONMENT, false);
 // Constants and definition
 const instructionsReferralURL = 'https://docs.octofarm.net/installation/setup-environment.html';
 const deprecatedConfigFolder = '../middleware';
-const deprecatedConfigFilePath = deprecatedConfigFolder + 'db.js';
+const deprecatedConfigFilePath = deprecatedConfigFolder + '/db.js';
 const packageJsonPath = path.join(__dirname, '../package.json');
 const packageLockPath = path.join(__dirname, '../package-lock.json');
 const packageLockFile = require(packageLockPath);
@@ -338,7 +338,7 @@ async function runMigrations(db, client) {
 
   const migrationResult = await up(db, client);
 
-  if (migrationResult > 0) {
+  if (migrationResult.length > 0) {
     logger.info(`Applied ${migrationResult.length} migrations successfully`, migrationResult);
   }
 }

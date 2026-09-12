@@ -4,6 +4,7 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_SSE);
 
 const { stringify } = require('flatted');
 let clientList = [];
+let clientIdCounter = 0;
 const UNKNOWN_USER = 'Administrator';
 
 const addClientConnection = (req, res) => {
@@ -21,17 +22,30 @@ const addClientConnection = (req, res) => {
   // Add a new client that just connected
   // Store the id and the whole response object with a clone of the user information
   // Limitations it doesn't update user information, don't think it's needed
+  //
+  // This deliberately leaves the 200 and the preamble already written rather than
+  // answering 401. The login page renders through layout.ejs, which loads
+  // events.service.js and opens this stream unconditionally, and that client
+  // draws a "server connection lost" modal plus a backoff retry loop on *any*
+  // non-200. Returning a status here is therefore user-visible breakage on the
+  // login screen. The idle stream costs one connection that the browser closes
+  // on navigation; closing it properly needs layout.ejs to stop loading the
+  // events bundle when nobody is signed in.
   if (!req?.user) {
     // On login page... no user available... do not register connection
     return;
   }
 
-  const id = Date.now();
+  // A monotonic counter, not Date.now(): two clients connecting in the same
+  // millisecond shared an id, and removeClient's filter then dropped both when
+  // either disconnected, silently deafening the survivor's stream.
+  const id = ++clientIdCounter;
   const client = {
     id,
+    connectedAt: Date.now(),
     res,
     user: JSON.parse(JSON.stringify(req?.user)),
-    endpoint: req.url ? JSON.parse(JSON.stringify(req.url)) : 'unknown endpoint',
+    endpoint: req.url || 'unknown endpoint',
     ip: req.socket.remoteAddress,
     forwardIp: req.headers['x-forwarded-for'],
   };
@@ -66,7 +80,7 @@ const removeClient = (id) => {
 const listActiveClientsRes = (_req, res) => {
   const currentActiveClientList = clientList.map((client) => {
     return {
-      connectionDate: client.id,
+      connectionDate: client.connectedAt,
       userName: client?.user?.name ? client.user.name : UNKNOWN_USER,
       group: client.user.group,
       endpoint: client.endpoint,
@@ -96,9 +110,18 @@ const notifySubscribers = (id, type, message, printerInfo = undefined) => {
       printerInfo,
     };
 
+    // One serialisation for everyone -- the payload is identical per client.
+    const serialisedPayload = stringify(payload);
+
     clientList.forEach((client) => {
-      client.res.write(`retry: ${10000}\n`);
-      client.res.write(`data: ${stringify(payload)}\n\n`);
+      try {
+        client.res.write(`retry: ${10000}\n`);
+        client.res.write(`data: ${serialisedPayload}\n\n`);
+      } catch (e) {
+        // Socket died between its 'close' event firing and this write.
+        logger.warning('Dropping a subscriber whose stream is already gone', e.toString());
+        removeClient(client.id);
+      }
     });
   }
 };

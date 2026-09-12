@@ -24,11 +24,14 @@ router.get(
   validateParamsMiddleware(M_VALID.MONGO_ID),
   (req, res) => {
     const id = req.paramString("id");
-    const { camURL } = getPrinterStoreCache().getPrinter(id);
+    // getPrinter returns undefined for an id that is no longer in the store --
+    // destructuring it directly turned a deleted printer into a 500.
+    const printer = getPrinterStoreCache().getPrinter(id);
 
-    if (!camURL) {
+    if (!printer?.camURL) {
       return res.sendStatus(404);
     }
+    const { camURL } = printer;
 
     logger.debug(`Proxying camera stream for ${id} from ${camURL}`);
 
