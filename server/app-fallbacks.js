@@ -67,7 +67,7 @@ function serveNodeVersionFallback(app) {
   });
 
   app.use("/", require("./routes/nodeVersionIssue", { page: "route" }));
-  app.get("*", function (req, res) {
+  app.get("/*splat", function (req, res) {
     res.redirect("/");
   });
   app.use(exceptionHandler);
@@ -78,7 +78,7 @@ function serveNodeVersionFallback(app) {
 function serveDatabaseIssueFallbackRoutes(app) {
   app.use("/", require("./routes/databaseIssue", { page: "route" }));
   app.use("/serverChecks", require("./routes/serverChecks", { page: "route" }));
-  app.get("*", function (req, res) {
+  app.get("/*splat", function (req, res) {
     res.redirect("/");
   });
   app.use(exceptionHandler);

@@ -133,7 +133,7 @@ function serveOctoFarmRoutes(app) {
     require('./routes/camera-proxy.routes.js', { page: 'route' })
   );
   app.use(
-    '/octoprint/:id/:item(*)',
+    '/octoprint/:id/*item',
     ensureAuthenticated,
     validateParamsMiddleware(M_VALID.MONGO_ID),
     proxyOctoPrintClientRequests
@@ -158,7 +158,7 @@ function serveOctoFarmRoutes(app) {
   ); // DEPRECATE IN FAVOR OF EVENTS, WILL TAKE SOME WORK
   app.use('/events', require('./routes/sse.events.routes.js', { page: 'route' }));
 
-  app.get('*', function (req, res) {
+  app.get('/*splat', function (req, res) {
     const originalURL = sanitizeString(req.originalUrl);
     if (originalURL.endsWith('.min.js')) {
       res.status(404);

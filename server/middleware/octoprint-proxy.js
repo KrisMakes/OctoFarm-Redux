@@ -8,7 +8,13 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.MIDDLEWARE_OCTOPRINT_PROXY);
 module.exports = {
   async proxyOctoPrintClientRequests(req, res) {
     const id = req.paramString("id");
-    const item = req.paramString("item");
+    // Express 5 hands a wildcard parameter back as an array of path segments,
+    // so rejoin it before sanitising to get the path this used to receive.
+    const itemParam = req.params.item;
+    const item = req.sanitizer.value(
+      Array.isArray(itemParam) ? itemParam.join("/") : itemParam,
+      "str"
+    );
 
     const { printerURL, apikey } = getPrinterStoreCache().getPrinter(id);
     let redirectedRequest;

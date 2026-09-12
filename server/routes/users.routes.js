@@ -201,10 +201,15 @@ router.post("/register", async (req, res) => {
 });
 
 // Logout Handle
-router.get("/logout", (req, res) => {
-  req.logout();
-  req.flash("success_msg", "You are logged out");
-  res.redirect("/users/login");
+router.get("/logout", (req, res, next) => {
+  // passport 0.6 made logout asynchronous; the callback is required.
+  req.logout((err) => {
+    if (err) {
+      return next(err);
+    }
+    req.flash("success_msg", "You are logged out");
+    res.redirect("/users/login");
+  });
 });
 
 // Get user list
