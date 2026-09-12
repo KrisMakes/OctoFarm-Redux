@@ -5,7 +5,6 @@ const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_SYSTEM_CONTROL);
 const { TaskManager } = require("./task-manager.service");
 const { getPrinterManagerCache } = require("../cache/printer-manager.cache");
-const {getMjpegProxyCache} = require("../cache/mjpeg-proxy.cache");
 
 function killMongoDBConnection() {
   if (mongoose.connection.readyState === 1) {
@@ -23,7 +22,6 @@ function shutdownServer(app) {
     getPrinterManagerCache().killAllConnections(),
     getPrinterManagerCache().clearPrinterQueuesTimeout(),
     TaskManager.stopSchedulerTasks(),
-    getMjpegProxyCache().destroyCameraInterval(),
     app.close()
   ]);
 }

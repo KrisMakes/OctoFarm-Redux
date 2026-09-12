@@ -10,7 +10,6 @@ import {
 } from '../js/services/amialive.service';
 import { ClientErrors } from '../js/exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../js/exceptions/application-error.handler';
-import { updateCameraImage } from '../js/services/proxy-camera.service';
 import { startCameraStreamWatchdog } from '../js/services/camera-stream-watchdog.service';
 
 // Keeping hold of this, may return a use for later...
@@ -111,11 +110,6 @@ function setupEventSource() {
     if (type === MESSAGE_TYPES.CURRENT_OPERATIONS) {
       const { operations, count } = message;
       await currentOperationsPanelService(operations, count);
-    }
-
-    if (type === MESSAGE_TYPES.NEW_CAMERA_IMAGE) {
-      const { printerID, cameraURL } = message;
-      await updateCameraImage(printerID, cameraURL);
     }
   };
   evtSource.onopen = function (e) {
