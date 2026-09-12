@@ -7,7 +7,6 @@ const dotenv = require('dotenv');
 const { AppConstants } = require('./constants/app.constants');
 
 const Logger = require('./handlers/logger.js');
-const { status, up } = require('migrate-mongo');
 const { LOGGER_ROUTE_KEYS } = require('./constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVER_ENVIRONMENT, false);
@@ -323,6 +322,9 @@ function getViewsPath() {
  * @returns {Promise<void>}
  */
 async function runMigrations(db, client) {
+  // migrate-mongo 14 is ESM only. Requiring it from CommonJS yields an empty
+  // namespace on Node 22+, so it has to be imported dynamically.
+  const { status, up } = await import('migrate-mongo');
   const migrationsStatus = await status(db);
   const pendingMigrations = migrationsStatus.filter((m) => m.appliedAt === 'PENDING');
 

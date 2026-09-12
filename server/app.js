@@ -43,8 +43,8 @@ if (!!majorVersion && majorVersion < 14) {
 
   mongoose
     .connect(fetchMongoDBConnectionString(), {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+      // useNewUrlParser / useUnifiedTopology were dropped by the driver; they
+      // have been no-ops since Mongoose 6 and warn from driver 6 onwards.
       serverSelectionTimeoutMS: 2500
     })
     .then(async (mg) => {

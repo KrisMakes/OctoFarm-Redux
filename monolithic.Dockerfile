@@ -1,17 +1,17 @@
 # Base is MongoDB's own image rather than a node image with MongoDB bolted on.
-# It pins the server at 6.0 (the newest Mongoose 6.6 supports) on a distribution
-# that is still in support — Debian stretch went EOL in 2020 and bullseye in
-# August 2026, so neither can be patched any more.
-FROM mongo:6.0
+# Debian stretch went EOL in 2020 and bullseye in August 2026, so neither can be
+# patched; this tracks whatever distribution MongoDB currently ships on.
+FROM mongo:8.0
 
-# Node 22 LTS from NodeSource. The "nodistro" repository is distribution
-# agnostic, so this does not pin us to the base image's Ubuntu release.
+# Node 24 LTS from NodeSource, supported until April 2028. The "nodistro"
+# repository is distribution agnostic, so this does not pin us to the base
+# image's Ubuntu release.
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -yq ca-certificates curl gnupg \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
       | gpg -o /etc/apt/keyrings/nodesource.gpg --dearmor \
-    && echo 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main' \
+    && echo 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main' \
       > /etc/apt/sources.list.d/nodesource.list \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -yq \

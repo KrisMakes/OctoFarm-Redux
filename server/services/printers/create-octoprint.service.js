@@ -545,7 +545,7 @@ class OctoPrintPrinter {
   async enablePrinter(force = true) {
     this.enabling = true;
     if (this.disabled) {
-      this.#db.update({ disabled: false });
+      this.#db.updateOne({ disabled: false });
     }
 
     await this.setupClient();
@@ -637,7 +637,7 @@ class OctoPrintPrinter {
 
     this.onboarding.fullyScanned = true;
 
-    this.#db.update({ onboarding: this.onboarding });
+    this.#db.updateOne({ onboarding: this.onboarding });
 
     // Get a session key
     await this.#setupWebsocket();
@@ -788,7 +788,7 @@ class OctoPrintPrinter {
     if (!this?.#db) {
       logger.debug(this.printerURL + ': Creating printer database link');
       this.#db = new PrinterDatabaseService(this._id);
-      this.#db.update({
+      this.#db.updateOne({
         disabled: this.disabled,
         sortIndex: this.sortIndex,
         group: this.group,
@@ -933,7 +933,7 @@ class OctoPrintPrinter {
       const globalStatusCode = checkApiStatusResponse(piPluginCheck);
       if (globalStatusCode === 200) {
         const octoPi = await piPluginCheck.json();
-        this.#db.update({
+        this.#db.updateOne({
           octoPi: octoPi,
         });
         this.octoPi = octoPi;
@@ -941,7 +941,7 @@ class OctoPrintPrinter {
         return true;
       } else {
         this.octoPi = {};
-        this.#db.update({
+        this.#db.updateOne({
           octoPi: this.octoPi,
         });
         logger.http('Failed to acquire raspberry pi data...', piPluginCheck);
@@ -974,14 +974,14 @@ class OctoPrintPrinter {
       const systemJson = await systemCheck.json();
 
       this.core = systemJson.core;
-      this.#db.update({
+      this.#db.updateOne({
         core: systemJson.core,
       });
 
       this.#apiPrinterTickerWrap('Acquired system data!', 'Complete');
       this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SYSTEM, 'success', true);
       this.onboarding.systemApi = true;
-      this.#db.update({ onboarding: this.onboarding });
+      this.#db.updateOne({ onboarding: this.onboarding });
       return true;
     } else {
       logger.http('Failed to acquire system data...' + systemCheck);
@@ -1008,7 +1008,7 @@ class OctoPrintPrinter {
       const { profiles } = await profileCheck.json();
       this.profiles = profiles;
 
-      this.#db.update({
+      this.#db.updateOne({
         profiles: profiles,
       });
 
@@ -1016,7 +1016,7 @@ class OctoPrintPrinter {
       this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().PROFILE, 'success', true);
 
       this.onboarding.profileApi = true;
-      this.#db.update({ onboarding: this.onboarding });
+      this.#db.updateOne({ onboarding: this.onboarding });
       return true;
     } else {
       logger.http('Failed to acquire profile data...' + profileCheck);
@@ -1046,7 +1046,7 @@ class OctoPrintPrinter {
       const { current, options } = await stateCheck.json();
       this.current = current;
       this.options = options;
-      this.#db.update({
+      this.#db.updateOne({
         current: current,
         options: options,
       });
@@ -1062,7 +1062,7 @@ class OctoPrintPrinter {
       this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().STATE, 'success', true);
 
       this.onboarding.stateApi = true;
-      this.#db.update({ onboarding: this.onboarding });
+      this.#db.updateOne({ onboarding: this.onboarding });
       return true;
     } else {
       logger.http('Failed to acquire state data...' + stateCheck);
@@ -1112,7 +1112,7 @@ class OctoPrintPrinter {
       if (this.settingsAppearance.color !== appearance.color) {
         this.settingsAppearance.color = appearance.color;
       }
-      this.#db.update({
+      this.#db.updateOne({
         camURL: this.camURL,
         settingsAppearance: this.settingsAppearance,
         costSettings: this.costSettings,
@@ -1134,7 +1134,7 @@ class OctoPrintPrinter {
       this.#apiPrinterTickerWrap('Acquired settings data!', 'Complete');
       this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SETTINGS, 'success', true);
       this.onboarding.settingsApi = true;
-      this.#db.update({ onboarding: this.onboarding });
+      this.#db.updateOne({ onboarding: this.onboarding });
       return true;
     } else {
       logger.http('Failed to acquire settings data...' + settingsCheck);
@@ -1168,7 +1168,7 @@ class OctoPrintPrinter {
           return !plugin.enabled;
         });
 
-        this.#db.update({
+        this.#db.updateOne({
           pluginsListEnabled: this.pluginsListEnabled,
           pluginsListDisabled: this.pluginsListDisabled,
         });
@@ -1238,7 +1238,7 @@ class OctoPrintPrinter {
         }
         this.octoPrintUpdate = octoPrintUpdate;
         this.octoPrintPluginUpdates = pluginUpdates;
-        this.#db.update({
+        this.#db.updateOne({
           octoPrintUpdate: octoPrintUpdate,
           octoPrintPluginUpdates: pluginUpdates,
         });
@@ -1335,7 +1335,7 @@ class OctoPrintPrinter {
 
       this.fileList.fileList[fileIndex] = fileInformation;
 
-      this.#db.update({ fileList: this.fileList });
+      this.#db.updateOne({ fileList: this.fileList });
 
       return fileInformation;
     } else {
@@ -1376,7 +1376,7 @@ class OctoPrintPrinter {
           folderCount: printerLocations.length,
         };
 
-        this.#db.update({
+        this.#db.updateOne({
           storage: this.storage,
           fileList: {
             fileList: printerFiles,
@@ -1654,7 +1654,7 @@ class OctoPrintPrinter {
         this.fileList.fileList[fileIndex].length = toolInfo;
       }
 
-      this.#db.update({ fileList: this.fileList });
+      this.#db.updateOne({ fileList: this.fileList });
 
       this.notifySubscribersOfFileInformationChange(fullPath, fileIndex);
       //Grab api once more after this for full update of file... including thumbnail
@@ -1807,7 +1807,7 @@ class OctoPrintPrinter {
 
     this.fileList.filecount = 0;
     this.fileList.folderCount = 0;
-    this.#db.update({ fileList: this.fileList });
+    this.#db.updateOne({ fileList: this.fileList });
     logger.info('Deleted files... ', deletedFiles);
     logger.info('Deleted folders... ', deletedFolders);
     return { deletedFiles, deletedFolders };
@@ -1836,7 +1836,7 @@ class OctoPrintPrinter {
     this.fileList.filecount = this.fileList.fileList.length;
     this.fileList.folderCount = this.fileList.folderList.length;
 
-    this.#db.update({ fileList: this.fileList });
+    this.#db.updateOne({ fileList: this.fileList });
     return deletedList;
   }
 

@@ -14,12 +14,9 @@ module.exports = function (passport) {
         if (!uid) {
           return done(null, uid);
         }
-        User.findById(uid, (err, user) => {
-          if (err) {
-            return done(err);
-          }
-          return done(null, user || false);
-        });
+        User.findById(uid)
+          .then((user) => done(null, user || false))
+          .catch((err) => done(err));
       });
     }, UserTokenService.issueTokenWithDone)
   );
@@ -52,8 +49,8 @@ module.exports = function (passport) {
   });
 
   passport.deserializeUser((id, done) => {
-    User.findById(id, (err, user) => {
-      done(err, user);
-    });
+    User.findById(id)
+      .then((user) => done(null, user))
+      .catch((err) => done(err));
   });
 };

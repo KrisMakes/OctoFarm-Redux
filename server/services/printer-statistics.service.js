@@ -580,10 +580,10 @@ const generateDashboardStatistics = async () => {
 
   // REFACTOR - More love needed for this feature.
   //Find min / max values for gas_resistance to tweak calulation...
-  RoomData.find({})
-    .sort({ _id: -1 })
-    .limit(500)
-    .exec(function (err, posts) {
+  // Mongoose 7 removed query callbacks, so this is awaited rather than fired off
+  // to complete after the enclosing function has already returned.
+  const posts = await RoomData.find({}).sort({ _id: -1 }).limit(500);
+  {
       const currentEnviromentalData = [
         {
           name: "Temperature",
@@ -665,8 +665,8 @@ const generateDashboardStatistics = async () => {
           }
         }
       }
-      dashboardStatistics.enviromentalData = currentEnviromentalData;
-    });
+    dashboardStatistics.enviromentalData = currentEnviromentalData;
+  }
 };
 
 const generatePrinterHeatMap = async () => {
