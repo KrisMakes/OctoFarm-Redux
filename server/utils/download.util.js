@@ -1,4 +1,4 @@
-const fetch = require("node-fetch");
+const fetch = require("./fetch.util");
 const fs = require("fs");
 const request = require("request");
 

@@ -1,4 +1,4 @@
-const fetch = require("node-fetch");
+const fetch = require("../utils/fetch.util");
 const Logger = require("../handlers/logger");
 const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
 

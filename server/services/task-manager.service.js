@@ -94,7 +94,7 @@ class TaskManagerService {
       const delay = (schedulerOptions.milliseconds || 0) + (schedulerOptions.seconds || 0) * 1000;
       this.runTimeoutTaskInstance(taskID, timedTask, delay);
     } else {
-      const job = new SimpleIntervalJob(schedulerOptions, timedTask, taskID);
+      const job = new SimpleIntervalJob(schedulerOptions, timedTask, { id: taskID });
       this.jobScheduler.addSimpleIntervalJob(job);
     }
   }

@@ -1,6 +1,6 @@
 const express = require("express");
 const Logger = require("../handlers/logger");
-const isDocker = require("is-docker");
+const isDocker = require("../utils/is-docker.util");
 const { AppConstants } = require("../constants/app.constants");
 const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
 

@@ -2,7 +2,7 @@ const path = require("path");
 const fs = require("fs");
 const Logger = require("../handlers/logger.js");
 const dotenv = require("dotenv");
-const isDocker = require("is-docker");
+const isDocker = require("./is-docker.util");
 const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
 const logger = new Logger(LOGGER_ROUTE_KEYS.UTILS_ENV_LOGGER, false);
 

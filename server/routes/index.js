@@ -22,7 +22,7 @@ const {
 const { SystemRunner } = require('../services/system-information.service');
 const { fetchUsers } = require('../services/users.service');
 const { fetchMongoDBConnectionString } = require('../app-env');
-const isDocker = require('is-docker');
+const isDocker = require('../utils/is-docker.util');
 const { isNodemon, isNode, isPm2 } = require('../utils/env.utils');
 const { getCurrentBranch, checkIfWereInAGitRepo } = require('../utils/git.utils');
 

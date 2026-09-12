@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const isDocker = require('is-docker');
+const isDocker = require('./utils/is-docker.util');
 const envUtils = require('./utils/env.utils');
 const dotenv = require('dotenv');
 const { AppConstants } = require('./constants/app.constants');

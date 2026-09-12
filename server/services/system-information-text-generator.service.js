@@ -5,7 +5,7 @@ const table = require('table').table;
 const { getLogsPath } = require('../utils/system-paths.utils.js');
 const { isPm2, isNodemon, isNode } = require('../utils/env.utils.js');
 
-const isDocker = require('is-docker');
+const isDocker = require('../utils/is-docker.util');
 const { getUpdateNotificationIfAny } = require('./octofarm-update.service.js');
 
 const { SystemRunner } = require('./system-information.service.js');
