@@ -225,7 +225,7 @@ export const loadOverviewTable = async () => {
     spoolList += `
                 <tr>
                     <th style="display: none;"> </th>
-                    <th><i class="fas fa-toilet-paper"></i></th>
+                    <th><i class="fas fa-filament-spool"></i></th>
                     <th >${spool.name}</th>
                     <td id="spoolsListMaterial-${spool._id}">
                     </td>

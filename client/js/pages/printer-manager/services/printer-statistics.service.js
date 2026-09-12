@@ -275,15 +275,15 @@ export default class PrinterStatisticsService {
               <div class="card-header">Filament Usage Today</div>
               <div class="card-body">
                     <p class="card-text">  
-                        <span><i class="fas fa-toilet-paper text-secondary"></i> <b>Cost </b> <br> ${Calc.generateCost(
+                        <span><i class="fas fa-filament-spool text-secondary"></i> <b>Cost </b> <br> ${Calc.generateCost(
                           stats.filamentCostDay
                         )}</span>
                       <br>
-                      <span><i class="fas fa-toilet-paper text-secondary"></i> <b>Length </b> <br> ${Calc.generateCost(
+                      <span><i class="fas fa-filament-spool text-secondary"></i> <b>Length </b> <br> ${Calc.generateCost(
                         stats.filamentLengthDay
                       )}</span>m
                       <br>
-                      <span class="pb-4"><i class="fas fa-toilet-paper text-secondary"></i> <b>Weight </b><br> ${Calc.generateCost(
+                      <span class="pb-4"><i class="fas fa-filament-spool text-secondary"></i> <b>Weight </b><br> ${Calc.generateCost(
                         stats.filamentWeightDay
                       )}</span>g
                               
@@ -296,15 +296,15 @@ export default class PrinterStatisticsService {
               <div class="card-header">Filament Usage Last Seven Days</div>
               <div class="card-body">
                                     <p class="card-text">  
-                        <span><i class="fas fa-toilet-paper text-secondary"></i> <b>Cost </b> <br> ${Calc.generateCost(
+                        <span><i class="fas fa-filament-spool text-secondary"></i> <b>Cost </b> <br> ${Calc.generateCost(
                           stats.filamentCostWeek
                         )}</span>
                       <br>
-                      <span><i class="fas fa-toilet-paper text-secondary"></i> <b>Length </b> <br> ${Calc.generateCost(
+                      <span><i class="fas fa-filament-spool text-secondary"></i> <b>Length </b> <br> ${Calc.generateCost(
                         stats.filamentLengthWeek
                       )}</span>m
                       <br>
-                      <span class="pb-4"><i class="fas fa-toilet-paper text-secondary"></i> <b>Weight </b><br> ${Calc.generateCost(
+                      <span class="pb-4"><i class="fas fa-filament-spool text-secondary"></i> <b>Weight </b><br> ${Calc.generateCost(
                         stats.filamentWeightWeek
                       )}</span>g
                               
@@ -317,15 +317,15 @@ export default class PrinterStatisticsService {
                 <div class="card-header">Filament Usage All Time</div>
                 <div class="card-body">
                                       <p class="card-text">  
-                        <span><i class="fas fa-toilet-paper text-secondary"></i> <b>Cost </b> <br> ${Calc.generateCost(
+                        <span><i class="fas fa-filament-spool text-secondary"></i> <b>Cost </b> <br> ${Calc.generateCost(
                           stats.filamentCostTotal
                         )}</span>
                       <br>
-                      <span><i class="fas fa-toilet-paper text-secondary"></i> <b>Length </b> <br> ${Calc.generateCost(
+                      <span><i class="fas fa-filament-spool text-secondary"></i> <b>Length </b> <br> ${Calc.generateCost(
                         stats.filamentUsedLengthTotal
                       )}</span>m
                       <br>
-                      <span class="pb-4"><i class="fas fa-toilet-paper text-secondary"></i> <b>Weight </b><br> ${Calc.generateCost(
+                      <span class="pb-4"><i class="fas fa-filament-spool text-secondary"></i> <b>Weight </b><br> ${Calc.generateCost(
                         stats.filamentUsedWeightTotal
                       )}</span>g
                               

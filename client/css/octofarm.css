@@ -896,3 +896,17 @@ label {
   pointer-events: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
 }
+
+/* Font Awesome 6 Free has no filament spool glyph, and the fa-toilet-paper
+   stand-in it shipped with looks like a loo roll. Draw our own instead.
+   Masked rather than used as a background image so currentColor and the
+   text-* utilities keep working exactly like a real Font Awesome icon. */
+.fa-filament-spool {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20512%20512'%3E%3Cpath%20fill-rule='evenodd'%20d='M12,228%20a204,204%200%201,0%20408,0%20a204,204%200%201,0%20-408,0%20M160,228%20a56,56%200%201,0%20112,0%20a56,56%200%201,0%20-112,0%20M74,138%20a50,50%200%201,0%20100,0%20a50,50%200%201,0%20-100,0%20M258,138%20a50,50%200%201,0%20100,0%20a50,50%200%201,0%20-100,0%20M74,318%20a50,50%200%201,0%20100,0%20a50,50%200%201,0%20-100,0%20M258,318%20a50,50%200%201,0%20100,0%20a50,50%200%201,0%20-100,0'/%3E%3Cpath%20d='M400,258%20C454,302%20478,354%20470,432'%20stroke='black'%20stroke-width='40'%20stroke-linecap='round'%20fill='none'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20512%20512'%3E%3Cpath%20fill-rule='evenodd'%20d='M12,228%20a204,204%200%201,0%20408,0%20a204,204%200%201,0%20-408,0%20M160,228%20a56,56%200%201,0%20112,0%20a56,56%200%201,0%20-112,0%20M74,138%20a50,50%200%201,0%20100,0%20a50,50%200%201,0%20-100,0%20M258,138%20a50,50%200%201,0%20100,0%20a50,50%200%201,0%20-100,0%20M74,318%20a50,50%200%201,0%20100,0%20a50,50%200%201,0%20-100,0%20M258,318%20a50,50%200%201,0%20100,0%20a50,50%200%201,0%20-100,0'/%3E%3Cpath%20d='M400,258%20C454,302%20478,354%20470,432'%20stroke='black'%20stroke-width='40'%20stroke-linecap='round'%20fill='none'/%3E%3C/svg%3E") center / contain no-repeat;
+}
