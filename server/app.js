@@ -39,6 +39,19 @@ if (!!majorVersion && majorVersion < 14) {
 
   const logger = new Logger(LOGGER_ROUTE_KEYS.SERVER_APP);
 
+  // Node terminates the process on an unhandled rejection by default. This app
+  // schedules a lot of work on bare setInterval/setTimeout callbacks, where a
+  // single rejected promise -- one bad websocket reconnect, one malformed client
+  // settings document -- would otherwise take down monitoring for the whole farm
+  // and leave pm2 restarting in a loop. Log it loudly and keep serving; the
+  // individual call sites still catch what they can handle.
+  process.on("unhandledRejection", (reason) => {
+    logger.error(
+      "Unhandled promise rejection -- this is a bug, please report it",
+      reason instanceof Error ? reason.stack : String(reason)
+    );
+  });
+
   const octoFarmServer = setupExpressServer();
 
   mongoose

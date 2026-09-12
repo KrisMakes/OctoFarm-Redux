@@ -80,8 +80,10 @@ const INITIALISE_PRINTERS_TASK = async () => {
     startPrinterEnableQueue: () => getPrinterManagerCache().startPrinterEnableQueue(),
   });
 
-  setTimeout(async () => {
-    await updatePrinterHealthChecks(true);
+  setTimeout(() => {
+    updatePrinterHealthChecks(true).catch((e) => {
+      logger.error("Initial printer health checks failed", e.toString());
+    });
   }, 10000);
 };
 

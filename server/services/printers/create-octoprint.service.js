@@ -1658,8 +1658,10 @@ class OctoPrintPrinter {
 
       this.notifySubscribersOfFileInformationChange(fullPath, fileIndex);
       //Grab api once more after this for full update of file... including thumbnail
-      setTimeout(async () => {
-        await this.secondaryFileInformationUpdate(fullPath);
+      setTimeout(() => {
+        this.secondaryFileInformationUpdate(fullPath).catch((e) => {
+          logger.error("Secondary file information update failed", e.toString());
+        });
       }, 2000);
     } else {
       logger.error("updateFileInformation: Couldn't find file index to update!", fullPath);

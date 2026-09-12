@@ -428,7 +428,19 @@ class WebSocketClient {
     getPrinterStoreCache().updatePrinterLiveValue(this.id, {
       websocketReconnectingIn: this.reconnectingIn,
     });
-    this.reconnectTimeout = setTimeout(async () => {
+    this.reconnectTimeout = setTimeout(() => {
+      this.#runReconnect().catch((e) => {
+        logger.error(`Websocket reconnect attempt failed for ${this.id}`, e.toString());
+      });
+    }, this.autoReconnectInterval);
+  }
+
+  // Extracted from the reconnect setTimeout so the promise it returns can be
+  // caught: an unhandled rejection in a bare async timer callback takes the
+  // whole process down, which for a reconnect path means one unreachable
+  // printer could stop monitoring for the entire farm.
+  async #runReconnect() {
+    {
       this.reconnectingIn = 0;
       getPrinterStoreCache().updatePrinterLiveValue(this.id, {
         websocketReconnectingIn: this.reconnectingIn,
@@ -470,7 +482,7 @@ class WebSocketClient {
         return;
       }
       this.open();
-    }, this.autoReconnectInterval);
+    }
   }
 
   ping() {

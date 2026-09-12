@@ -14,6 +14,11 @@ const {
   makeSureBranchIsUpToDateWithRemote
 } = require("../utils/git.utils.js");
 
+const Logger = require("../handlers/logger.js");
+const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+
+const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_SYSTEM_CONTROL);
+
 class SystemCommands {
   static async rebootOctoFarm() {
     let checkForNamedService = false;
@@ -24,8 +29,10 @@ class SystemCommands {
         let doesFunctionExist = await lookpath("pm2");
 
         if (doesFunctionExist) {
-          setTimeout(async () => {
-            await exec("pm2 restart OctoFarm");
+          setTimeout(() => {
+            exec("pm2 restart OctoFarm").catch((e) => {
+              logger.error("pm2 restart command failed", e.toString());
+            });
           }, 5000);
 
           checkForNamedService = true;
@@ -40,8 +47,10 @@ class SystemCommands {
         let doesFunctionExist = await lookpath("touch");
 
         if (doesFunctionExist) {
-          setTimeout(async () => {
-            await exec("touch ./app.js");
+          setTimeout(() => {
+            exec("touch ./app.js").catch((e) => {
+              logger.error("nodemon restart command failed", e.toString());
+            });
           }, 5000);
 
           checkForNamedService = true;

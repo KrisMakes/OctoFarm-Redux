@@ -11,6 +11,10 @@ const { PrinterTicker } = printerTicker;
 const { getPrinterStoreCache } = require("../cache/printer-store.cache");
 const { getPrinterManagerCache } = require("../cache/printer-manager.cache");
 const { returnLast100Actions } = require("../services/user-actions-log.service");
+const Logger = require("../handlers/logger.js");
+const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+
+const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_SSE_OLD);
 
 let clientId = 0;
 const clients = {}; // <- Keep a map of attached clients
@@ -39,37 +43,45 @@ router.get("/get/", ensureAuthenticated, ensureCurrentUserAndGroup, function (re
   //console.log("Client: " + Object.keys(clients));
 });
 
+async function sendData() {
+  // Every read below feeds the payload and nothing else, so with no attached
+  // clients this whole tick -- a full printer list plus a flatted stringify,
+  // twice a second -- is wasted work.
+  if (Object.keys(clients).length === 0) {
+    return;
+  }
+
+  let printersInformation = getPrinterStoreCache().listPrintersInformationForPrinterManager();
+  printersInformation = printersInformation.map((p) => {
+    p.registeredEvents = getEventEmitterCache().get(p._id);
+    return p;
+  });
+  const printerControlList = getPrinterManagerCache().getPrinterControlList();
+  const currentTickerList = PrinterTicker.returnIssue();
+  const currentActionList = returnLast100Actions();
+
+  const infoDrop = {
+    printersInformation: printersInformation,
+    printerControlList: printerControlList,
+    currentTickerList: currentTickerList,
+    currentActionList: currentActionList
+  };
+  const clientInformation = stringify(infoDrop);
+  // `const id`, not the module-level clientId counter this used to reuse --
+  // see the matching comment in sse.printer-monitoring.routes.js.
+  for (const id of Object.keys(clients)) {
+    clients[id].write("retry:" + 10000 + "\n");
+    clients[id].write("data: " + clientInformation + "\n\n"); // <- Push a message to a single attached client
+  }
+}
+
 if (interval === false) {
-  interval = setInterval(async function () {
-    // Every read below feeds the payload and nothing else, so with no attached
-    // clients this whole tick -- a full printer list plus a flatted stringify,
-    // twice a second -- is wasted work.
-    if (Object.keys(clients).length === 0) {
-      return;
-    }
-
-    let printersInformation = getPrinterStoreCache().listPrintersInformationForPrinterManager();
-    printersInformation = printersInformation.map((p) => {
-      p.registeredEvents = getEventEmitterCache().get(p._id);
-      return p;
+  interval = setInterval(function () {
+    // Nothing awaits this callback, so an unhandled throw in here would take the
+    // whole server down rather than dropping a single tick.
+    sendData().catch((e) => {
+      logger.error("Failed to send printer manager information to clients", e.toString());
     });
-    const printerControlList = getPrinterManagerCache().getPrinterControlList();
-    const currentTickerList = PrinterTicker.returnIssue();
-    const currentActionList = returnLast100Actions();
-
-    const infoDrop = {
-      printersInformation: printersInformation,
-      printerControlList: printerControlList,
-      currentTickerList: currentTickerList,
-      currentActionList: currentActionList
-    };
-    const clientInformation = stringify(infoDrop);
-    // `const id`, not the module-level clientId counter this used to reuse --
-    // see the matching comment in sse.printer-monitoring.routes.js.
-    for (const id of Object.keys(clients)) {
-      clients[id].write("retry:" + 10000 + "\n");
-      clients[id].write("data: " + clientInformation + "\n\n"); // <- Push a message to a single attached client
-    }
   }, 500);
 }
 
