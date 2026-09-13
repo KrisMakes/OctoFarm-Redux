@@ -79,10 +79,16 @@ module.exports = (env, options) => {
         '...',
         new CssMinimizerPlugin(),
       ],
-      // Without this every entry inlined its own copy of ApexCharts (~495KB
-      // minified), lodash, Noty and Sortable. The five monitoring runners came
-      // out at 866KB each and differed by under 20 bytes.
-      runtimeChunk: { name: 'runtime' },
+      // Deliberately NO runtimeChunk. It applies to every entry including
+      // sse.client, which is loaded with `new Worker(url)` -- a worker loads
+      // exactly one file, so an entry that only pushes its modules into the
+      // chunk registry and waits for a separate runtime.js never runs at all.
+      // A per-entry runtime costs ~1.2KB and matches the original behaviour.
+      //
+      // splitChunks is the actual win here: without it every entry inlined its
+      // own copy of ApexCharts (~495KB minified), lodash, Noty and Sortable,
+      // and the five monitoring runners came out at 866KB each differing by
+      // under 20 bytes.
       splitChunks: {
         chunks: (chunk) => !standaloneEntries.has(chunk.name),
         cacheGroups: {
