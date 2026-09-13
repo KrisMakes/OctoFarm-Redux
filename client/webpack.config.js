@@ -43,12 +43,61 @@ const cssEntryNames = dirCssContents
 webpackEntries['vendor'] = `./js/vendor/entry.js`;
 webpackEntries['bootstrap'] = 'bootstrap/dist/js/bootstrap.bundle';
 
-module.exports = (env, options) => {
+// sse.client is loaded with `new Worker(url)`, which fetches exactly one file.
+// It therefore cannot take part in code splitting at all: it needs its own
+// runtime inlined and no shared chunks. The page entries need the opposite --
+// ONE shared runtime, or their deferred startup (__webpack_require__.O waiting
+// on the split chunk ids) never resolves and the entry code silently never
+// runs. Those two requirements cannot be met by one compiler, so the worker is
+// built by a second one below.
+const WORKER_ENTRY = 'sse.client';
+const workerEntry = webpackEntries[WORKER_ENTRY];
+delete webpackEntries[WORKER_ENTRY];
+const workerFileName = `js/${WORKER_ENTRY}.${packageJsonVersion}.min.js`;
+
+/**
+ * The web worker, built on its own.
+ *
+ * A worker fetches exactly one script, so this compiler must not split chunks
+ * or extract a runtime. It writes into the same output directory as the app
+ * build; nothing references it through the asset manifest because
+ * client-worker.service.js constructs the URL directly.
+ */
+const workerConfig = (options) => {
   const isProd = options.mode === 'production';
-  // Entries that must stay standalone: the web worker cannot take a shared
-  // runtime chunk, and the two bundles loaded before everything else in
-  // layout.ejs have no siblings to share with.
-  const standaloneEntries = new Set(['sse.client', 'bootstrap', 'vendor']);
+  return {
+    name: 'worker',
+    entry: { [WORKER_ENTRY]: workerEntry },
+    output: {
+      filename: `js/[name].${packageJsonVersion}.min.js`,
+      path: path.resolve(__dirname, isProd ? buildDirProd : buildDirDev),
+    },
+    mode: isProd ? 'production' : 'development',
+    devtool: isProd ? false : 'source-map',
+    target: 'webworker',
+    optimization: {
+      minimize: isProd,
+      // Explicitly off: both would break `new Worker(url)`.
+      runtimeChunk: false,
+      splitChunks: false,
+    },
+    module: {
+      rules: [
+        {
+          test: /\.(js)$/,
+          exclude: /node_modules/,
+          use: ['babel-loader'],
+        },
+      ],
+    },
+  };
+};
+
+const appConfig = (env, options) => {
+  const isProd = options.mode === 'production';
+  // bootstrap and vendor are loaded by layout.ejs as plain single script tags
+  // ahead of everything else, so they stay self-contained.
+  const standaloneEntries = new Set(['bootstrap', 'vendor']);
   const chosenBuildDir = isProd ? buildDirProd : buildDirDev;
   const fullDir = path.resolve(__dirname, chosenBuildDir);
   return {
@@ -79,16 +128,16 @@ module.exports = (env, options) => {
         '...',
         new CssMinimizerPlugin(),
       ],
-      // Deliberately NO runtimeChunk. It applies to every entry including
-      // sse.client, which is loaded with `new Worker(url)` -- a worker loads
-      // exactly one file, so an entry that only pushes its modules into the
-      // chunk registry and waits for a separate runtime.js never runs at all.
-      // A per-entry runtime costs ~1.2KB and matches the original behaviour.
-      //
-      // splitChunks is the actual win here: without it every entry inlined its
-      // own copy of ApexCharts (~495KB minified), lodash, Noty and Sortable,
-      // and the five monitoring runners came out at 866KB each differing by
-      // under 20 bytes.
+      // One runtime shared by every page entry. Without it each entry gets its
+      // own, and an entry that defers startup on a split chunk id
+      // (__webpack_require__.O) never starts -- the bundle loads, no error is
+      // logged, and none of its code runs. The worker is built separately so
+      // this does not apply to it.
+      runtimeChunk: 'single',
+      // splitChunks is the win here: without it every entry inlined its own
+      // copy of ApexCharts (~495KB minified), lodash, Noty and Sortable, and
+      // the five monitoring runners came out at 866KB each differing by under
+      // 20 bytes.
       splitChunks: {
         chunks: (chunk) => !standaloneEntries.has(chunk.name),
         cacheGroups: {
@@ -220,6 +269,11 @@ module.exports = (env, options) => {
               return;
             }
             // Assets are keyed "js/name.js" in the compilation.
+            // The worker is produced by the other compiler, so it is not in
+            // this compilation's asset list.
+            if ('js/' + file.name === workerFileName) {
+              return;
+            }
             if (!newlyCreatedAssets['js/' + file.name]) {
               fs.unlinkSync(path.join(jsDir, file.name));
               unlinked.push(file.name);
@@ -236,3 +290,5 @@ module.exports = (env, options) => {
     ],
   };
 };
+
+module.exports = (env, options) => [appConfig(env, options), workerConfig(options)];

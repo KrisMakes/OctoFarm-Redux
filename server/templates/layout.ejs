@@ -45,15 +45,18 @@
     <link rel="stylesheet" href="/assets/css/octofarm.<%= clientVersion %>.css"/>
     <title><%= octoFarmPageTitle %>: <%= page %></title>
     <%# defer throughout: these were blocking scripts, so ~1MB had to download and
-        execute before any HTML rendered. defer keeps them in source order. %>
+        execute before any HTML rendered. defer keeps them in source order.
+        jquery and bootbox are plain vendor files, not webpack entries. %>
     <script src="/assets/vendor/js/jquery.js" defer></script>
     <script src="/assets/vendor/js/bootbox.js" defer></script>
-    <script src="/assets/js/bootstrap.<%= clientVersion %>.min.js" defer></script>
-    <script src="/assets/js/vendor.<%= clientVersion %>.min.js" defer></script>
-    <%# Shared webpack chunks first: every entry below depends on them, and the
-        page body is rendered before this layout, so they have to be reserved
-        here rather than discovered while rendering the body. %>
+    <%# Shared webpack chunks next, and before any entry: every bundle below --
+        bootstrap and vendor included -- shares one runtime, and an entry that
+        executes ahead of it silently does nothing. The page body renders before
+        this layout, so the shared set is reserved here rather than discovered
+        while rendering the body. %>
     <%- sharedScriptTags() %>
+    <%- scriptTags('bootstrap') %>
+    <%- scriptTags('vendor') %>
     <%- scriptTags('client-error.modal') %>
     <% if (isSignedIn) { %>
         <%- scriptTags('events.service') %>
