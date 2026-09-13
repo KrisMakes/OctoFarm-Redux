@@ -22,6 +22,18 @@ import { generatePathList, getFileListElement } from '../pages/file-manager/file
 import { ClientErrors } from '../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../exceptions/application-error.handler';
 import { findIndex } from 'lodash';
+import { readOctoPrintError } from './octoprint/octoprint.helpers-commands.actions';
+
+// Sentinel for the extra entry in the move dialog's folder list. Not a path any
+// OctoPrint folder could be called.
+const COPY_TO_PRINTER_OPTION = '__octofarm_copy_to_printer__';
+
+const escapeHtml = (value) =>
+  String(value ?? '').replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])
+  );
 
 const fileUploads = new Queue();
 
@@ -1288,11 +1300,15 @@ export class FileActions {
   }
 
   static async selectFile(printer, filePath) {
-    const { status } = await OctoPrintClient.file(printer, filePath, 'load');
+    const post = await OctoPrintClient.file(printer, filePath, 'load');
+    const { status } = post;
     if (status === 404) {
       UI.createAlert('error', 'We could not find the location, does it exist?', 3000, 'clicked');
     } else if (status === 409) {
-      UI.createAlert('warning', 'There was a conflict, file is in use...', 3000, 'clicked');
+      // Nearly always "Printer is not operational" -- OctoPrint refuses to
+      // select a file while the serial connection to the printer is closed.
+      const reason = await readOctoPrintError(post, 'the file is in use');
+      UI.createAlert('warning', `Could not select the file: ${reason}`, 5000, 'clicked');
     } else {
       UI.createAlert('success', 'Successfully selected your file...', 3000, 'clicked');
     }
@@ -1326,6 +1342,13 @@ export class FileActions {
       value: '/',
     };
     inputOptions.push(loc);
+    // OctoPrint's move command only knows about folders on its own instance, so
+    // sending a file to a different machine is a separate flow. It is offered
+    // from the same menu because that is where people look for it.
+    inputOptions.push({
+      text: '\u2192 Another printer...',
+      value: COPY_TO_PRINTER_OPTION,
+    });
     printer.fileList.folderList.forEach((folder) => {
       const option = {
         text: folder.name,
@@ -1338,6 +1361,10 @@ export class FileActions {
       inputType: 'select',
       inputOptions,
       async callback(result) {
+        if (result === COPY_TO_PRINTER_OPTION) {
+          await FileActions.copyFileToOtherPrinters(printer, fullPath);
+          return;
+        }
         if (result) {
           const opt = {
             command: 'move',
@@ -1353,12 +1380,11 @@ export class FileActions {
               'clicked'
             );
           } else if (status === 409) {
-            UI.createAlert(
-              'warning',
-              'There was a conflict, file already exists or is in use...',
-              3000,
-              'clicked'
+            const reason = await readOctoPrintError(
+              post,
+              'it already exists at the destination, or is in use'
             );
+            UI.createAlert('warning', `Could not move it: ${reason}`, 5000, 'clicked');
           } else {
             const json = await post.json();
             const opts = {
@@ -1376,6 +1402,114 @@ export class FileActions {
     });
   }
 
+  /**
+   * Copy a file from this printer onto one or more others.
+   *
+   * The copy is done by the server, not here: the browser would otherwise pull
+   * the whole gcode down and push a copy back up for every target.
+   */
+  static async copyFileToOtherPrinters(printer, fullPath) {
+    const fileName = fullPath.split('/').pop();
+
+    let printers;
+    try {
+      printers = await OctoFarmClient.listPrinters();
+    } catch (e) {
+      UI.createAlert('error', `Could not load the printer list: ${e}`, 3000, 'clicked');
+      return;
+    }
+
+    const others = printers.filter((target) => target._id !== printer._id && !target.disabled);
+    if (others.length === 0) {
+      UI.createAlert('warning', 'There are no other printers to copy this to.', 3000, 'clicked');
+      return;
+    }
+
+    const rows = others
+      .map(
+        (target) => `
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" value="${target._id}" id="copyTarget-${
+          target._id
+        }">
+          <label class="form-check-label" for="copyTarget-${target._id}">${escapeHtml(
+          target.printerName
+        )}</label>
+        </div>`
+      )
+      .join('');
+
+    bootbox.dialog({
+      title: `Copy ${escapeHtml(fileName)} to another printer`,
+      message: `
+        <p class="text-muted">It stays on ${escapeHtml(
+          printer.printerName
+        )} as well -- this copies, it does not remove the original.</p>
+        <div id="copyToPrinterTargets">${rows}</div>`,
+      buttons: {
+        cancel: { label: 'Cancel', className: 'btn-secondary' },
+        confirm: {
+          label: 'Copy',
+          className: 'btn-success',
+          callback() {
+            // Read the boxes before the dialog tears its own DOM down.
+            const targetIds = Array.from(
+              document.querySelectorAll('#copyToPrinterTargets input:checked')
+            ).map((box) => box.value);
+
+            if (targetIds.length === 0) {
+              UI.createAlert('warning', 'Pick at least one printer.', 3000, 'clicked');
+              return false;
+            }
+
+            // Deliberately not awaited inside the bootbox callback: a large
+            // gcode going to several printers takes minutes, and the dialog
+            // should not sit open for it.
+            FileActions.runFileCopy(printer, fullPath, fileName, targetIds);
+            return true;
+          },
+        },
+      },
+    });
+  }
+
+  static async runFileCopy(printer, fullPath, fileName, targetIds) {
+    UI.createAlert(
+      'info',
+      `Copying ${fileName} to ${targetIds.length} printer(s), this can take a while...`,
+      6000,
+      'clicked'
+    );
+
+    let outcome;
+    try {
+      outcome = await OctoFarmClient.post('printers/copyFileToPrinters', {
+        sourceId: printer._id,
+        fullPath,
+        targetIds,
+      });
+    } catch (e) {
+      UI.createAlert('error', `Could not copy ${fileName}: ${e}`, 0, 'clicked');
+      return;
+    }
+
+    const results = outcome?.results ?? [];
+    const failed = results.filter((entry) => !entry.ok);
+    const copied = results.length - failed.length;
+
+    if (copied > 0) {
+      UI.createAlert('success', `Copied ${fileName} to ${copied} printer(s).`, 5000, 'clicked');
+    }
+    if (failed.length > 0) {
+      // Sticky: a partial failure is the case worth reading, and it names both
+      // the printer and OctoPrint's own reason.
+      const detail = failed
+        .map((entry) => `${entry.printerName ?? entry.id}: ${entry.reason}`)
+        .join('<br>');
+      UI.createAlert('error', `${fileName} did not reach:<br>${detail}`, 0, 'clicked');
+    }
+  }
+
   static deleteFile(printer, fullPath) {
     bootbox.confirm({
       message: `Are you sure you want to delete ${fullPath}?`,
@@ -1389,7 +1523,8 @@ export class FileActions {
       },
       async callback(result) {
         if (result) {
-          const { status } = await OctoPrintClient.file(printer, fullPath, 'delete');
+          const deleteResponse = await OctoPrintClient.file(printer, fullPath, 'delete');
+          const { status } = deleteResponse;
           if (status === 404) {
             UI.createAlert(
               'error',
@@ -1398,7 +1533,8 @@ export class FileActions {
               'clicked'
             );
           } else if (status === 409) {
-            UI.createAlert('warning', 'There was a conflict, file is in use...', 3000, 'clicked');
+            const reason = await readOctoPrintError(deleteResponse, 'the file is in use');
+            UI.createAlert('warning', `Could not delete the file: ${reason}`, 5000, 'clicked');
           } else {
             const opt = {
               i: printer._id,
@@ -1498,12 +1634,11 @@ export class FileActions {
               'clicked'
             );
           } else if (status === 409) {
-            UI.createAlert(
-              'error',
-              'There was a conflict, file already exists or is in use...',
-              3000,
-              'clicked'
+            const reason = await readOctoPrintError(
+              post,
+              'it already exists at the destination, or is in use'
             );
+            UI.createAlert('error', `Could not move it: ${reason}`, 5000, 'clicked');
           } else {
             UI.createAlert('warning', 'Moving folder please wait...', 3000, 'clicked');
             try {

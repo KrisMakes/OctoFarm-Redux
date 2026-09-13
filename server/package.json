@@ -10,7 +10,8 @@
     "migration:down": "migrate-mongo down",
     "migration:status": "migrate-mongo status",
     "prettier": "prettier --write \"./**/*.js\"",
-    "test:proxies": "node scripts/proxy-smoke-test.js"
+    "test:proxies": "node scripts/proxy-smoke-test.js",
+    "test:transfer": "node scripts/file-transfer-smoke-test.js"
   },
   "repository": {
     "type": "git",

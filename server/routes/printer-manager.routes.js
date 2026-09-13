@@ -13,6 +13,7 @@ const { getPrinterManagerCache } = require('../cache/printer-manager.cache');
 const { Script } = require('../services/server-scripts.service.js');
 
 const { getPrinterStoreCache } = require('../cache/printer-store.cache');
+const { copyFileToPrinters } = require('../services/printers/file-transfer.service');
 const { returnPrinterHealthChecks } = require('../store/printer-health-checks.store');
 const { getPluginList, getPluginNoticesList } = require('../store/octoprint-plugin-list.store');
 const { generatePrinterStatistics } = require('../services/printer-statistics.service');
@@ -278,6 +279,40 @@ router.post('/moveFile', ensureAuthenticated, async (req, res) => {
   logger.info('Move file request: ', data);
   getPrinterStoreCache().moveFile(data.index, data.newPath, data.newFullPath, data.fileName);
   res.send({ msg: 'success' });
+});
+router.post('/copyFileToPrinters', ensureAuthenticated, async (req, res) => {
+  const sourceId = req.bodyString('sourceId');
+  const fullPath = req.bodyString('fullPath');
+  const targetIds = Array.isArray(req.body?.targetIds) ? req.body.targetIds : [];
+
+  const sourcePrinter = getPrinterStoreCache().getPrinter(sourceId);
+  if (!sourcePrinter) {
+    return res.status(404).send({ error: 'That printer is no longer in the farm.' });
+  }
+  if (!fullPath) {
+    return res.status(400).send({ error: 'No file was given to copy.' });
+  }
+
+  const targetPrinters = targetIds
+    // Copying a file onto the printer it already lives on would have OctoPrint
+    // rename it rather than fail, which is not what anyone means by this.
+    .filter((id) => id !== sourceId)
+    .map((id) => getPrinterStoreCache().getPrinter(id))
+    .filter((printer) => !!printer);
+
+  if (targetPrinters.length === 0) {
+    return res.status(400).send({ error: 'No other printers were selected.' });
+  }
+
+  try {
+    const outcome = await copyFileToPrinters({ sourcePrinter, targetPrinters, fullPath });
+    res.send(outcome);
+  } catch (e) {
+    // Only the download half throws out here; a failed upload is reported
+    // per printer so one unreachable target does not lose the whole batch.
+    logger.error('File transfer failed', e.toString());
+    res.status(502).send({ error: e.message });
+  }
 });
 router.post('/moveFolder', ensureAuthenticated, async (req, res) => {
   const data = req.body;
