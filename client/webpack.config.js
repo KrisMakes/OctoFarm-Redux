@@ -53,7 +53,21 @@ webpackEntries['bootstrap'] = 'bootstrap/dist/js/bootstrap.bundle';
 const WORKER_ENTRY = 'sse.client';
 const workerEntry = webpackEntries[WORKER_ENTRY];
 delete webpackEntries[WORKER_ENTRY];
-const workerFileName = `js/${WORKER_ENTRY}.${packageJsonVersion}.min.js`;
+
+// Output names carry a content hash so they can be served `immutable`. Before
+// this they were stamped with the package version alone, which meant every
+// rebuild at the same version reused the same URL -- browsers held onto the
+// first build they ever saw and four consecutive deploys changed nothing on
+// screen. The version stays in the name too, purely so a file is still
+// identifiable by eye.
+const OUTPUT_JS = `js/[name].${packageJsonVersion}.[contenthash:8].min.js`;
+const OUTPUT_CSS = `css/[name].${packageJsonVersion}.[contenthash:8].css`;
+
+// The app build owns js/, and deletes anything in there it did not just emit --
+// necessary now that names change on every content change, or the directory
+// would grow a copy per build. The worker is produced by a second compiler that
+// may still be running, so it is matched by prefix and left alone.
+const isWorkerAsset = (fileName) => fileName.startsWith(`${WORKER_ENTRY}.`);
 
 /**
  * The web worker, built on its own.
@@ -69,7 +83,7 @@ const workerConfig = (options) => {
     name: 'worker',
     entry: { [WORKER_ENTRY]: workerEntry },
     output: {
-      filename: `js/[name].${packageJsonVersion}.min.js`,
+      filename: OUTPUT_JS,
       path: path.resolve(__dirname, isProd ? buildDirProd : buildDirDev),
     },
     mode: isProd ? 'production' : 'development',
@@ -90,6 +104,43 @@ const workerConfig = (options) => {
         },
       ],
     },
+    plugins: [
+      // The worker URL is no longer predictable from the version, and the page
+      // that starts the worker cannot read the app manifest for it either --
+      // this is a different compilation. Write the name out so the server can
+      // hand it to the client. A separate file rather than a shared one because
+      // the two compilers run concurrently and would race on it.
+      {
+        apply(compiler) {
+          compiler.hooks.emit.tapAsync('WorkerManifestPlugin', (compilation, callback) => {
+            const files = compilation.entrypoints.get(WORKER_ENTRY).getFiles();
+            const json = JSON.stringify({ [WORKER_ENTRY]: files[0] }, null, 2);
+            compilation.assets['config/worker-manifest.json'] = {
+              source: () => json,
+              size: () => json.length,
+            };
+            callback();
+          });
+
+          // The app compiler's sweep deliberately skips every sse.client.* file,
+          // so this compiler has to clear its own predecessors -- otherwise the
+          // content hash leaves one behind on every content change.
+          compiler.hooks.afterEmit.tapAsync('RemoveStaleWorkerAssets', (compilation, callback) => {
+            const jsDir = path.join(compilation.compiler.outputPath, 'js');
+            const current = new Set(compilation.entrypoints.get(WORKER_ENTRY).getFiles());
+            if (fs.existsSync(jsDir)) {
+              fs.readdirSync(jsDir, { withFileTypes: true }).forEach((file) => {
+                if (file.isFile() && isWorkerAsset(file.name) && !current.has(`js/${file.name}`)) {
+                  fs.unlinkSync(path.join(jsDir, file.name));
+                  console.warn('Removed old worker asset: ', file.name);
+                }
+              });
+            }
+            callback();
+          });
+        },
+      },
+    ],
   };
 };
 
@@ -103,7 +154,7 @@ const appConfig = (env, options) => {
   return {
     entry: webpackEntries,
     output: {
-      filename: `js/[name].${packageJsonVersion}.min.js`,
+      filename: OUTPUT_JS,
       path: fullDir,
     },
     mode: isProd ? 'production' : 'development',
@@ -217,31 +268,45 @@ const appConfig = (env, options) => {
         // 'bootbox': 'bootbox',
       }),
       new MiniCssExtractPlugin({
-        // filename: dirCssContents[0].name,
-        filename: `css/[name].${packageJsonVersion}.css`,
+        filename: OUTPUT_CSS,
       }),
-      // A CSS-only entry still emits a JS chunk containing nothing but webpack's
-      // chunk-registration boilerplate, and no template loads it. Drop it
-      // rather than shipping a stub octofarm.<version>.min.js.
-      {
-        apply(compiler) {
-          compiler.hooks.emit.tapAsync('RemoveCssOnlyEntryJs', (compilation, callback) => {
-            for (const name of cssEntryNames) {
-              delete compilation.assets[`js/${name}.${packageJsonVersion}.min.js`];
-            }
-            callback();
-          });
-        },
-      },
-      // splitChunks means an entry is no longer a single file, so the templates
-      // cannot hard-code one script tag any more. Emit entry -> [files] and let
-      // the EJS render the tags in dependency order.
+      // splitChunks means an entry is no longer a single file, and content
+      // hashes mean the templates could not name one even if it were. Emit
+      // entry -> [files] (js and css both) and let the EJS render the tags in
+      // dependency order.
+      //
+      // A CSS-only entry also emits a JS chunk containing nothing but webpack's
+      // chunk-registration boilerplate, which no template loads. It is dropped
+      // here rather than shipped as a stub, and kept out of the manifest in the
+      // same pass so the manifest can never name a file that is not written.
       {
         apply(compiler) {
           compiler.hooks.emit.tapAsync('EntryManifestPlugin', (compilation, callback) => {
             const manifest = {};
-            for (const [name, entrypoint] of compilation.entrypoints) {
-              manifest[name] = entrypoint.getFiles().filter((file) => file.endsWith('.js'));
+            const entries = [...compilation.entrypoints].map(([name, entrypoint]) => ({
+              name,
+              files: entrypoint.getFiles(),
+              isCssOnly: cssEntryNames.includes(name),
+            }));
+
+            // Everything a real entry needs. A CSS-only entry still gets the
+            // shared runtime chunk in its file list -- runtimeChunk: 'single'
+            // applies to every entry -- so its stub JS can only be dropped
+            // after checking nothing else is relying on the same file.
+            const scriptsInUse = new Set(
+              entries
+                .filter((entry) => !entry.isCssOnly)
+                .flatMap((entry) => entry.files)
+                .filter((file) => file.endsWith('.js'))
+            );
+
+            for (const { name, files, isCssOnly } of entries) {
+              if (isCssOnly) {
+                files
+                  .filter((file) => file.endsWith('.js') && !scriptsInUse.has(file))
+                  .forEach((file) => delete compilation.assets[file]);
+              }
+              manifest[name] = isCssOnly ? files.filter((file) => !file.endsWith('.js')) : files;
             }
             const json = JSON.stringify(manifest, null, 2);
             compilation.assets['config/asset-manifest.json'] = {
@@ -256,28 +321,31 @@ const appConfig = (env, options) => {
         function (stats, callback) {
           const newlyCreatedAssets = stats.compilation.assets;
           const unlinked = [];
-          const jsDir = path.resolve(chosenBuildDir, 'js');
-          if (!fs.existsSync(jsDir)) {
-            callback();
-            return;
-          }
-          const localDirContents = fs.readdirSync(jsDir, {
-            withFileTypes: true,
-          });
-          localDirContents.forEach((file) => {
-            if (!file.isFile()) {
+          // css as well as js now: both carry a content hash, so a stale build
+          // no longer overwrites its predecessor and the directories would grow
+          // a copy per build instead.
+          ['js', 'css'].forEach((subDir) => {
+            const dir = path.resolve(chosenBuildDir, subDir);
+            if (!fs.existsSync(dir)) {
               return;
             }
-            // Assets are keyed "js/name.js" in the compilation.
-            // The worker is produced by the other compiler, so it is not in
-            // this compilation's asset list.
-            if ('js/' + file.name === workerFileName) {
-              return;
-            }
-            if (!newlyCreatedAssets['js/' + file.name]) {
-              fs.unlinkSync(path.join(jsDir, file.name));
-              unlinked.push(file.name);
-            }
+            fs.readdirSync(dir, { withFileTypes: true }).forEach((file) => {
+              if (!file.isFile()) {
+                return;
+              }
+              // The worker is produced by the other compiler, which runs
+              // concurrently with this one, so it is never in this
+              // compilation's asset list and must not be swept up. Matched by
+              // prefix because its hash changes with its contents.
+              if (subDir === 'js' && isWorkerAsset(file.name)) {
+                return;
+              }
+              // Assets are keyed "js/name.js" in the compilation.
+              if (!newlyCreatedAssets[`${subDir}/${file.name}`]) {
+                fs.unlinkSync(path.join(dir, file.name));
+                unlinked.push(`${subDir}/${file.name}`);
+              }
+            });
           });
           if (unlinked.length > 0) {
             console.warn('Removed old assets: ', unlinked);

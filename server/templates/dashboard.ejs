@@ -2,7 +2,7 @@
 <% let itemPath = base + '/grid-stack-item.template.ejs' %>
 
 <% if(typeof printerCount != 'undefined' && printerCount > 0 ) { %>
-    <link rel="stylesheet" href="/assets/css/dashboard.runner.<%= clientVersion %>.css"/>
+    <%- styleTags('dashboard.runner') %>
     <%- scriptTags('dashboard.runner') %>
     <% if(dashboardSettings?.farmActivity.currentOperations){ %>
         <div class="row">

@@ -11,25 +11,47 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.SERVER_CORE);
  * single file and the templates cannot hard-code one script tag. The build
  * writes entry -> [files] to assets/config/asset-manifest.json.
  */
-const MANIFEST_PATH = path.join(__dirname, '..', 'assets', 'config', 'asset-manifest.json');
+const CONFIG_DIR = path.join(__dirname, '..', 'assets', 'config');
+const MANIFEST_PATH = path.join(CONFIG_DIR, 'asset-manifest.json');
+// The web worker is built by a second webpack compiler, so it is not in the app
+// manifest. It has its own, written by that compiler.
+const WORKER_MANIFEST_PATH = path.join(CONFIG_DIR, 'worker-manifest.json');
 
 let manifest = null;
+let workerManifest = null;
 let sharedFiles = null;
 
-function loadManifest() {
-  if (manifest !== null) {
-    return manifest;
-  }
+function readManifest(filePath, label) {
   try {
-    manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (e) {
-    logger.error(
-      'Could not read the client asset manifest -- run `npm run build-client`',
-      e.message
-    );
-    manifest = {};
+    logger.error(`Could not read the client ${label} -- run \`npm run build\``, e.message);
+    return {};
+  }
+}
+
+function loadManifest() {
+  if (manifest === null) {
+    manifest = readManifest(MANIFEST_PATH, 'asset manifest');
   }
   return manifest;
+}
+
+/**
+ * URL of the SSE web worker bundle. Its filename carries a content hash, so the
+ * client can no longer build it from the version alone -- layout.ejs publishes
+ * this in a meta tag and client-worker.service.js reads it back.
+ */
+function workerScriptUrl() {
+  if (workerManifest === null) {
+    workerManifest = readManifest(WORKER_MANIFEST_PATH, 'worker manifest');
+  }
+  const file = workerManifest['sse.client'];
+  if (!file) {
+    logger.error('No worker manifest entry for sse.client -- the monitoring views will not update');
+    return '';
+  }
+  return `/assets/${file}`;
 }
 
 /**
@@ -56,7 +78,9 @@ function getSharedFiles() {
   const counts = new Map();
   const order = [];
   for (const files of entries) {
-    for (const file of files) {
+    // Stylesheets live in the same manifest entries but are emitted by
+    // styleTags(); they must never end up in a <script>.
+    for (const file of files.filter(isScript)) {
       if (!counts.has(file)) {
         counts.set(file, 0);
         order.push(file);
@@ -77,6 +101,9 @@ function getSharedFiles() {
 // behaviour uniformly. These used to be blocking scripts in <head>, so roughly
 // a megabyte had to download and execute before any HTML rendered.
 const tag = (file) => `<script src="/assets/${file}" defer></script>`;
+const styleTag = (file) => `<link rel="stylesheet" href="/assets/${file}"/>`;
+const isScript = (file) => file.endsWith('.js');
+const isStylesheet = (file) => file.endsWith('.css');
 
 function createScriptTagRenderer() {
   const alreadyEmitted = new Set();
@@ -102,6 +129,7 @@ function createScriptTagRenderer() {
     }
     const shared = new Set(getSharedFiles());
     return files
+      .filter(isScript)
       .filter((file) => {
         // Shared chunks are always emitted by sharedScriptTags() in <head>.
         // Excluding them statically rather than by "have I seen this yet"
@@ -116,7 +144,35 @@ function createScriptTagRenderer() {
       .join('\n');
   }
 
-  return { sharedScriptTags, scriptTags };
+  /**
+   * The stylesheets for one entry. Separate from scriptTags because these have
+   * to go in <head> as links, and because MiniCssExtractPlugin puts them in the
+   * same manifest entry as the entry's scripts.
+   *
+   * Templates used to name the file directly as
+   * `/assets/css/<name>.<version>.css`; that stopped being possible when the
+   * filenames picked up a content hash.
+   */
+  function styleTags(entryName) {
+    const files = loadManifest()[entryName];
+    if (!files?.length) {
+      logger.warning('No asset manifest entry for', entryName);
+      return '';
+    }
+    return files
+      .filter(isStylesheet)
+      .filter((file) => {
+        if (alreadyEmitted.has(file)) {
+          return false;
+        }
+        alreadyEmitted.add(file);
+        return true;
+      })
+      .map(styleTag)
+      .join('\n');
+  }
+
+  return { sharedScriptTags, scriptTags, styleTags };
 }
 
-module.exports = { createScriptTagRenderer };
+module.exports = { createScriptTagRenderer, workerScriptUrl };

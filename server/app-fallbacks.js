@@ -11,7 +11,8 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.SERVER_FALLBACK);
 
 const { fetchSuperSecretKey } = require('./app-env');
 const { AppConstants } = require('./constants/app.constants');
-const { createScriptTagRenderer } = require('./utils/asset-manifest.utils');
+const { createScriptTagRenderer, workerScriptUrl } = require('./utils/asset-manifest.utils');
+const { setAssetCacheHeaders } = require('./utils/asset-cache.utils');
 
 /**
  * A minimal Express app used only when the real one cannot boot -- currently
@@ -44,7 +45,10 @@ function setupFallbackExpressServer() {
   app.use(expressLayouts);
 
   // Resolved against this file, not the working directory.
-  app.use('/assets', express.static(path.join(__dirname, 'assets')));
+  app.use(
+    '/assets',
+    express.static(path.join(__dirname, 'assets'), { setHeaders: setAssetCacheHeaders })
+  );
   app.use('/images', express.static(path.join(__dirname, '..', 'images')));
 
   app.use(
@@ -62,9 +66,11 @@ function setupFallbackExpressServer() {
     // layout.ejs reads these; without them the database issue page throws.
     res.locals.serverVersion = process.env[AppConstants.VERSION_KEY];
     res.locals.clientVersion = process.env[AppConstants.VERSION_KEY];
-    const { sharedScriptTags, scriptTags } = createScriptTagRenderer();
+    const { sharedScriptTags, scriptTags, styleTags } = createScriptTagRenderer();
     res.locals.sharedScriptTags = sharedScriptTags;
     res.locals.scriptTags = scriptTags;
+    res.locals.styleTags = styleTags;
+    res.locals.workerScriptUrl = workerScriptUrl;
     next();
   });
 

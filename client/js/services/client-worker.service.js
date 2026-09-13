@@ -10,10 +10,20 @@ let worker = null;
 let savedWorkerEventFunction = null;
 let currentFileURL = null;
 let visibilityListenerAttached = false;
-const workerResource = `/assets/js/sse.client.${CLIENT_VERSION}.min.js`;
+
+// The worker bundle's filename carries a content hash so that /assets can be
+// served immutable, which means it can no longer be spelled out here. layout.ejs
+// publishes the real URL -- it reads the worker manifest webpack writes -- and
+// this reads it back out. The version-stamped name is kept only as a fallback
+// for a page rendered before that meta tag existed; it resolves to a 404 rather
+// than to the wrong file if it is ever wrong.
+function workerResource() {
+  const fromPage = document.querySelector('meta[name="octofarm-worker-url"]')?.content;
+  return fromPage || `/assets/js/sse.client.${CLIENT_VERSION}.min.js`;
+}
 
 function webWorkerFunction(url, workerEventFunction) {
-  worker = new Worker(workerResource);
+  worker = new Worker(workerResource());
   worker.postMessage({ url: url });
   worker.onmessage = function (event) {
     if (!!event.data) {

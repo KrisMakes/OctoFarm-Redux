@@ -26,6 +26,7 @@ const { LOGGER_ROUTE_KEYS } = require('./constants/logger.constants');
 const { ensureAuthenticated } = require('./middleware/auth');
 const { validateParamsMiddleware } = require('./middleware/validators');
 const { proxyOctoPrintClientRequests } = require('./middleware/octoprint-proxy');
+const { setAssetCacheHeaders } = require('./utils/asset-cache.utils');
 
 const M_VALID = require('./constants/validate-mongo.constants');
 
@@ -126,23 +127,15 @@ function setupExpressServer() {
   if (process.env.NODE_ENV === 'development') {
     app.use('/assets', express.static(path.join(__dirname, '..', 'client', 'assets')));
   }
-  // no-cache means "you may cache this, but revalidate every time" -- so
-  // unchanged assets come back as a 304 with no body, and a changed asset is
-  // picked up immediately.
-  //
-  // It is deliberately NOT `immutable, max-age=1y`. Asset filenames are stamped
-  // with the package version, not a content hash, so every rebuild at the same
-  // version reuses the same URL. Marking those immutable means a browser that
-  // cached one build will never fetch another until the version is bumped --
-  // which silently served a stale bundle after a rebuild and cost a long
-  // debugging session. Restore long-lived caching only alongside
-  // [contenthash] filenames.
+  // Content-hashed bundles are frozen for a year; everything else is cached but
+  // revalidated on every request. See asset-cache.utils.js for why the rule is
+  // written against the filename rather than the directory.
   app.use(
     '/assets',
     express.static(path.join(__dirname, 'assets'), {
       etag: true,
       lastModified: true,
-      setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+      setHeaders: setAssetCacheHeaders,
     })
   );
   app.use(cookieParser());

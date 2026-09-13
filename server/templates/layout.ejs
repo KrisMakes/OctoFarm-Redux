@@ -42,7 +42,12 @@
     <link rel="stylesheet" href="/assets/vendor/css/balloon.css"/>
     <link rel="stylesheet" href="/assets/vendor/css/jplist.css"/>
     <link rel="stylesheet" href="/assets/vendor/css/fa-all.min.css"/>
-    <link rel="stylesheet" href="/assets/css/octofarm.<%= clientVersion %>.css"/>
+    <%# Named through the manifest, not spelled out: bundle filenames carry a
+        content hash now so that /assets can be served immutable. %>
+    <%- styleTags('octofarm') %>
+    <%# The SSE web worker is fetched by URL from client-worker.service.js, which
+        has no way to know its hash. This is how it finds out. %>
+    <meta name="octofarm-worker-url" content="<%= workerScriptUrl() %>"/>
     <title><%= octoFarmPageTitle %>: <%= page %></title>
     <%# defer throughout: these were blocking scripts, so ~1MB had to download and
         execute before any HTML rendered. defer keeps them in source order.
