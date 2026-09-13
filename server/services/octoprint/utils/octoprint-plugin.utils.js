@@ -118,8 +118,14 @@ const testAndCollectPSUControlPlugin = (id, currentSettings, plugins) => {
   }
 };
 
+// The TODO that used to sit here -- "this needs to output to a klipper log,
+// doesn't need to be in connection on Printer Manager" -- was already done and
+// is dropped rather than carried: addOctoPrintLogWrapper writes a PluginLogs
+// row, it is addOctoPrintIssueWrapper that reaches the Printer Manager
+// connection log. printer-cleaner.service.js then queries this back out on its
+// own, filtering `pluginDisplay: "OctoKlipper"` into a separate klipperLogs
+// bucket from every other plugin's.
 const captureKlipperPluginData = (id, data) => {
-  //TODO this needs to output to a klipper log, doesn't need to be in connection on Printer Manager
   logger.debug('Klipper data', data);
   const { payload, subtype } = data;
 

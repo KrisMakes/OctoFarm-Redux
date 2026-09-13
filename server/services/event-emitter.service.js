@@ -3,7 +3,12 @@ const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_EVENT_EMITER);
 const { eventListConstants, EVENT_ID_MAP } = require('../constants/event.constants');
 
-// TODO should only register is one is setup in alerts
+// The TODO that used to sit here -- "should only register if one is setup in
+// alerts" -- is addressed in ScriptRunner instead. A listener is one entry in
+// #listeners and costs nothing to hold; what actually hurt was the unfiltered
+// Alerts.find({}) that firing one used to run, which is now cached. Skipping
+// registration here would also empty the "registered events" list the printer
+// manager reads back out of get().
 
 class EventEmitterService {
   #listeners = {}; // key-value pair

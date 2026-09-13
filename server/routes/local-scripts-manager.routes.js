@@ -28,6 +28,10 @@ router.delete(
     let id = req.paramString('id');
     await Alerts.deleteOne({ _id: id })
       .then((response) => {
+        // This route writes through the model rather than through ScriptRunner,
+        // so it has to drop the cached alert list itself or a deleted alert
+        // keeps firing until the server restarts.
+        Script.invalidateAlertCache();
         res.send({ alerts: 'success', status: 200 });
       })
       .catch((err) => {

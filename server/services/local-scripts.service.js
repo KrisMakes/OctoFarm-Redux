@@ -5,7 +5,33 @@ const serverScripts = require('./server-scripts.service.js');
 const Script = serverScripts.Script;
 const Alerts = require('../models/Alerts.js');
 
+// ScriptRunner.check() runs on every OctoPrint event on every printer, and it
+// used to open the database every single time with an unfiltered
+// `Alerts.find({})` -- a full collection scan per websocket message, to answer
+// a question whose answer is almost always "nobody has configured any alerts".
+// The list only changes when somebody saves, edits or deletes one on the Alerts
+// page, so it is held here and dropped on write. This is what the
+// "should only register if one is setup in alerts" TODO on EventEmitterService
+// was reaching for; registration itself is one Map entry and harmless, the
+// per-event database round trip was the actual cost.
+let cachedAlerts = null;
+
 class ScriptRunner {
+  static async #loadAlerts() {
+    if (cachedAlerts === null) {
+      cachedAlerts = await Alerts.find({}).lean();
+    }
+    return cachedAlerts;
+  }
+
+  /**
+   * Drop the cached alert list. Must be called by anything that writes to the
+   * Alerts collection, including the delete route, which goes straight to the
+   * model rather than through here.
+   */
+  static invalidateAlertCache() {
+    cachedAlerts = null;
+  }
   /**
    * Save alert
    * @param printer
@@ -20,13 +46,18 @@ class ScriptRunner {
       trigger: trigger,
       message: message,
       scriptLocation: scriptLocation,
-      printers: printer,
+      // Was `printers:`, which is not a path on AlertsSchema, so Mongoose
+      // dropped it and every alert saved with the schema default of []. check()
+      // reads an empty list as "applies to all printers", so whichever printers
+      // were picked in the UI, the alert silently fired for the whole farm.
+      printer: printer,
     };
     let newAlert = await new Alerts(alert);
     logger.info('Saving: ' + trigger + ' ' + scriptLocation + ' ' + message);
     await newAlert.save().then((e) => {
       logger.info('Saved: ' + trigger + ' ' + scriptLocation + ' ' + message);
     });
+    ScriptRunner.invalidateAlertCache();
     return 'saved';
   }
 
@@ -42,7 +73,13 @@ class ScriptRunner {
     old.trigger = newAlert.trigger;
     old.scriptLocation = newAlert.scriptLocation;
     old.message = newAlert.message;
-    old.save();
+    // Only when the caller actually sent one -- assigning undefined would wipe
+    // the selection and turn a per-printer alert into a farm-wide one.
+    if (newAlert.printer !== undefined) {
+      old.printer = newAlert.printer;
+    }
+    await old.save();
+    ScriptRunner.invalidateAlertCache();
 
     return 'saved';
   }
@@ -55,19 +92,30 @@ class ScriptRunner {
    * @returns {Promise<void>}
    */
   static async check(printer, trigger, historyID) {
-    let currentAlerts = await Alerts.find({});
-    for (let i = 0; i < currentAlerts.length; i++) {
-      if (currentAlerts[i].printer === printer._id || currentAlerts[i].printer.length === 0) {
-        if (currentAlerts[i].trigger === trigger && currentAlerts[i].active) {
-          let newMessage = await ScriptRunner.convertMessage(
-            printer,
-            currentAlerts[i].message,
-            historyID
-          );
-
-          await ScriptRunner.fire(currentAlerts[i].scriptLocation, newMessage);
-        }
+    const currentAlerts = await ScriptRunner.#loadAlerts();
+    // The overwhelmingly common case, and the whole point of the cache.
+    if (currentAlerts.length === 0) {
+      return;
+    }
+    for (const alert of currentAlerts) {
+      if (!alert.active || alert.trigger !== trigger) {
+        continue;
       }
+      // `printer` is an Array on the schema, so the old
+      // `alert.printer === printer._id` could never be true -- an array is
+      // never strictly equal to an ObjectId. Every alert that did fire got
+      // there through the empty-list branch, which means a per-printer alert
+      // either fired for the whole farm or not at all.
+      const printerList = alert.printer ?? [];
+      const appliesHere =
+        printerList.length === 0 ||
+        printerList.some((entry) => String(entry) === String(printer._id));
+      if (!appliesHere) {
+        continue;
+      }
+
+      const newMessage = await ScriptRunner.convertMessage(printer, alert.message, historyID);
+      await ScriptRunner.fire(alert.scriptLocation, newMessage);
     }
   }
 
