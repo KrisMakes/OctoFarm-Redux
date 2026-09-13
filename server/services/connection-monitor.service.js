@@ -1,5 +1,5 @@
 const { REQUEST_TYPE, REQUEST_KEYS } = require('../constants/connection-monitor.constants');
-const { findIndex, cloneDeep } = require('lodash');
+const { cloneDeep } = require('lodash');
 
 const defaultConnectionMonitorLog = {
   lastResponseTimes: [],
@@ -10,7 +10,15 @@ const defaultConnectionMonitorLog = {
   totalPingPong: 0,
 };
 
+const MAX_RESPONSE_TIMES = 50;
+
+// printerURL -> { printerURL, connections: [...] }, plus a url -> connection
+// index so updateOrAddResponse is O(1). It used to run findIndex four times per
+// call -- twice for the printer, twice for the connection -- on every websocket
+// message and every API request.
 const printerConnectionLogs = [];
+const printersByURL = new Map();
+const connectionsByURL = new Map();
 
 class ConnectionMonitorService {
   static acceptedKeys = [
@@ -30,89 +38,90 @@ class ConnectionMonitorService {
     REQUEST_TYPE.PING_PONG,
   ];
 
+  static #getConnection(url) {
+    const existing = connectionsByURL.get(url);
+    if (existing) {
+      return existing;
+    }
+
+    const printerURL = url.split('/')[2];
+    let printerEntry = printersByURL.get(printerURL);
+    if (!printerEntry) {
+      printerEntry = { printerURL, connections: [] };
+      printersByURL.set(printerURL, printerEntry);
+      printerConnectionLogs.push(printerEntry);
+    }
+
+    const connection = { url, log: cloneDeep(defaultConnectionMonitorLog) };
+    printerEntry.connections.push(connection);
+    connectionsByURL.set(url, connection);
+    return connection;
+  }
+
   static updateOrAddResponse(url, type, key, value) {
     // Check for required keys...
     if (!this.acceptedTypes.includes(type))
       throw new Error('Incorrect types supplied! Do not know... ' + type);
     if (!this.acceptedKeys.includes(key))
       throw new Error('Incorrect key supplied! Do not know... ' + key);
-    const urlSplit = url.split('/');
 
-    const printerURL = urlSplit[2];
-    // Make sure printer index exists
-    let printerIndex = findIndex(printerConnectionLogs, function (o) {
-      return o.printerURL === printerURL;
-    });
-    if (printerIndex === -1) {
-      printerConnectionLogs.push({
-        printerURL: printerURL,
-        connections: [
-          {
-            url: url,
-            log: cloneDeep(defaultConnectionMonitorLog),
-          },
-        ],
-      });
-    }
-    printerIndex = findIndex(printerConnectionLogs, function (o) {
-      return o.printerURL === printerURL;
-    });
-    // Make sure connectionIndex Exists
-    let connectionIndex = findIndex(printerConnectionLogs[printerIndex].connections, function (o) {
-      return o.url === url;
-    });
-    if (connectionIndex === -1) {
-      printerConnectionLogs[printerIndex].connections.push({
-        url: url,
-        log: cloneDeep(defaultConnectionMonitorLog),
-      });
-    }
-    connectionIndex = findIndex(printerConnectionLogs[printerIndex].connections, function (o) {
-      return o.url === url;
-    });
+    const { log } = this.#getConnection(url);
+
     if (key === REQUEST_KEYS.LAST_RESPONSE) {
       if (typeof value !== 'number')
         throw new Error('No value supplied with ' + REQUEST_KEYS.LAST_RESPONSE);
-      printerConnectionLogs[printerIndex].connections[connectionIndex].log[
-        REQUEST_KEYS.LAST_RESPONSE
-      ].push(value);
-      if (
-        printerConnectionLogs[printerIndex].connections[connectionIndex].log[
-          REQUEST_KEYS.LAST_RESPONSE
-        ].length > 50
-      ) {
-        printerConnectionLogs[printerIndex].connections[connectionIndex].log[
-          REQUEST_KEYS.LAST_RESPONSE
-        ].shift();
+      const responseTimes = log[REQUEST_KEYS.LAST_RESPONSE];
+      responseTimes.push(value);
+      if (responseTimes.length > MAX_RESPONSE_TIMES) {
+        responseTimes.shift();
       }
-    } else {
-      printerConnectionLogs[printerIndex].connections[connectionIndex].log[key] =
-        printerConnectionLogs[printerIndex].connections[connectionIndex].log[key] + 1;
-      if (key === REQUEST_KEYS.SUCCESS_RESPONSE) {
-        // Custom logic needs a good think...
-      }
+      return;
+    }
+
+    log[key] = log[key] + 1;
+  }
+
+  /**
+   * Forget everything recorded for a printer. Nothing used to prune these, so a
+   * deleted printer's connection log stayed in memory for the process lifetime.
+   */
+  static forgetPrinter(printerURL) {
+    const host = printerURL?.split('/')[2] ?? printerURL;
+    const entry = printersByURL.get(host);
+    if (!entry) {
+      return;
+    }
+    for (const connection of entry.connections) {
+      connectionsByURL.delete(connection.url);
+    }
+    printersByURL.delete(host);
+    const index = printerConnectionLogs.indexOf(entry);
+    if (index > -1) {
+      printerConnectionLogs.splice(index, 1);
     }
   }
 
-  static startTimer() {
+  // startTimer and stopTimer were byte-identical; both are just "now".
+  static now() {
     return new Date();
+  }
+
+  static startTimer() {
+    return this.now();
   }
 
   static stopTimer() {
-    return new Date();
+    return this.now();
   }
 
   static calculateTimer(first, last) {
-    return new Date(last).getTime() - new Date(first).getTime();
+    // Both arguments are already Dates; this used to wrap each in a new Date().
+    return last.getTime() - first.getTime();
   }
 
   static returnConnectionLogs(printerURL) {
     if (!printerURL) return printerConnectionLogs;
-    return printerConnectionLogs[
-      findIndex(printerConnectionLogs, function (o) {
-        return o.printerURL === printerURL;
-      })
-    ];
+    return printersByURL.get(printerURL);
   }
 }
 

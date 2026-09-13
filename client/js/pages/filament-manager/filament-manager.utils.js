@@ -20,6 +20,7 @@ import {
   unAssignSpool,
 } from './filament-manager.actions';
 import { isFilamentManagerPluginSyncEnabled } from '../../services/octoprint/filament-manager-plugin.service';
+import { findIndex } from 'lodash';
 
 const materialsList = [
   {
@@ -347,7 +348,7 @@ export const renderMaterialsList = () => {
 };
 
 const selectMaterialsListener = (value) => {
-  const selection = _.findIndex(materialsList, function (o) {
+  const selection = findIndex(materialsList, function (o) {
     return o.code === value.toLowerCase();
   });
   if (selection !== -1) {

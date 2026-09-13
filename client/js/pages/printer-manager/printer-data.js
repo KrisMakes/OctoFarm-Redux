@@ -402,7 +402,7 @@ function checkForApiErrors(printer) {
     if (apiErrorTag && !ignoredHostStatesForAPIErrors.includes(printer.hostState.state)) {
       let apiErrors = 0;
       for (const key in printer.systemChecks.scanning) {
-        if (printer.systemChecks.scanning.hasOwnProperty(key)) {
+        if (Object.prototype.hasOwnProperty.call(printer.systemChecks.scanning, key)) {
           if (
             triggerAPIIssues.includes(key) &&
             printer.systemChecks.scanning[key].status !== 'success'

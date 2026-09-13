@@ -32,7 +32,7 @@ const apiPluginPiSupport = apiBase + '/plugin/pi_support';
 
 const basicDataRetrievalFunction = (data, captureKeys, printer, database) => {
   for (const [key, value] of captureKeys) {
-    if (data.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
       printer[value] = data[key];
       database.update({
         [value]: data[key],
@@ -47,7 +47,7 @@ const basicDataRetrievalFunction = (data, captureKeys, printer, database) => {
 const settingsRetrievalFunction = (data, captureKeys, printer, database) => {
   const oldAppearance = Object.assign({}, printer.settingsAppearance);
   for (const [key, value] of captureKeys) {
-    if (data.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
       printer[value] = data[key];
       database.update({
         [value]: data[key],
@@ -172,7 +172,7 @@ const updatesInformationRetrievalFunction = (data, _captureKeys, printer, databa
   const pluginUpdates = [];
 
   for (const key in updateInformation) {
-    if (updateInformation.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(updateInformation, key)) {
       if (updateInformation[key].updateAvailable) {
         if (key === 'octoprint') {
           octoPrintUpdate = {

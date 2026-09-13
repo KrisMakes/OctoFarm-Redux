@@ -8,8 +8,8 @@
 
       </div>
     </div>
-    <script src="/assets/js/camera-view.runner.<%= clientVersion %>.min.js?" type="module"></script>
-    <script src="/assets/js/bulk-action-commands.functions.<%= clientVersion %>.min.js?" type="module"></script>
+    <%- scriptTags('camera-view.runner') %>
+    <%- scriptTags('bulk-action-commands.functions') %>
 <% }else{ %>
   <%- include('./addPrinters.ejs') %>
 <% } %>

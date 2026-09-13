@@ -7,9 +7,6 @@ const Logger = require('../handlers/logger.js');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_SSE_OLD);
-let clientId = 0;
-const clients = {}; // <- Keep a map of attached clients
-let interval = false;
 
 const { SettingsClean } = require('../services/settings-cleaner.service.js');
 const { getSorting, getFilter } = require('../services/front-end-sorting.service.js');
@@ -18,6 +15,7 @@ const { getInfluxCleanerCache } = require('../cache/influx-export.cache');
 const { ensureCurrentUserAndGroup } = require('../middleware/users.js');
 const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const { getPrinterManagerCache } = require('../cache/printer-manager.cache');
+const { SseChannel } = require('../services/sse-channel.service');
 
 const sortMe = function (printers) {
   const sortBy = getSorting();
@@ -31,66 +29,46 @@ const sortMe = function (printers) {
     return printers;
   }
 };
+
+// The four state filters were four byte-identical while loops differing only in
+// the category string.
+const STATE_FILTERS = {
+  'State: Active': 'Active',
+  'State: Idle': 'Idle',
+  'State: Disconnected': 'Disconnected',
+  'State: Complete': 'Complete',
+};
+
 const filterMe = function (printers) {
-  let filterBy = getFilter();
-  let currentGroups = getPrinterManagerCache().returnGroupList();
+  const filterBy = getFilter();
+
   if (filterBy === 'All Printers') {
     return printers;
-  } else if (filterBy === 'State: Active') {
-    let i = 0,
-      len = printers.length;
-    while (i < len) {
-      printers[i].display = printers[i].printerState.colour.category === 'Active';
-      i++;
-    }
-    return printers;
-  } else if (filterBy === 'State: Idle') {
-    let i = 0,
-      len = printers.length;
-    while (i < len) {
-      printers[i].display = printers[i].printerState.colour.category === 'Idle';
-      i++;
-    }
-    return printers;
-  } else if (filterBy === 'State: Disconnected') {
-    let i = 0,
-      len = printers.length;
-    while (i < len) {
-      printers[i].display = printers[i].printerState.colour.category === 'Disconnected';
-      i++;
-    }
-    return printers;
-  } else if (filterBy === 'State: Complete') {
-    let i = 0,
-      len = printers.length;
-    while (i < len) {
-      printers[i].display = printers[i].printerState.colour.category === 'Complete';
-      i++;
-    }
-    return printers;
-  } else {
-    //Check groups...
-    let current = null;
-    for (const element of currentGroups) {
-      if (filterBy === element) {
-        current = element;
-      }
-    }
-    if (current !== null) {
-      let i = 0,
-        len = printers.length;
-      while (i < len) {
-        printers[i].display = printers[i].group === current.replace('Group: ', '');
-        i++;
-      }
-      return printers;
-    } else {
-      //Fall back...
-      return printers;
-    }
   }
+
+  const wantedCategory = STATE_FILTERS[filterBy];
+  if (wantedCategory) {
+    for (const printer of printers) {
+      printer.display = printer.printerState.colour.category === wantedCategory;
+    }
+    return printers;
+  }
+
+  // Check groups...
+  const currentGroups = getPrinterManagerCache().returnGroupList();
+  if (currentGroups?.includes(filterBy)) {
+    const wantedGroup = filterBy.replace('Group: ', '');
+    for (const printer of printers) {
+      printer.display = printer.group === wantedGroup;
+    }
+    return printers;
+  }
+
+  // Fall back...
+  return printers;
 };
-async function sendData() {
+
+async function sendData(channel) {
   try {
     getInfluxCleanerCache().cleanAndWritePrintersInformationForInflux();
   } catch (e) {
@@ -100,7 +78,7 @@ async function sendData() {
   // The influx export above is its own consumer and has to keep running whether
   // or not anyone is watching. Everything below only builds the payload for
   // attached browsers, so there is nothing to do when none are attached.
-  if (Object.keys(clients).length === 0) {
+  if (channel.clientCount === 0) {
     return;
   }
 
@@ -110,64 +88,45 @@ async function sendData() {
   printersInformation = sortMe(printersInformation);
   const printerControlList = getPrinterManagerCache().getPrinterControlList();
 
-  // `const id`, not the module-level clientId counter this used to reuse: a
-  // browser connecting during one of the awaits below ran ++clientId and moved
-  // the loop variable onto itself, so the client being served was skipped and
-  // the new one was written twice with the wrong user's settings.
-  for (const id of Object.keys(clients)) {
-    let clientSettings = SettingsClean.returnClientSettings(
-      clients[id]?.req?.user?.clientSettings?._id || null
-    );
-    if (typeof clientSettings === 'undefined') {
-      await SettingsClean.start();
-      clientSettings = SettingsClean.returnClientSettings(
-        clients[id]?.req?.user?.clientSettings?._id || null
-      );
+  // Group clients by the client-settings document they use, so the identical
+  // farm payload is serialised once per distinct settings object rather than
+  // once per connected browser. Five open monitoring tabs used to mean five
+  // full serialisations of the whole farm, every second.
+  const payloadBySettingsId = new Map();
+
+  for (const client of channel.clients()) {
+    const settingsId = client?.req?.user?.clientSettings?._id ?? null;
+    const key = settingsId ? settingsId.toString() : 'default';
+
+    let serialised = payloadBySettingsId.get(key);
+    if (serialised === undefined) {
+      let clientSettings = SettingsClean.returnClientSettings(settingsId);
+      if (typeof clientSettings === 'undefined') {
+        // Do not re-read both settings collections from the database on every
+        // tick for a client whose settings id no longer resolves: fall back to
+        // the defaults and move on.
+        logger.debug('No client settings matched, falling back to the default set', { key });
+        clientSettings = SettingsClean.returnClientSettings(null);
+      }
+      serialised = stringify({
+        printersInformation,
+        printerControlList,
+        clientSettings,
+      });
+      payloadBySettingsId.set(key, serialised);
     }
-    // The client may have disconnected during the await above.
-    if (!clients[id]) {
-      continue;
-    }
-    const infoDrop = {
-      printersInformation: printersInformation,
-      printerControlList: printerControlList,
-      clientSettings: clientSettings,
-    };
-    clients[id].res.write('data: ' + stringify(infoDrop) + '\n\n');
+
+    channel.send(client, serialised);
   }
 }
 
-// Called once for each new client. Note, this response is left open!
-router.get('/get/', ensureAuthenticated, ensureCurrentUserAndGroup, async function (req, res) {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    Pragma: 'no-cache',
-    Expires: 0,
-    Connection: 'keep-alive',
-  });
-  res.write('\n');
-  (function (clientId) {
-    clients[clientId] = { req, res }; // <- Add this client to those we consider "attached"
-    req.on('close', function () {
-      delete clients[clientId];
-    }); // <- Remove this client when he disconnects
-    req.on('error', function () {
-      delete clients[clientId];
-    }); // <- Remove this client when he errors out
-  })(++clientId);
-  await sendData();
-});
+const channel = new SseChannel('monitoring', 1000, sendData);
 
-if (interval === false) {
-  interval = setInterval(function () {
-    // Nothing awaits this callback, and the process installs no
-    // unhandledRejection handler, so an unhandled throw in here would take the
-    // whole server down rather than dropping a single tick.
-    sendData().catch((e) => {
-      logger.error('Failed to send monitoring information to clients', e.toString());
-    });
-  }, 1000);
-}
+// Called once for each new client. Note, this response is left open!
+router.get('/get/', ensureAuthenticated, ensureCurrentUserAndGroup, channel.handler);
+
+// The influx export runs off this tick, so the channel starts with the module
+// rather than waiting for the first subscriber.
+channel.start();
 
 module.exports = router;

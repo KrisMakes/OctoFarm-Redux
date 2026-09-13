@@ -22,21 +22,23 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.STORE_PRINTERS);
 
 class PrinterStore {
   #printersList = undefined;
+  // id -> printer, kept in step with #printersList. The list was scanned
+  // linearly by ~40 methods, several of which run more than once per websocket
+  // message per printer.
+  #printersById = undefined;
 
   constructor() {
     this.#printersList = [];
+    this.#printersById = new Map();
   }
 
-  // Returns undefined when the id is unknown. This used to index the list with
-  // findIndex's result, so a miss evaluated printersList[-1] -- same undefined,
-  // but by accident rather than intent. Callers still have to expect undefined:
-  // a websocket message can land after its printer has been deleted.
+  // Returns undefined when the id is unknown. Callers still have to expect
+  // undefined: a websocket message can land after its printer has been deleted.
   #findMePrinter = (id) => {
-    if (typeof id !== 'string') {
-      id = id.toString();
+    if (id === undefined || id === null) {
+      return undefined;
     }
-
-    return this.#printersList.find((o) => o._id === id);
+    return this.#printersById.get(typeof id === 'string' ? id : id.toString());
   };
 
   #removeFromStore = (id) => {
@@ -50,10 +52,57 @@ class PrinterStore {
       logger.warning('Found printer index, deleting from database...', index);
       this.#printersList.splice(index, 1);
     }
+    this.#printersById.delete(id);
   };
 
   getPrinterCount() {
     return this.#printersList.length;
+  }
+
+  /**
+   * The cheap read. Enough to count, group, sort and build drop lists from,
+   * with no deep clone and no file cleaning.
+   *
+   * listPrintersInformation() -- which JSON round-trips every printer and
+   * re-runs FileClean over every file -- was being used for all of this, on a
+   * one-second task.
+   */
+  listPrinterSummaries({ includeDisabled = true } = {}) {
+    const summaries = [];
+    for (const printer of this.#printersList) {
+      if (!includeDisabled && printer.disabled) {
+        continue;
+      }
+      summaries.push({
+        _id: printer._id,
+        sortIndex: printer.sortIndex,
+        disabled: printer.disabled,
+        printerName: printer.printerName,
+        printerURL: printer.printerURL,
+        group: printer.group,
+        camURL: printer.camURL,
+        printerState: printer.printerState,
+        hostState: printer.hostState,
+        webSocketState: printer.webSocketState,
+        octoPrintVersion: printer.octoPrintVersion,
+        octoPi: printer.octoPi,
+        storage: printer.storage,
+        currentJob: printer.currentJob,
+        currentIdle: printer.currentIdle,
+        currentActive: printer.currentActive,
+        currentOffline: printer.currentOffline,
+        resends: printer.resends,
+        tools: printer.tools,
+        printerFirmware: printer.printerFirmware,
+        octoPrintSystemInfo: printer.octoPrintSystemInfo,
+        selectedFilament: printer.selectedFilament,
+        otherSettings: printer.otherSettings,
+        currentProfile: printer.currentProfile,
+        connectionOptions: printer.connectionOptions,
+        systemChecks: printer.systemChecks,
+      });
+    }
+    return summaries.sort((a, b) => a.sortIndex - b.sortIndex);
   }
 
   listPrintersInformationForPrinterManager() {
@@ -101,6 +150,8 @@ class PrinterStore {
   }
 
   listPrintersInformationForMonitoringViews() {
+    // Read once, not once per printer.
+    const { aspectRatio } = SettingsClean.returnCameraSettings();
     const returnList = this.#printersList.map((printer) => {
       return {
         _id: printer._id,
@@ -139,7 +190,7 @@ class PrinterStore {
         klipperState: printer?.klipperState,
         printerPowerState: printer?.printerPowerState,
         storage: printer?.storage,
-        aspectRatio: SettingsClean.returnCameraSettings().aspectRatio,
+        aspectRatio,
         quickConnectSettings: printer.quickConnectSettings,
       };
     });
@@ -190,6 +241,7 @@ class PrinterStore {
   }
 
   addPrinter(printer) {
+    this.#printersById.set(printer._id.toString(), printer);
     return this.#printersList.push(printer);
   }
 
@@ -260,12 +312,46 @@ class PrinterStore {
 
   getFileList(id) {
     const printer = this.#findMePrinter(id);
-    const newPrinter = JSON.parse(JSON.stringify(printer));
-    return FileClean.generate(
-      newPrinter.fileList,
-      newPrinter.selectedFilament,
-      newPrinter.costSettings
+    if (!printer) {
+      return undefined;
+    }
+    // No deep clone of the whole printer: FileClean.generate builds fresh
+    // objects from what it is handed and never mutates its input.
+    return FileClean.generate(printer.fileList, printer.selectedFilament, printer.costSettings);
+  }
+
+  /**
+   * The one field JobClean.generate actually wants out of the file list.
+   *
+   * captureJobData used to call getFileList() on every OctoPrint `current`
+   * push -- roughly every two seconds per printer -- which deep-cloned the
+   * entire printer and re-cleaned every file, to read one thumbnail.
+   */
+  getFileThumbnail(id, fullPath) {
+    const printer = this.#findMePrinter(id);
+    if (!printer || !fullPath) {
+      return null;
+    }
+    return (
+      printer.fileList?.fileList?.find((file) => file.fullPath === fullPath)?.thumbnail ?? null
     );
+  }
+
+  /**
+   * Push a batch of terminal lines and trim to the cap in one pass.
+   *
+   * captureLogData used to call pushTerminalData / getTerminalDataLength /
+   * shiftTerminalData per line, which was three store lookups each.
+   */
+  pushTerminalLines(id, lines, maxLines = 200) {
+    const printer = this.#findMePrinter(id);
+    if (!printer || !Array.isArray(lines) || lines.length === 0) {
+      return;
+    }
+    printer.terminal.push(...lines);
+    if (printer.terminal.length > maxLines) {
+      printer.terminal.splice(0, printer.terminal.length - maxLines);
+    }
   }
 
   getOctoPiData(id) {
@@ -335,6 +421,9 @@ class PrinterStore {
 
   getPrinterInformation(id) {
     const printer = this.#findMePrinter(id);
+    if (!printer) {
+      return undefined;
+    }
     const newPrinter = JSON.parse(JSON.stringify(printer));
     return Object.assign(newPrinter, {
       fileList: FileClean.generate(
@@ -424,45 +513,90 @@ class PrinterStore {
     const changesList = [];
     const socketsNeedTerminating = [];
 
-    // Cycle through the printers and update their state...
-    for (let printer of newPrintersInformation) {
-      const oldPrinter = this.#findMePrinter(printer._id);
-      const newPrinterInfo = printer;
+    // One descriptor per watched field replaces five near-identical blocks,
+    // each of which also ran its own findIndex over the whole printer list.
+    const watchedFields = [
+      {
+        label: 'printer name',
+        read: (info) => info?.settingsAppearance?.name,
+        current: (printer) => printer.settingsAppearance?.name,
+        apply: (printer, value) => ({ printerName: value }),
+        level: 'warning',
+      },
+      {
+        label: 'printer url',
+        read: (info) => info?.printerURL,
+        current: (printer) => printer.printerURL,
+        normalise: (value) => {
+          let url = value.replace(/\/?$/, '');
+          if (!url.includes('https://') && !url.includes('http://')) {
+            url = `http://${url}`;
+          }
+          return url;
+        },
+        apply: (printer, value) => ({
+          printerURL: value,
+          webSocketURL: convertHttpUrlToWebsocket(value),
+        }),
+        terminatesSocket: true,
+        level: 'warning',
+      },
+      {
+        label: 'apiKey',
+        read: (info) => info?.apikey,
+        current: (printer) => printer.apikey,
+        apply: (printer, value) => ({ apikey: value }),
+        terminatesSocket: true,
+      },
+      {
+        label: 'group',
+        read: (info) => info?.group,
+        current: (printer) => printer.group,
+        // The group is the one field allowed to be cleared back to "".
+        allowEmpty: true,
+        apply: (printer, value) => ({ group: value }),
+        updatesGroupList: true,
+      },
+      {
+        label: 'camera url',
+        read: (info) => info?.camURL,
+        current: (printer) => printer.camURL,
+        apply: (printer, value) => ({ camURL: value }),
+      },
+    ];
 
-      //Check for a printer name change...
-      if (
-        !!newPrinterInfo?.settingsAppearance?.name &&
-        oldPrinter.settingsAppearance.name !== newPrinterInfo.settingsAppearance.name
-      ) {
-        const loggerMessage = `Changed printer name from ${oldPrinter.settingsAppearance.name} to ${newPrinterInfo.settingsAppearance.name}`;
-        logger.warning(loggerMessage);
-        PrinterTicker.addIssue(
-          new Date(),
-          oldPrinter.printerURL,
-          loggerMessage,
-          'Active',
-          oldPrinter._id
-        );
-        this.updatePrinterDatabase(newPrinterInfo._id, {
-          printerName: newPrinterInfo.settingsAppearance.name,
-        });
-
-        if (
-          findIndex(this.#printersList, function (o) {
-            return o._id === newPrinterInfo._id;
-          }) !== -1
-        ) {
-          changesList.push({
-            _id: newPrinterInfo._id,
-            printerURL: newPrinterInfo.printerURL,
-          });
-        }
+    for (const newPrinterInfo of newPrintersInformation) {
+      const oldPrinter = this.#findMePrinter(newPrinterInfo._id);
+      if (!oldPrinter) {
+        logger.warning('Asked to update a printer that is not in the store', newPrinterInfo._id);
+        continue;
       }
 
-      //Check for a printer url change...
-      if (!!newPrinterInfo?.printerURL && oldPrinter.printerURL !== newPrinterInfo.printerURL) {
-        const loggerMessage = `Changed printer url from ${oldPrinter.printerURL} to ${newPrinterInfo.printerURL}`;
-        logger.warning(loggerMessage);
+      let printerChanged = false;
+
+      for (const field of watchedFields) {
+        let incoming = field.read(newPrinterInfo);
+        const hasValue = field.allowEmpty ? incoming !== undefined : !!incoming;
+        if (!hasValue) {
+          continue;
+        }
+        if (field.normalise) {
+          incoming = field.normalise(incoming);
+          // Write the normalised value back so later fields see it.
+          newPrinterInfo.printerURL = incoming;
+        }
+        if (field.current(oldPrinter) === incoming) {
+          continue;
+        }
+
+        const loggerMessage = `Changed ${field.label} from ${field.current(
+          oldPrinter
+        )} to ${incoming}`;
+        if (field.level === 'warning') {
+          logger.warning(loggerMessage);
+        } else {
+          logger.info(loggerMessage);
+        }
         PrinterTicker.addIssue(
           new Date(),
           oldPrinter.printerURL,
@@ -470,116 +604,23 @@ class PrinterStore {
           'Active',
           oldPrinter._id
         );
-        if (newPrinterInfo.printerURL[newPrinterInfo.printerURL.length - 1] === '/') {
-          newPrinterInfo.printerURL = newPrinterInfo.printerURL.replace(/\/?$/, '');
-        }
-        if (
-          !newPrinterInfo.printerURL.includes('https://') &&
-          !newPrinterInfo.printerURL.includes('http://')
-        ) {
-          newPrinterInfo.printerURL = `http://${newPrinterInfo.printerURL}`;
-        }
-        this.updatePrinterDatabase(newPrinterInfo._id, {
-          printerURL: newPrinterInfo.printerURL,
-          webSocketURL: convertHttpUrlToWebsocket(newPrinterInfo.printerURL),
-        });
-        if (
-          findIndex(this.#printersList, function (o) {
-            return o._id === newPrinterInfo._id;
-          }) !== -1
-        ) {
-          changesList.push({
-            _id: newPrinterInfo._id,
-            printerURL: newPrinterInfo.printerURL,
-          });
-        }
 
-        if (!socketsNeedTerminating.includes(oldPrinter._id)) {
+        this.updatePrinterDatabase(newPrinterInfo._id, field.apply(oldPrinter, incoming));
+        printerChanged = true;
+
+        if (field.updatesGroupList) {
+          updateGroupListing = true;
+        }
+        if (field.terminatesSocket && !socketsNeedTerminating.includes(oldPrinter._id)) {
           socketsNeedTerminating.push(oldPrinter._id);
         }
       }
 
-      // Check for apikey change...
-      if (!!newPrinterInfo?.apikey && oldPrinter.apikey !== newPrinterInfo.apikey) {
-        const loggerMessage = `Changed apiKey from ${oldPrinter.apikey} to ${newPrinterInfo.apikey}`;
-        logger.info(loggerMessage);
-        PrinterTicker.addIssue(
-          new Date(),
-          oldPrinter.printerURL,
-          loggerMessage,
-          'Active',
-          oldPrinter._id
-        );
-        this.updatePrinterDatabase(newPrinterInfo._id, {
-          apikey: newPrinterInfo.apikey,
+      if (printerChanged) {
+        changesList.push({
+          _id: newPrinterInfo._id,
+          printerURL: newPrinterInfo.printerURL ?? oldPrinter.printerURL,
         });
-
-        if (
-          findIndex(this.#printersList, function (o) {
-            return o._id === newPrinterInfo._id;
-          }) !== -1
-        ) {
-          changesList.push({
-            _id: newPrinterInfo._id,
-            printerURL: newPrinterInfo.printerURL,
-          });
-        }
-        if (!socketsNeedTerminating.includes(oldPrinter._id)) {
-          socketsNeedTerminating.push(oldPrinter._id);
-        }
-      }
-
-      // Check for group change...
-      if (oldPrinter.group !== newPrinterInfo.group) {
-        const loggerMessage = `Changed group from ${oldPrinter.group} to ${newPrinterInfo.group}`;
-        logger.info(loggerMessage);
-        PrinterTicker.addIssue(
-          new Date(),
-          oldPrinter.printerURL,
-          loggerMessage,
-          'Active',
-          oldPrinter._id
-        );
-        this.updatePrinterDatabase(newPrinterInfo._id, {
-          group: newPrinterInfo.group,
-        });
-        if (
-          findIndex(this.#printersList, function (o) {
-            return o._id === newPrinterInfo._id;
-          }) !== -1
-        ) {
-          changesList.push({
-            _id: newPrinterInfo._id,
-            printerURL: newPrinterInfo.printerURL,
-          });
-        }
-        updateGroupListing = true;
-      }
-      // Check for camURL change...
-      if (!!newPrinterInfo.camURL && oldPrinter.camURL !== newPrinterInfo.camURL) {
-        const loggerMessage = `Changed camera url from ${oldPrinter.camURL} to ${newPrinterInfo.camURL}`;
-        logger.info(loggerMessage);
-        PrinterTicker.addIssue(
-          new Date(),
-          oldPrinter.printerURL,
-          loggerMessage,
-          'Active',
-          oldPrinter._id
-        );
-        this.updatePrinterDatabase(newPrinterInfo._id, {
-          camURL: newPrinterInfo.camURL,
-        });
-
-        if (
-          findIndex(this.#printersList, function (o) {
-            return o._id === newPrinterInfo._id;
-          }) !== -1
-        ) {
-          changesList.push({
-            _id: newPrinterInfo._id,
-            printerURL: newPrinterInfo.printerURL,
-          });
-        }
       }
 
       oldPrinter.cleanPrintersInformation();
@@ -1053,21 +1094,21 @@ class PrinterStore {
   }
 
   listUniqueFolderPaths() {
-    const printers = this.listPrintersInformation();
-
-    const filePathsArray = ['/'];
-
-    for (let printer of printers) {
+    // Read the live printers directly: this used to go through
+    // listPrintersInformation(), deep-cloning every printer and re-cleaning
+    // every file list, to read folder names. The Array.includes scan was also
+    // O(folders^2).
+    const seen = new Set(['/']);
+    for (const printer of this.#printersList) {
       const folderList = printer?.fileList?.folderList;
-      if (folderList) {
-        for (let folder of folderList) {
-          if (!filePathsArray.includes(folder.name + '/')) {
-            filePathsArray.push(folder.name + '/');
-          }
-        }
+      if (!folderList) {
+        continue;
+      }
+      for (const folder of folderList) {
+        seen.add(folder.name + '/');
       }
     }
-    return filePathsArray;
+    return [...seen];
   }
 
   listCommonFilesOnAllPrinters(ids) {
@@ -1208,7 +1249,7 @@ class PrinterStore {
       last: null,
     };
 
-    if (this.doesFileExist(index, data.fullPath).length < 1) {
+    if (!this.doesFileExist(index, data.fullPath)) {
       PrinterService.findOneAndPush(index, 'fileList.fileList', data)
         .then(() => {
           printer.fileList.fileList.push(data);
@@ -1222,18 +1263,12 @@ class PrinterStore {
 
   doesFileExist(id, pathName) {
     const printer = this.#findMePrinter(id);
-
-    return printer.fileList.fileList.filter(function (entry) {
-      return entry.fullPath === pathName;
-    });
+    return !!printer?.fileList?.fileList?.some((entry) => entry.fullPath === pathName);
   }
 
   doesFolderExist(id, folderName) {
     const printer = this.#findMePrinter(id);
-
-    return printer.fileList.folderList.filter(function (entry) {
-      return entry.name === folderName;
-    });
+    return !!printer?.fileList?.folderList?.some((entry) => entry.name === folderName);
   }
 
   addNewFolder(folder) {
@@ -1253,7 +1288,7 @@ class PrinterStore {
       display,
     };
 
-    if (this.doesFolderExist(i, newFolder.name).length < 1) {
+    if (!this.doesFolderExist(i, newFolder.name)) {
       PrinterService.findOneAndPush(i, 'fileList.folderList', newFolder)
         .then(() => {
           printer.fileList.folderList.push(newFolder);
@@ -1271,6 +1306,10 @@ class PrinterStore {
     const folderIndex = findIndex(printer.fileList.folderList, function (o) {
       return o.name === oldFolder;
     });
+    if (folderIndex === -1) {
+      logger.warning('Asked to move a folder that is not in the cached list', oldFolder);
+      return printer;
+    }
     printer.fileList.fileList.forEach((file, index) => {
       if (file.path === oldFolder) {
         const fileName = printer.fileList.fileList[index].fullPath.substring(
@@ -1288,11 +1327,17 @@ class PrinterStore {
     return printer;
   }
 
-  moveFile(id, newPath, fullPath, filename) {
+  moveFile(id, newPath, fullPath, filename, oldFullPath = undefined) {
     const printer = this.#findMePrinter(id);
+    // Match on the full path where we have it: `name` is only the basename, so
+    // two same-named files in different folders moved whichever came first.
     const file = findIndex(printer.fileList.fileList, function (o) {
-      return o.name === filename;
+      return oldFullPath ? o.fullPath === oldFullPath : o.name === filename;
     });
+    if (file === -1) {
+      logger.warning('Asked to move a file that is not in the cached list', filename);
+      return printer;
+    }
     printer.fileList.fileList[file].path = newPath;
     printer.fileList.fileList[file].fullPath = fullPath;
     printer.updatePrinterData({
@@ -1306,7 +1351,13 @@ class PrinterStore {
     const index = findIndex(printer.fileList.fileList, function (o) {
       return o.fullPath === fullPath;
     });
+    // findIndex returns -1 on a miss and splice(-1, 1) removes the LAST entry.
+    if (index === -1) {
+      logger.warning('Asked to delete a file that is not in the cached list', fullPath);
+      return printer;
+    }
     printer.fileList.fileList.splice(index, 1);
+    printer.fileList.filecount = printer.fileList.fileList.length;
     printer.updatePrinterData({
       fileList: printer.fileList,
     });
@@ -1315,20 +1366,15 @@ class PrinterStore {
 
   deleteFolder(id, fullPath) {
     const printer = this.#findMePrinter(id);
-    printer.fileList.fileList.forEach((file, index) => {
-      if (file.path === fullPath) {
-        printer.fileList.fileList.splice(index, 1);
-      }
-    });
-    printer.fileList.folderList.forEach((newFolder, index) => {
-      if (newFolder.path === fullPath) {
-        printer.fileList.folderList.splice(index, 1);
-      }
-    });
-    const folder = findIndex(printer.fileList.folderList, function (o) {
-      return o.name === fullPath;
-    });
-    printer.fileList.folderList.splice(folder, 1);
+    // Filter rather than splice inside forEach, which skipped every second
+    // consecutive match, and drop the trailing splice(-1, 1) that removed an
+    // unrelated folder whenever the named one was already gone.
+    printer.fileList.fileList = printer.fileList.fileList.filter((file) => file.path !== fullPath);
+    printer.fileList.folderList = printer.fileList.folderList.filter(
+      (folder) => folder.path !== fullPath && folder.name !== fullPath
+    );
+    printer.fileList.filecount = printer.fileList.fileList.length;
+    printer.fileList.folderCount = printer.fileList.folderList.length;
     printer.updatePrinterData({
       fileList: printer.fileList,
     });
@@ -1336,41 +1382,43 @@ class PrinterStore {
   }
 
   async assignSpoolToPrinters(printerIDs, spoolID, multiSelectEnabled) {
-    const farmPrinters = this.listPrintersInformation(true);
-
     // Unassign existing printers
     if (!multiSelectEnabled) {
       this.deattachSpoolFromAllPrinters(spoolID);
     }
-    // Asign new printer id's;
-    for (let id of printerIDs) {
-      // No tool is de-attach request
-      if (!id?.tool) {
+
+    // Fetch the spool once rather than per assignment.
+    let spoolDocument = null;
+    if (spoolID !== '0') {
+      const spool = await Filament.findById(spoolID).lean();
+      if (!spool) {
+        logger.error('Asked to assign a spool that does not exist', spoolID);
+        return 'Unknown spool';
+      }
+      spoolDocument = spool;
+      spoolDocument.spools.profile = await attachProfileToSpool(spool.spools.profile);
+    }
+
+    // Assign new printer ids. This used to work against clones produced by
+    // listPrintersInformation(), which deep-clones every printer and re-cleans
+    // every file list, and then wrote those clones back to the database.
+    for (const entry of printerIDs) {
+      // No tool is a de-attach request
+      if (!entry?.tool) {
         this.deattachSpoolFromAllPrinters(spoolID);
         break;
       }
-      const tool = id.tool;
-      const printerID = id.printer;
-      const printerIndex = findIndex(farmPrinters, function (o) {
-        return o._id === printerID;
-      });
-
-      if (spoolID !== '0') {
-        const spool = await Filament.findById(spoolID);
-        farmPrinters[printerIndex].selectedFilament[tool] = JSON.parse(JSON.stringify(spool));
-        farmPrinters[printerIndex].selectedFilament[tool].spools.profile =
-          await attachProfileToSpool(spool.spools.profile);
-      } else {
-        farmPrinters[printerIndex].selectedFilament[tool] = null;
+      const printer = this.#findMePrinter(entry.printer);
+      if (!printer) {
+        logger.warning('Asked to assign a spool to an unknown printer', entry.printer);
+        continue;
       }
-      this.updatePrinterDatabase(farmPrinters[printerIndex]._id, {
-        selectedFilament: farmPrinters[printerIndex].selectedFilament,
+      printer.selectedFilament[entry.tool] = spoolDocument
+        ? JSON.parse(JSON.stringify(spoolDocument))
+        : null;
+      this.updatePrinterDatabase(printer._id, {
+        selectedFilament: printer.selectedFilament,
       });
-      FileClean.generate(
-        farmPrinters[printerIndex].fileList,
-        farmPrinters[printerIndex].selectedFilament,
-        farmPrinters[printerIndex].costSettings
-      );
     }
     TaskManager.forceRunTask('FILAMENT_CLEAN_TASK');
     return 'Attached all spools';
@@ -1378,10 +1426,14 @@ class PrinterStore {
 
   reRunJobCleaner = (id) => {
     const printer = this.#findMePrinter(id);
-    JobClean.generate(
+    if (!printer) {
+      return;
+    }
+    // The result was being discarded, so this only ever burned CPU. Keep it.
+    printer.currentJob = JobClean.generate(
       printer.job,
       printer.selectedFilament,
-      printer.fileList,
+      this.getFileThumbnail(id, printer.job?.file?.path),
       printer.currentZ,
       printer.costSettings,
       printer.progress
@@ -1394,24 +1446,27 @@ class PrinterStore {
   };
 
   deattachSpoolFromAllPrinters(filamentID) {
-    const farmPrinters = this.listPrintersInformation(true);
-    const farmPrintersAssigned = farmPrinters.filter(
-      (printer) =>
-        findIndex(printer.selectedFilament, function (o) {
-          if (!!o) {
-            return o._id === filamentID;
-          }
-        }) > -1
-    );
-    farmPrintersAssigned.forEach((printer) => {
+    // Operate on the live printers: this used to run listPrintersInformation(),
+    // which deep-clones every printer and re-cleans every file list, and then
+    // mutate the clones. It also nulled *every* tool on a matching printer
+    // rather than only the slot holding this spool, and threw away the return
+    // of a FileClean.generate() call whose result nothing used.
+    for (const printer of this.#printersList) {
+      if (!Array.isArray(printer.selectedFilament)) {
+        continue;
+      }
+      let changed = false;
       printer.selectedFilament.forEach((spool, index) => {
-        logger.debug('Resetting spool to null', spool);
-        printer.selectedFilament[index] = null;
-        logger.debug('Spool reset', spool);
+        if (!!spool && `${spool._id}` === `${filamentID}`) {
+          logger.debug('Resetting spool to null', { printer: printer._id, tool: index });
+          printer.selectedFilament[index] = null;
+          changed = true;
+        }
       });
-      this.updatePrinterDatabase(printer._id, { selectedFilament: printer.selectedFilament });
-      FileClean.generate(printer.fileList, printer.selectedFilament, printer.costSettings);
-    });
+      if (changed) {
+        this.updatePrinterDatabase(printer._id, { selectedFilament: printer.selectedFilament });
+      }
+    }
   }
 
   updateStepRate(id, stepRate) {

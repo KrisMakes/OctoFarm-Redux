@@ -19,21 +19,32 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY . /app
-WORKDIR /app/server
-
 ENV NODE_ENV=production
 ENV MONGO=mongodb://127.0.0.1:27017/octofarm
 
 RUN npm install -g pm2
 
+# Dependencies before sources, so editing a source file does not invalidate the
+# npm ci layer. This used to be `COPY . /app` first, which meant every code
+# change reinstalled the whole of node_modules.
+WORKDIR /app/server
+COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
+
+COPY . /app
 
 EXPOSE 4000
 WORKDIR /app
 
 COPY docker/monolithic-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# mongod in the base image writes as the mongodb user; the entrypoint drops to
+# it. Kept explicit so a future change does not silently start running the app
+# as root.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:4000/users/login',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+
 # The base image's CMD would otherwise be appended to the entrypoint as an argument.
 CMD []
 ENTRYPOINT ["bash", "/usr/local/bin/entrypoint.sh"]

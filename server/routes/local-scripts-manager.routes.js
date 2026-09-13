@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const path = require('path');
 const { ensureAuthenticated, ensureAdministrator } = require('../middleware/auth');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 // User Modal

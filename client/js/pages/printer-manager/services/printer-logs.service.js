@@ -5,6 +5,7 @@ import ApexCharts from 'apexcharts';
 import UI from '../../../utils/ui';
 import { ClientErrors } from '../../../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../../../exceptions/application-error.handler';
+import { findIndex, sortBy } from 'lodash';
 
 let chart = null;
 let eventListener = false;
@@ -294,10 +295,10 @@ export default class PrinterLogsService {
     UI.removeNotYetFromElement(octoPrintLogsMenu);
     octoPrintLogsCount.innerHTML = `(${octoPrintLogsList.files.length})`;
 
-    const mainLog = _.findIndex(octoPrintLogsList.files, function (o) {
+    const mainLog = findIndex(octoPrintLogsList.files, function (o) {
       return o.name === 'octoprint.log';
     });
-    const orderedSelectList = _.sortBy(octoPrintLogsList.files, [
+    const orderedSelectList = sortBy(octoPrintLogsList.files, [
       function (o) {
         return o.name;
       },

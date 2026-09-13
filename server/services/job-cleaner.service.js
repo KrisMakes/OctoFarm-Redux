@@ -1,6 +1,5 @@
 'use strict';
 
-const { findIndex } = require('lodash');
 const { DateTime } = require('luxon');
 const { getElectricityCosts, getMaintenanceCosts } = require('../utils/print-cost.util');
 const { HistoryClean } = require('./history-cleaner.service.js');
@@ -8,8 +7,6 @@ const { floatOrZero } = require('../utils/number.util');
 const Logger = require('../handlers/logger');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_JOB_CLEANER);
-
-const cleanJobs = [];
 
 class JobCleanerService {
   static getCompletionDate(printTimeLeftSeconds, completion) {
@@ -21,21 +18,27 @@ class JobCleanerService {
     return printDoneDT.toFormat('ccc LLL dd yyyy: HH:mm');
   }
 
-  static getCleanJobAtIndex(p) {
-    return cleanJobs[p];
-  }
-
   /**
    * Generate current job report
    * @param printerJob
    * @param selectedFilament
-   * @param fileList
+   * @param fileThumbnail thumbnail of the selected file, or null. Was the whole
+   *   file list -- the only thing read out of it was this one field, and the
+   *   caller on the websocket hot path had to deep-clone and re-clean the
+   *   printer's entire file list to produce it.
    * @param currentZ
    * @param costSettings
    * @param printerProgress
    * @returns {{fileName: string, thumbnail: null, filePath: string, currentZ: number, expectedPrintTime: null, printTimeRemaining: null, printTimeElapsed: null, expectedFilamentCosts: null, expectedTotals: null, lastPrintTime: null, fileDisplay: string, averagePrintTime: null, progress: number, expectedCompletionDate: null, expectedPrinterCosts: null}}
    */
-  static generate(printerJob, selectedFilament, fileList, currentZ, costSettings, printerProgress) {
+  static generate(
+    printerJob,
+    selectedFilament,
+    fileThumbnail,
+    currentZ,
+    costSettings,
+    printerProgress
+  ) {
     const currentJob = {
       progress: 0,
       fileName: 'No File Selected',
@@ -59,13 +62,7 @@ class JobCleanerService {
     if (!!printerJob) {
       if (!!printerJob?.file?.name) {
         currentJob.fileName = printerJob.file.name;
-
-        const fileIndex = findIndex(fileList.fileList, (o) => {
-          return o.fullPath === printerJob.file.path;
-        });
-        if (fileIndex > -1) {
-          currentJob.thumbnail = fileList.fileList[fileIndex]?.thumbnail;
-        }
+        currentJob.thumbnail = fileThumbnail ?? null;
       }
       if (!!printerJob?.file?.display) currentJob.fileDisplay = printerJob.file.display;
 

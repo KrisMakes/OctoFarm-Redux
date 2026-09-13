@@ -16,9 +16,13 @@ const defaultPaginationOptions = {
   sort: { _id: -1 },
 };
 
-const defaultInputFilters = {
+// A function, not an object literal. As a literal both dates were evaluated once
+// at module load, so the default history window froze at the moment the server
+// booted -- every print finished since the last restart fell outside it, and
+// nothing recomputed it.
+const getDefaultInputFilters = () => ({
   'printHistory.endDate': { $gte: getFirstDayOfLastMonth(), $lte: new Date() },
-};
+});
 
 const sortOptions = {
   index_asc: { 'printHistory.historyIndex': -1 },
@@ -52,5 +56,5 @@ module.exports = {
   myCustomLabels,
   defaultPaginationOptions,
   sortOptions,
-  defaultInputFilters,
+  getDefaultInputFilters,
 };

@@ -167,7 +167,10 @@ router.get('/get', ensureAuthenticated, async (req, res) => {
 
   const historyCache = getHistoryCache();
 
-  const { historyClean, statisticsClean, pagination } = await historyCache.initCache(
+  // queryHistory, not initCache: this is a user-driven filtered/paginated read.
+  // Writing its result into the shared cache would leave /history and /filament
+  // rendering whatever the last person searched for.
+  const { historyClean, statisticsClean, pagination } = await historyCache.queryHistory(
     findOptions,
     paginationOptions
   );

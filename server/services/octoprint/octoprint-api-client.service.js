@@ -1,5 +1,3 @@
-const { OPClientErrors } = require('./constants/octoprint-service.constants');
-const { checkPluginManagerAPIDeprecation } = require('../../utils/compatibility.utils');
 const { OctoprintApiService } = require('./octoprint-api.service');
 
 const octoPrintBase = '/';
@@ -18,33 +16,36 @@ const apiLogin = (passive = true) => apiBase + '/login' + (passive ? '?passive=t
 const apiProfiles = apiBase + '/printerprofiles/'; //expects a profile id param
 const apiSettings = apiBase + '/settings';
 
+// Both constants were the same string, which made checkPluginManagerAPIDeprecation
+// a no-op. Keep the single working route and drop the pretence of a choice.
 const apiPluginManager = apiBase + '/plugin/pluginmanager';
-const apiPluginManagerRepository1_6_0 = apiBase + '/plugin/pluginmanager';
-// const apiPluginManagerRepository1_6_0 = octoPrintBase + "plugin/pluginmanager/repository"; // This doesn't work... wow... did he even check it?
+// Both arms of the old ternary were the empty string, so `force` did nothing
+// and OctoPrint always answered from its cache.
 const apiSoftwareUpdateCheck = (force) =>
-  octoPrintBase + 'plugin/softwareupdate/check' + (force ? '' : '');
+  octoPrintBase + 'plugin/softwareupdate/check' + (force ? '?force=true' : '');
 const apiPluginPiSupport = apiBase + '/plugin/pi_support';
 const apiTimelapse = (unrendered = true) =>
   apiBase + '/timelapse' + (unrendered ? '?unrendered=true' : '');
-const printerValidationErrorMessage = 'printer apiKey or URL undefined';
 
 class OctoprintApiClientService extends OctoprintApiService {
   constructor(printerURL, apikey, timeoutSettings) {
     super(printerURL, apikey, timeoutSettings);
   }
 
+  updateConnectionInformation(printerURL, apikey, timeoutSettings = undefined) {
+    super.updateConnectionInformation(printerURL, apikey);
+    if (timeoutSettings) {
+      this.updateTimeoutSettings(timeoutSettings);
+    }
+  }
+
+  // Called as pingTest(this.printerURL); the URL is already on the instance.
   async pingTest() {
     return this.get('/', 5000);
   }
 
   async grabInformation(api) {
     return this.get(api);
-  }
-
-  static validatePrinter(printer) {
-    if (!printer.apikey || !printer.printerURL) {
-      throw printerValidationErrorMessage;
-    }
   }
 
   async postPrinter(route, data) {
@@ -90,10 +91,7 @@ class OctoprintApiClientService extends OctoprintApiService {
 
   async getPluginManager(octoPrintVersion = undefined) {
     if (!octoPrintVersion) throw new Error('Version not supplied...');
-    const printerManagerApiCompatible = checkPluginManagerAPIDeprecation(octoPrintVersion);
-    const route = printerManagerApiCompatible ? apiPluginManagerRepository1_6_0 : apiPluginManager;
-
-    return this.get(route);
+    return this.get(apiPluginManager);
   }
 
   async getSystemCommands() {

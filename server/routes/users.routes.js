@@ -45,7 +45,14 @@ router.post(
     failureFlash: true,
   }),
   async function (req, res, next) {
-    const prevSession = req.session;
+    // Carry only what has to survive the new session id. Object.assign-ing the
+    // whole previous session back over the regenerated one -- including its id
+    // and cookie -- reinstated exactly the fixation vector regenerate() exists
+    // to close.
+    const carriedOver = {
+      passport: req.session.passport,
+      flash: req.session.flash,
+    };
     // regenerate() is asynchronous against the Mongo session store. This used to log
     // an error unconditionally (err is null on success) and carry on without waiting,
     // so the restored login state raced the redirect. Wait for it, and only log a
@@ -55,7 +62,11 @@ router.post(
         if (err) {
           logger.error('Unable to regenerate session!', err);
         }
-        Object.assign(req.session, prevSession);
+        for (const [key, value] of Object.entries(carriedOver)) {
+          if (value !== undefined) {
+            req.session[key] = value;
+          }
+        }
         resolve();
       });
     });
@@ -125,8 +136,9 @@ router.post('/register', authenticationLimits, async (req, res) => {
     errors.push({ msg: 'Passwords do not match...' });
   }
 
-  // Password at least 6 characters
-  if (password.length < 6) {
+  // Password at least 6 characters. Guarded: password can be null here, and
+  // the missing-fields check above only records an error, it does not return.
+  if (!password || password.length < 6) {
     errors.push({ msg: 'Password should be at least 6 characters...' });
   }
 
@@ -180,8 +192,12 @@ router.post('/register', authenticationLimits, async (req, res) => {
           bcrypt.genSalt(10, (error, salt) =>
             bcrypt.hash(newUser.password, salt, (err, hash) => {
               if (err) {
-                logger.error('Unable to generate bycrpt hash!!', err);
-                throw err;
+                // Throwing here is an uncaught exception, which kills the
+                // process -- uncaughtException is deliberately left on Node's
+                // default. Answer the request instead.
+                logger.error('Unable to generate bcrypt hash', err);
+                req.flash('error_msg', 'Could not create your account, please try again');
+                return res.redirect('/users/register');
               }
               // Set password to hashed
               newUser.password = hash;
@@ -232,7 +248,11 @@ router.get(
   ensureAdministrator,
   validateParamsMiddleware(M_VALID.MONGO_ID),
   async (req, res) => {
-    const user = await User.findById(req.paramString('id'));
+    // Never hand back the bcrypt hash or the remember-me token.
+    const user = await User.findById(req.paramString('id'), '-password -loginToken -apiKey').lean();
+    if (!user) {
+      return res.sendStatus(404);
+    }
     res.send(user);
   }
 );
@@ -244,27 +264,47 @@ router.patch(
   ensureAdministrator,
   validateParamsMiddleware(M_VALID.MONGO_ID),
   async (req, res) => {
-    const newUserInformation = {
-      name: req.bodyString('name'),
-      username: req.bodyString('username'),
-      group: req.bodyString('group'),
-      password: req.bodyString('password'),
-      password2: req.bodyString('password2'),
-    };
     const id = req.paramString('id');
+    // This object literal always had all five keys, and `"password" in obj`
+    // tests key presence rather than value -- so the reset branch ran on every
+    // request, the edit branch was unreachable, and editing a user's name
+    // blanked their password. Build from what was actually sent.
+    const password = req.bodyString('password');
+    const username = req.bodyString('username');
 
-    if ('password' in newUserInformation) {
-      return res.send(await resetPassword(id, newUserInformation));
+    if (password) {
+      return res.send(
+        await resetPassword(id, { password, password2: req.bodyString('password2') })
+      );
     }
-    if ('username' in newUserInformation) {
-      return res.send(await editUser(id, newUserInformation));
+
+    if (username) {
+      return res.send(
+        await editUser(id, {
+          name: req.bodyString('name'),
+          username,
+          group: req.bodyString('group'),
+        })
+      );
     }
+
+    res.status(400).send({ message: 'Provide either a password or a username to change' });
   }
 );
 
 // New user
 router.post('/users', ensureAuthenticated, ensureAdministrator, async (req, res) => {
-  const user = req.body;
+  // Pick the fields rather than handing the whole body to the model.
+  const user = {
+    name: req.bodyString('name'),
+    username: req.bodyString('username'),
+    password: req.bodyString('password'),
+    password2: req.bodyString('password2'),
+    group: req.bodyString('group'),
+  };
+  if (!user.name || !user.username || !user.password) {
+    return res.status(400).send({ message: 'Name, username and password are required' });
+  }
   res.send(await createUser(user));
 });
 

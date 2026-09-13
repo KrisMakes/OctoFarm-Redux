@@ -74,15 +74,14 @@ module.exports = {
     redirectedRequest.on('error', function (e) {
       logger.error(`OctoPrint proxy request to ${redirectUrl} failed`, e.toString());
     });
-    //client quit normally
+    // Both of these fire on the normal path of every single proxied request.
+    // They used to log at info and warning respectively, which made them most of
+    // the OctoPrint log.
     redirectedRequest.on('end', function () {
-      logger.info('Pipe ended on octoprint proxy');
-      redirectedRequest.end();
+      logger.silly('Pipe ended on octoprint proxy');
     });
-    //client quit unexpectedly
     redirectedRequest.on('close', function () {
-      logger.warning('Pipe unexpectedly ended on octoprint proxy');
-      redirectedRequest.end();
+      logger.silly('Pipe closed on octoprint proxy');
     });
   },
 };

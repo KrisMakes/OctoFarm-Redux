@@ -21,6 +21,7 @@ import {
 import { generatePathList, getFileListElement } from '../pages/file-manager/file-manager.helpers';
 import { ClientErrors } from '../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../exceptions/application-error.handler';
+import { findIndex } from 'lodash';
 
 const fileUploads = new Queue();
 
@@ -897,7 +898,7 @@ export default class FileManagerService {
         const printers = await OctoFarmClient.listPrinters();
         selectedPrinters.forEach((printer, index) => {
           if (printer) {
-            const i = _.findIndex(printers, function (o) {
+            const i = findIndex(printers, function (o) {
               return o._id === printer.value.toString();
             });
             const id = printers[i]._id;

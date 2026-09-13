@@ -1,1 +1,5 @@
-!.commitlintrc.js
+node_modules
+server/assets
+client/assets
+client/js/vendor
+coverage

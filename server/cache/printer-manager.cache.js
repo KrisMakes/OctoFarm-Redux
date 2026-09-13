@@ -1,14 +1,6 @@
 const PrinterManagerService = require('../services/printer-manager.service');
+const { createSingleton } = require('./create-singleton');
 
-let printerManagerState = undefined;
-
-function getPrinterManagerCache() {
-  if (!!printerManagerState) {
-    return printerManagerState;
-  } else {
-    printerManagerState = new PrinterManagerService();
-    return printerManagerState;
-  }
-}
+const getPrinterManagerCache = createSingleton(PrinterManagerService);
 
 module.exports = { getPrinterManagerCache };

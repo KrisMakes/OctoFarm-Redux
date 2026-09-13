@@ -1,6 +1,5 @@
 const { getHistoryCache } = require('../cache/history.cache');
 const { getPrinterStoreCache } = require('../cache/printer-store.cache');
-const _ = require('lodash');
 const { checkNested, checkNestedIndex, sumValuesGroupByDate } = require('../utils/array.util');
 const RoomData = require('../models/RoomData');
 const {
@@ -31,7 +30,10 @@ const getCurrentHistoryTemp = () => {
 const generatePrinterStatistics = async (id) => {
   const printer = getPrinterStoreCache().getPrinterInformation(id);
 
-  const { historyClean } = await getHistoryCache().initCache(
+  // queryHistory, not initCache: initCache writes whatever it reads into the
+  // shared history cache, and this runs per printer every ten minutes, so it
+  // used to leave /history and /filament showing only the last printer.
+  const { historyClean } = await getHistoryCache().queryHistory(
     { 'printHistory.printerName': printer.printerName },
     {
       page: 1,
@@ -44,6 +46,9 @@ const generatePrinterStatistics = async (id) => {
   let dateAdded = new Date(printer.dateAdded);
   let todaysDate = new Date();
   let dateDifference = parseInt(todaysDate - dateAdded);
+  // Was `dateParse > todaysDate`, i.e. "finished in the future", so historyDaily
+  // was always empty and every *Day statistic stayed blank.
+  let oneDayAgo = new Date(todaysDate.getTime() - 24 * 60 * 60 * 1000);
   let sevenDaysAgo = new Date(todaysDate.getTime() - 7 * 24 * 60 * 60 * 1000);
   let ninetyDaysAgo = new Date(todaysDate.getTime() - 90 * 24 * 60 * 60 * 1000);
   // Filter down the history arrays for total/daily/weekly
@@ -125,7 +130,7 @@ const generatePrinterStatistics = async (id) => {
           printerStatistics.printErrorTotal.push(1);
         }
 
-        if (dateParse.getTime() > todaysDate.getTime()) {
+        if (dateParse.getTime() > oneDayAgo.getTime()) {
           historyDaily.push(h);
         }
         // Capture Weekly..
@@ -294,7 +299,9 @@ const generateDashboardStatistics = async () => {
   const arrayGlobalBedTempTarget = [];
   const arrayGlobalChamberTempActual = [];
   const arrayGlobalChamberTempTarget = [];
-  const printersInformation = getPrinterStoreCache().listPrintersInformation();
+  // Summaries, not the deep-cloned + file-cleaned list: this only reads state,
+  // counters, tools and currentJob.
+  const printersInformation = getPrinterStoreCache().listPrinterSummaries();
   for (const printer of printersInformation) {
     if (typeof printer !== 'undefined') {
       if (typeof printer.currentJob !== 'undefined') {

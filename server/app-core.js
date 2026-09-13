@@ -1,4 +1,6 @@
 const express = require('express');
+const path = require('path');
+const compression = require('compression');
 const flash = require('connect-flash');
 const session = require('express-session');
 const { MongoStore } = require('connect-mongo');
@@ -37,6 +39,20 @@ function setupExpressServer() {
   let app = express();
 
   app.use(octofarmGlobalLimits);
+  // Gzip everything the app sends. Nothing compressed before this: the largest
+  // page bundle is ~870KB and the SSE streams are the highest-volume traffic on
+  // the box. text/event-stream is excluded from the default filter, so opt it
+  // in explicitly -- the payloads are JSON and compress extremely well.
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (res.getHeader('Content-Type')?.toString().includes('text/event-stream')) {
+          return true;
+        }
+        return compression.filter(req, res);
+      },
+    })
+  );
   app.use(require('sanitize').middleware);
   require('./middleware/passport.js')(passport);
 
@@ -53,6 +69,32 @@ function setupExpressServer() {
   app.use(helmet.permittedCrossDomainPolicies());
   app.use(helmet.referrerPolicy());
   app.use(helmet.xssFilter());
+  app.use(helmet.frameguard({ action: 'sameorigin' }));
+  // A deliberately loose policy: the templates carry inline scripts and inline
+  // styles, and the camera images come from the printers themselves when the
+  // camera proxy is off. It still shuts the door on script from a third-party
+  // origin, which is the class the ~600 innerHTML writes in the client expose.
+  app.use(
+    helmet.contentSecurityPolicy({
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        // Printer cameras and thumbnails are cross-origin when the proxy is off.
+        imgSrc: ["'self'", 'data:', 'blob:', 'http:', 'https:'],
+        mediaSrc: ["'self'", 'data:', 'blob:', 'http:', 'https:'],
+        // The OctoPrint proxy and the printers' own APIs.
+        connectSrc: ["'self'", 'http:', 'https:', 'ws:', 'wss:'],
+        fontSrc: ["'self'", 'data:'],
+        workerSrc: ["'self'", 'blob:'],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'self'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    })
+  );
 
   app.use(express.json());
 
@@ -67,14 +109,25 @@ function setupExpressServer() {
   // the templates links to a file inside the views folder; they only reference
   // /assets and app routes.
 
-  app.use('/images', express.static('../images'));
+  // Resolved against this file, not process.cwd(). These used to work only
+  // because pm2 happens to start from server/.
+  app.use('/images', express.static(path.join(__dirname, '..', 'images')));
 
   // Dev serves freshly built js/css from the client watch output; anything not
   // found there (vendor, images, config) falls through to the shipped tree.
   if (process.env.NODE_ENV === 'development') {
-    app.use('/assets', express.static('../client/assets'));
+    app.use('/assets', express.static(path.join(__dirname, '..', 'client', 'assets')));
   }
-  app.use('/assets', express.static('./assets'));
+  // Every filename under /assets is version-stamped by webpack and referenced
+  // through <%= clientVersion %>, so a release always produces new URLs and
+  // there is nothing to revalidate. This was serving them with maxAge: 0.
+  app.use(
+    '/assets',
+    express.static(path.join(__dirname, 'assets'), {
+      maxAge: process.env.NODE_ENV === 'development' ? 0 : '1y',
+      immutable: process.env.NODE_ENV !== 'development',
+    })
+  );
   app.use(cookieParser());
   app.use(express.urlencoded({ extended: false, limit: '2mb' }));
   // Express 5 leaves req.body undefined when no parser matched -- a request
@@ -90,12 +143,22 @@ function setupExpressServer() {
     session({
       secret: fetchSuperSecretKey(),
       resave: false,
-      saveUninitialized: true,
+      // Was true, which wrote a session document to Mongo for every anonymous
+      // request -- assets, the unauthenticated /events stream, everything --
+      // each with a fourteen-day TTL.
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        sameSite: 'lax',
+        maxAge: 14 * 24 * 60 * 60 * 1000,
+      },
       // connect-mongo 4 replaced the constructor with a static factory.
       store: MongoStore.create({
         mongoUrl: process.env[AppConstants.MONGO_KEY],
         ttl: 14 * 24 * 60 * 60,
         autoRemove: 'native',
+        // Without this an active session is rewritten on every single request.
+        touchAfter: 24 * 3600,
       }),
     })
   );

@@ -1,5 +1,6 @@
 import OctoFarmClient from '../../../services/octofarm-client.service';
 import UI from '../../../utils/ui.js';
+import { uniqBy } from 'lodash';
 
 const showFullList = ['Edit Printers', 'Printer Deletion', 'Printer Disable'];
 
@@ -349,7 +350,7 @@ export default class PrinterSelectionService {
         groupList.push(group);
       }
     });
-    const groupListUnique = _.uniqBy(groupList, function (e) {
+    const groupListUnique = uniqBy(groupList, function (e) {
       return e.tag;
     });
     if (printerList.length !== 0) {

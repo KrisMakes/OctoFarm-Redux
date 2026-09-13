@@ -74,17 +74,23 @@ router.post(
 
 // Register Handle for Saving printers
 router.post('/removefile', ensureAuthenticated, async (req, res) => {
-  // Check required fields
-  const file = req.body;
-  logger.info('File deletion request: ', file.i);
-  getPrinterStoreCache().deleteFile(file.i, file.fullPath);
+  const id = req.bodyString('i');
+  const fullPath = req.bodyString('fullPath');
+  if (!id || !fullPath) {
+    return res.status(400).send({ message: 'i and fullPath are required' });
+  }
+  logger.info('File deletion request: ', id);
+  getPrinterStoreCache().deleteFile(id, fullPath);
   res.send('success');
 });
 router.post('/removefolder', ensureAuthenticated, async (req, res) => {
-  // Check required fields
-  const folder = req.body;
-  logger.info('Folder deletion request: ', folder.fullPath);
-  getPrinterStoreCache().deleteFolder(folder.index, folder.fullPath);
+  const id = req.bodyString('index');
+  const fullPath = req.bodyString('fullPath');
+  if (!id || !fullPath) {
+    return res.status(400).send({ message: 'index and fullPath are required' });
+  }
+  logger.info('Folder deletion request: ', fullPath);
+  getPrinterStoreCache().deleteFolder(id, fullPath);
   res.send(true);
 });
 router.post(
@@ -154,24 +160,31 @@ router.post(
     res.send(deletedList);
   }
 );
-router.post('/stepChange', ensureAuthenticated, async (req, res) => {
-  // Check required fields
-  const step = req.body;
-  getPrinterStoreCache().updateStepRate(step.printer, step.newSteps);
+// step / flow / feed all take the same {printer, newSteps} shape.
+const rateChangeHandler = (apply) => async (req, res) => {
+  const printerId = req.bodyString('printer');
+  const newSteps = Number(req.body.newSteps);
+  if (!printerId || !Number.isFinite(newSteps)) {
+    return res.status(400).send({ message: 'printer and a numeric newSteps are required' });
+  }
+  apply(printerId, newSteps);
   res.send('success');
-});
-router.post('/flowChange', ensureAuthenticated, async (req, res) => {
-  // Check required fields
-  const step = req.body;
-  getPrinterStoreCache().updateFlowRate(step.printer, step.newSteps);
-  res.send('success');
-});
-router.post('/feedChange', ensureAuthenticated, async (req, res) => {
-  // Check required fields
-  const step = req.body;
-  getPrinterStoreCache().updateFeedRate(step.printer, step.newSteps);
-  res.send('success');
-});
+};
+router.post(
+  '/stepChange',
+  ensureAuthenticated,
+  rateChangeHandler((id, value) => getPrinterStoreCache().updateStepRate(id, value))
+);
+router.post(
+  '/flowChange',
+  ensureAuthenticated,
+  rateChangeHandler((id, value) => getPrinterStoreCache().updateFlowRate(id, value))
+);
+router.post(
+  '/feedChange',
+  ensureAuthenticated,
+  rateChangeHandler((id, value) => getPrinterStoreCache().updateFeedRate(id, value))
+);
 router.post('/editPrinter', ensureAuthenticated, ensureAdministrator, async (req, res) => {
   // Check required fields
   const settings = req.body;
@@ -198,7 +211,7 @@ router.post('/updateSettings', ensureAuthenticated, ensureAdministrator, async (
 });
 
 router.get('/groups', ensureAuthenticated, async (req, res) => {
-  const printers = getPrinterStoreCache().listPrintersInformation();
+  const printers = getPrinterStoreCache().listPrinterSummaries();
   const groups = [];
   for (const printer of printers) {
     groups.push({
@@ -394,32 +407,31 @@ router.get('/listUniqueFolders', ensureAuthenticated, async (req, res) => {
   res.json(uniqueFolderPaths);
 });
 
-router.get('/listUniqueFiles', ensureAuthenticated, async (req, res) => {
-  //DISCOVER Where's this gone!?
-  const uniqueFolderPaths = getPrinterStoreCache().listUniqueFiles();
-  res.json(uniqueFolderPaths);
-});
-
 router.get(
   '/listUnifiedFiles/:idList',
   ensureAuthenticated,
   // validateParamsMiddleware(P_VALID.PRINTER_ID_LIST),
   async (req, res) => {
-    const idList = req.paramString('idList');
-    const uniqueFolderPaths = getPrinterStoreCache().listCommonFilesOnAllPrinters(
-      JSON.parse(idList)
-    );
-    res.json(uniqueFolderPaths);
+    let idList;
+    try {
+      idList = JSON.parse(req.paramString('idList'));
+    } catch (e) {
+      return res.status(400).json({ message: 'idList must be a JSON array of printer ids' });
+    }
+    if (!Array.isArray(idList)) {
+      return res.status(400).json({ message: 'idList must be a JSON array of printer ids' });
+    }
+    res.json(getPrinterStoreCache().listCommonFilesOnAllPrinters(idList));
   }
 );
 
 router.get('/healthChecks', ensureAuthenticated, ensureAdministrator, async (req, res) => {
-  res.send(returnPrinterHealthChecks(true));
+  res.send(await returnPrinterHealthChecks(true));
 });
 
 router.get('/farmOverview', ensureAuthenticated, ensureAdministrator, async (req, res) => {
   const returnArray = [];
-  const printers = getPrinterStoreCache().listPrintersInformation();
+  const printers = getPrinterStoreCache().listPrinterSummaries();
 
   for (const printer of printers) {
     let stats = getPrinterStoreCache().getPrinterStatistics(printer._id);
@@ -452,9 +464,9 @@ router.post(
   ensureAuthenticated,
   ensureAdministrator,
   validateBodyMiddleware(P_VALID.PRINTER_ID_LIST),
-  (req, res) => {
+  async (req, res) => {
     const idList = req.body.idList;
-    res.send(getPrinterManagerCache().disablePrinters(idList));
+    res.send(await getPrinterManagerCache().disablePrinters(idList));
   }
 );
 
@@ -542,8 +554,14 @@ router.post(
   validateParamsMiddleware(M_VALID.MONGO_ID),
   async (req, res) => {
     const printerID = req.paramString('id');
-    const powerState = req.body;
-    await getPrinterStoreCache().updatePrinterLiveValue(printerID, powerState);
+    // updatePrinterLiveValue is assign(printer, object), so handing it req.body
+    // let any authenticated caller overwrite apikey, printerURL, disabled, _id
+    // or anything else on the live printer. Only the power state belongs here.
+    const printerPowerState = req.bodyString('printerPowerState');
+    if (!printerPowerState) {
+      return res.status(400).send({ message: 'printerPowerState is required' });
+    }
+    getPrinterStoreCache().updatePrinterLiveValue(printerID, { printerPowerState });
     res.sendStatus(204);
   }
 );

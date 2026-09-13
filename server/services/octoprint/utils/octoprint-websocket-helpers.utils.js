@@ -16,13 +16,10 @@ const TEMP_SAMPLE_INTERVAL_MS = 5000;
 const tempTimers = {};
 
 const captureLogData = (id, data) => {
-  if (!!data) {
-    data.forEach((log) => {
-      getPrinterStoreCache().pushTerminalData(id, log);
-      if (getPrinterStoreCache().getTerminalDataLength(id) >= 200) {
-        getPrinterStoreCache().shiftTerminalData(id);
-      }
-    });
+  if (!!data && data.length !== 0) {
+    // One store lookup for the whole batch. This used to do three per line --
+    // push, length, shift -- each of which was a printer lookup.
+    getPrinterStoreCache().pushTerminalLines(id, data);
   }
 };
 
@@ -87,21 +84,26 @@ const coolDownEvent = (id, temps) => {
 };
 
 const captureJobData = (id, data) => {
-  if (!!data) {
-    getPrinterStoreCache().updatePrinterLiveValue(id, {
-      job: data,
-    });
-    getPrinterStoreCache().updatePrinterLiveValue(id, {
-      currentJob: JobClean.generate(
-        data,
-        getPrinterStoreCache().getSelectedFilament(id),
-        getPrinterStoreCache().getFileList(id),
-        getPrinterStoreCache().getCurrentZ(id),
-        getPrinterStoreCache().getCostSettings(id),
-        getPrinterStoreCache().getPrinterProgress(id)
-      ),
-    });
+  if (!data) {
+    return;
   }
+  const printerStore = getPrinterStoreCache();
+  const printer = printerStore.getPrinter(id);
+  if (!printer) {
+    return;
+  }
+  // Read straight off the printer rather than through five separate store
+  // lookups, and hand JobClean the one thumbnail it wants instead of a
+  // deep-cloned, freshly cleaned copy of the whole file list.
+  const currentJob = JobClean.generate(
+    data,
+    printer.selectedFilament,
+    printerStore.getFileThumbnail(id, data?.file?.path),
+    printer.currentZ,
+    printer.costSettings,
+    printer.progress
+  );
+  printerStore.updatePrinterLiveValue(id, { job: data, currentJob });
 };
 
 const capturePrinterState = (id, data, job, progress) => {
@@ -155,16 +157,20 @@ const captureResendsData = (id, data) => {
 };
 
 const capturePrinterProgress = (id, data) => {
+  if (!data) {
+    return;
+  }
   // Patch completion, could be print time genius... Need to try without.
-  if (data?.printTimeLeftOrigin === 'genius') {
-    data.completion = (100 * data.printTime) / (data.printTime + data.printTimeLeft);
-  }
+  // Copy rather than mutating the incoming websocket message in place.
+  const progress =
+    data.printTimeLeftOrigin === 'genius'
+      ? {
+          ...data,
+          completion: (100 * data.printTime) / (data.printTime + data.printTimeLeft),
+        }
+      : data;
 
-  if (!!data) {
-    getPrinterStoreCache().updatePrinterLiveValue(id, {
-      progress: data,
-    });
-  }
+  getPrinterStoreCache().updatePrinterLiveValue(id, { progress });
 };
 
 const captureCurrentZ = (id, data) => {

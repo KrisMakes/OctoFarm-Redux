@@ -1,6 +1,7 @@
 import Calc from '../utils/calc.js';
 import OctoPrintClient from './octoprint/octoprint-client.service.js';
 import OctoFarmClient from './octofarm-client.service';
+import { difference } from 'lodash';
 
 const resetFile = async function (id) {
   const printer = await OctoFarmClient.getPrinter(id);
@@ -65,7 +66,9 @@ export default function currentOperationsPanelService(currentOperations, current
       const finishedPrint = `<button id='currentHarvest-${current.index}' type='button' title="Clear your finished print from current operations" class='tag btn btn-success btn-sm mt-0 pt-0 pb-0'>Print Harvested?</button>`;
       const restartPrint = `<button id='restartCurrentPrint-${current.index}' type='button' title="Restart your current selected print" class='tag btn btn-warning btn-sm mt-0 pt-0 pb-0'>Restart Print</button>`;
       let fileName = null;
-      if (typeof current.fileName !== undefined) {
+      // Was `typeof ... !== undefined`, comparing a string against the
+      // undefined value, so it was always true.
+      if (typeof current.fileName === 'string') {
         fileName = current.fileName.replace('.gcode', '');
         if (fileName.length > 40) {
           fileName = fileName.substring(0, 40) + '...';
@@ -175,7 +178,7 @@ export default function currentOperationsPanelService(currentOperations, current
       const ca = card.id.split('-');
       cards.push(ca[1]);
     });
-    const remove = _.difference(cards, curr);
+    const remove = difference(cards, curr);
     remove.forEach((rem) => {
       document.getElementById('coCard-' + rem).remove();
     });

@@ -3,86 +3,44 @@ const router = express.Router();
 const { ensureAuthenticated } = require('../middleware/auth');
 const { stringify } = require('flatted');
 const { getEventEmitterCache } = require('../cache/event-emitter.cache');
-const printerTicker = require('../services/printer-connection-log.service.js');
+const { PrinterTicker } = require('../services/printer-connection-log.service.js');
 const { ensureCurrentUserAndGroup } = require('../middleware/users.js');
-
-const { PrinterTicker } = printerTicker;
 
 const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const { getPrinterManagerCache } = require('../cache/printer-manager.cache');
 const { returnLast100Actions } = require('../services/user-actions-log.service');
-const Logger = require('../handlers/logger.js');
-const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
+const { SseChannel } = require('../services/sse-channel.service');
 
-const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_SSE_OLD);
-
-let clientId = 0;
-const clients = {}; // <- Keep a map of attached clients
-let interval = false;
-
-// Called once for each new client. Note, this response is left open!
-router.get('/get/', ensureAuthenticated, ensureCurrentUserAndGroup, function (req, res) {
-  //req.socket.setTimeout(Number.MAX_VALUE);
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    Pragma: 'no-cache',
-    Expires: 0,
-    Connection: 'keep-alive',
-  });
-  res.write('\n');
-  (function (clientId) {
-    clients[clientId] = res; // <- Add this client to those we consider "attached"
-    req.on('close', function () {
-      delete clients[clientId];
-    }); // <- Remove this client when he disconnects
-    req.on('error', function () {
-      delete clients[clientId];
-    }); // <- Remove this client when he disconnects
-  })(++clientId);
-  //console.log("Client: " + Object.keys(clients));
-});
-
-async function sendData() {
+async function sendData(channel) {
   // Every read below feeds the payload and nothing else, so with no attached
   // clients this whole tick -- a full printer list plus a flatted stringify,
   // twice a second -- is wasted work.
-  if (Object.keys(clients).length === 0) {
+  if (channel.clientCount === 0) {
     return;
   }
 
-  let printersInformation = getPrinterStoreCache().listPrintersInformationForPrinterManager();
-  printersInformation = printersInformation.map((p) => {
-    p.registeredEvents = getEventEmitterCache().get(p._id);
-    return p;
-  });
-  const printerControlList = getPrinterManagerCache().getPrinterControlList();
-  const currentTickerList = PrinterTicker.returnIssue();
-  const currentActionList = returnLast100Actions();
+  const printersInformation = getPrinterStoreCache().listPrintersInformationForPrinterManager();
+  for (const printer of printersInformation) {
+    printer.registeredEvents = getEventEmitterCache().get(printer._id);
+  }
 
   const infoDrop = {
-    printersInformation: printersInformation,
-    printerControlList: printerControlList,
-    currentTickerList: currentTickerList,
-    currentActionList: currentActionList,
+    printersInformation,
+    printerControlList: getPrinterManagerCache().getPrinterControlList(),
+    // Only the newest slice, not the whole 5,000-entry ring. This used to
+    // serialise and push roughly a megabyte of connection log to every attached
+    // client twice a second.
+    currentTickerList: PrinterTicker.returnIssue(200),
+    currentActionList: returnLast100Actions(),
   };
-  const clientInformation = stringify(infoDrop);
-  // `const id`, not the module-level clientId counter this used to reuse --
-  // see the matching comment in sse.printer-monitoring.routes.js.
-  for (const id of Object.keys(clients)) {
-    clients[id].write('retry:' + 10000 + '\n');
-    clients[id].write('data: ' + clientInformation + '\n\n'); // <- Push a message to a single attached client
-  }
+
+  // One serialisation for everyone: the payload is identical per client.
+  channel.broadcast(stringify(infoDrop));
 }
 
-if (interval === false) {
-  interval = setInterval(function () {
-    // Nothing awaits this callback, so an unhandled throw in here would take the
-    // whole server down rather than dropping a single tick.
-    sendData().catch((e) => {
-      logger.error('Failed to send printer manager information to clients', e.toString());
-    });
-  }, 500);
-}
+const channel = new SseChannel('printer-manager', 500, sendData);
+
+// Called once for each new client. Note, this response is left open!
+router.get('/get/', ensureAuthenticated, ensureCurrentUserAndGroup, channel.handler);
 
 module.exports = router;

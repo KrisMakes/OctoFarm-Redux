@@ -6,6 +6,8 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_INFLUX_CLEANER);
 const { getHistoryCache } = require('../cache/history.cache');
 const { SettingsClean } = require('./settings-cleaner.service.js');
 
+const INFLUX_WRITE_INTERVAL_MS = 5000;
+
 class InfluxCleanerService {
   #printersInformationTimer;
   #livePrinterDataMeasurementKey = 'LivePrinterData';
@@ -16,22 +18,26 @@ class InfluxCleanerService {
     this.#printersInformationTimer = 0;
   }
 
-  checkKlipperState = () => {
-    let serverSettings = SettingsClean.returnSystemSettings();
-    return serverSettings?.influxExport.active;
+  // Named checkKlipperState, but it has always been the influx-enabled check.
+  isInfluxExportEnabled = () => {
+    return SettingsClean.returnSystemSettings()?.influxExport?.active;
   };
 
   cleanAndWritePrintersInformationForInflux = () => {
-    if (this.#printersInformationTimer < 5000) {
-      this.#printersInformationTimer = this.#printersInformationTimer + 1000; // data rate of sse socket
+    // Was a counter that incremented to 5000 and then stayed there, so after the
+    // first five ticks the guard was permanently false and Influx was written on
+    // every one-second tick -- five times the intended rate. Use a real clock.
+    const now = Date.now();
+    if (now - this.#printersInformationTimer < INFLUX_WRITE_INTERVAL_MS) {
       return;
     }
 
-    if (!this.checkKlipperState()) {
+    if (!this.isInfluxExportEnabled()) {
       return;
     }
+    this.#printersInformationTimer = now;
 
-    const printersInformation = getPrinterStoreCache().listPrintersInformation();
+    const printersInformation = getPrinterStoreCache().listPrinterSummaries();
 
     for (const printer of printersInformation) {
       const date = Date.now();
@@ -74,7 +80,7 @@ class InfluxCleanerService {
 
         if (!!printer?.currentJob) {
           for (const key in printer.currentJob) {
-            if (printer.currentJob.hasOwnProperty(key)) {
+            if (Object.prototype.hasOwnProperty.call(printer.currentJob, key)) {
               if (key === 'progress' && printer.currentJob[key] !== null) {
                 printerData['job_progress'] = parseFloat(printer.currentJob[key]);
               }
@@ -154,7 +160,7 @@ class InfluxCleanerService {
 
         if (!!printer.tools && printer.tools[0] !== null) {
           for (const key in printer.tools[0]) {
-            if (printer.tools[0].hasOwnProperty(key)) {
+            if (Object.prototype.hasOwnProperty.call(printer.tools[0], key)) {
               if (key !== 'time') {
                 if (printer.tools[0][key].actual !== null) {
                   printerData[key + '_actual'] = parseFloat(printer.tools[0][key].actual);
@@ -180,7 +186,7 @@ class InfluxCleanerService {
     }
   };
   cleanAndWriteFinishedPrintInformationForInflux = (currentHistory, printerInformation) => {
-    if (!this.checkKlipperState()) {
+    if (!this.isInfluxExportEnabled()) {
       return;
     }
 
@@ -254,7 +260,7 @@ class InfluxCleanerService {
     historyRecord,
     used
   ) => {
-    if (!this.checkKlipperState()) {
+    if (!this.isInfluxExportEnabled()) {
       return;
     }
 

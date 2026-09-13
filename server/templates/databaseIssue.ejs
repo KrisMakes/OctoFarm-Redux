@@ -57,7 +57,7 @@
                             Your connection string seems to have invalid format. <br/>
                             <ul>
                                 <li>Must start with <small class="badge">'mongodb://'</small></li>
-                                <li>Must contain <small class="badge">'/octofarm'</small></li>
+                                <li>Must include a database name, for example <small class="badge">/octofarm</small></li>
                                 <li>
                                     Read more about connection string in
                                     <a href="https://docs.mongodb.com/manual/reference/connection-string/"
@@ -154,21 +154,24 @@
   }
 
   function isValidMongoDbInput() {
-    const pageElements = getPageElements();
-    const mongoString = pageElements.mongoDBString.toLowerCase();
-    const hasMongoPrefix = mongoString.toLowerCase().includes("mongodb://") || mongoString.toLowerCase().includes("mongodb+srv://");
-    const hasOctoFarmTable = mongoString.includes("/octofarm");
-    return hasMongoPrefix && hasOctoFarmTable;
+    const mongoString = getPageElements().mongoDBString.toLowerCase();
+    // Only the scheme is actually required. This used to also demand the
+    // database be called "/octofarm", which locked anyone with a differently
+    // named database out of the very page that exists to fix their connection
+    // string -- and the server-side validator in middleware/validators.js
+    // explicitly does not enforce it.
+    return mongoString.startsWith("mongodb://") || mongoString.startsWith("mongodb+srv://");
   }
 
   function evaluateMongoDbInput() {
     const pageElements = getPageElements();
-    const isInvalidConnection = isValidMongoDbInput();
+    // Was named isInvalidConnection while holding "is valid".
+    const isValidConnection = isValidMongoDbInput();
 
-    pageElements.testButton.disabled = !isInvalidConnection;
-    pageElements.saveButton.disabled = !isInvalidConnection || isDocker === true || notYetValidatedConnection;
-    pageElements.invalidErrorElem.hidden = isInvalidConnection;
-    pageElements.validErrorElem.hidden = !isInvalidConnection;
+    pageElements.testButton.disabled = !isValidConnection;
+    pageElements.saveButton.disabled = !isValidConnection || isDocker === true || notYetValidatedConnection;
+    pageElements.invalidErrorElem.hidden = isValidConnection;
+    pageElements.validErrorElem.hidden = !isValidConnection;
   }
 
   function getValidatedMongoStringAsFetchOptions() {

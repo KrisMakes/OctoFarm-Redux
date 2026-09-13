@@ -8,6 +8,7 @@
 *Dockerfile
 *.md
 *.txt
+!LICENSE.txt
 /.build
 /.cache
 Makefile

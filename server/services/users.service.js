@@ -51,8 +51,9 @@ async function createUser({
     errors.push({ msg: 'Passwords do not match...' });
   }
 
-  // Password at least 6 characters
-  if (password.length < 6) {
+  // Password at least 6 characters. Guarded: password can be undefined here and
+  // the check above only records an error, it does not return.
+  if (!password || password.length < 6) {
     errors.push({ msg: 'Password should be at least 6 characters...' });
   }
 
@@ -154,8 +155,9 @@ async function resetPassword(id, { password = undefined, password2 = undefined }
     errors.push({ msg: 'Passwords do not match...' });
   }
 
-  // Password at least 6 characters
-  if (password.length < 6) {
+  // Password at least 6 characters. Guarded: password can be undefined here and
+  // the check above only records an error, it does not return.
+  if (!password || password.length < 6) {
     errors.push({ msg: 'Password should be at least 6 characters...' });
   }
 

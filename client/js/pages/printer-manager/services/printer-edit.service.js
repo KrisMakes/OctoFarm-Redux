@@ -1,5 +1,6 @@
 import UI from '../../../utils/ui';
 import OctoFarmClient from '../../../services/octofarm-client.service';
+import { findIndex } from 'lodash';
 
 export default class PrinterEditService {
   static pageElements;
@@ -24,7 +25,7 @@ export default class PrinterEditService {
     document.getElementById('psOctoPrintUser').classList.remove('highlight-glow');
   }
   static setCurrentPrinter(printersInformation, printerID) {
-    const printersIndex = _.findIndex(printersInformation, function (o) {
+    const printersIndex = findIndex(printersInformation, function (o) {
       return o._id === printerID;
     });
     PrinterEditService.currentPrinter = printersInformation[printersIndex];

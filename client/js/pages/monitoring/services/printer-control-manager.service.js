@@ -23,6 +23,7 @@ import {
 import { ClientErrors } from '../../../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../../../exceptions/application-error.handler';
 import { setupModalSwitcher } from './modal-switcher.service';
+import { findIndex } from 'lodash';
 
 let currentIndex = 0;
 
@@ -36,7 +37,7 @@ export default class PrinterControlManagerService {
       //clear camera
       if (index !== '') {
         currentIndex = index;
-        const id = _.findIndex(printers, function (o) {
+        const id = findIndex(printers, function (o) {
           return o._id === index;
         });
         currentPrinter = printers[id];
@@ -53,7 +54,7 @@ export default class PrinterControlManagerService {
         await PrinterControlManagerService.applyTemps(currentPrinter, elements);
         PrinterControlManagerService.applyListeners(elements, printers);
       } else {
-        const id = _.findIndex(printers, function (o) {
+        const id = findIndex(printers, function (o) {
           return o._id === currentIndex;
         });
         currentPrinter = printers[id];

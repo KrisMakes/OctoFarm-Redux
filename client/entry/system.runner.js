@@ -32,7 +32,7 @@ import { serverDatabaseKeys } from '../../server/constants/database.constants';
 
 // Setup Page
 for (const key in serverDatabaseKeys) {
-  if (serverDatabaseKeys.hasOwnProperty(key)) {
+  if (Object.prototype.hasOwnProperty.call(serverDatabaseKeys, key)) {
     const elementNuke = document.getElementById(`nuke${serverDatabaseKeys[key]}`);
     if (elementNuke) {
       elementNuke.addEventListener('click', async (e) => {
@@ -182,8 +182,6 @@ passResetButtons.forEach((btn) => {
   });
 });
 
-if (serverActionsElements.RESET_DASHBOARD) {
-}
 // Setup user edits
 const userEditButtons = document.querySelectorAll('*[id^="editUserBtn-"]');
 userEditButtons.forEach((btn) => {

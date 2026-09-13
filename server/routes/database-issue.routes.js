@@ -1,6 +1,5 @@
 const express = require('express');
 const path = require('path');
-const { execSync } = require('child_process');
 const mongoose = require('mongoose');
 const Logger = require('../handlers/logger.js');
 const ServerSettingsDB = require('../models/ServerSettings');

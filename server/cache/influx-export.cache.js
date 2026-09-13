@@ -1,16 +1,6 @@
 const InfluxCleanerService = require('../services/influx-cleaner.service');
+const { createSingleton } = require('./create-singleton');
 
-let influxCache = undefined;
+const getInfluxCleanerCache = createSingleton(InfluxCleanerService);
 
-function getInfluxCleanerCache() {
-  if (!!influxCache) {
-    return influxCache;
-  } else {
-    influxCache = new InfluxCleanerService();
-    return influxCache;
-  }
-}
-
-module.exports = {
-  getInfluxCleanerCache,
-};
+module.exports = { getInfluxCleanerCache };

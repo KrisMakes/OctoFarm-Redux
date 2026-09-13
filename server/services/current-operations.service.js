@@ -22,7 +22,7 @@ const getCurrentOperations = () => {
  *   1000ms task that whole pass was happening twice a second instead of once.
  */
 const sortCurrentOperations = async (printerList) => {
-  const farmPrinters = printerList ?? getPrinterStoreCache().listPrintersInformation();
+  const farmPrinters = printerList ?? getPrinterStoreCache().listPrinterSummaries();
   const complete = [];
   const active = [];
   const idle = [];

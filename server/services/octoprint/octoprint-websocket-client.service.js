@@ -18,6 +18,13 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.OP_SERVICE_WEBSOCKET);
 
 const ENDPOINT = '/sockjs/websocket';
 
+const WS_ERROR_REASONS = {
+  [WS_ERRORS.ECONNREFUSED]: `${WS_ERRORS.ECONNREFUSED}. Server is not accepting connections`,
+  [WS_ERRORS.ECONNRESET]: `${WS_ERRORS.ECONNRESET}. Server reset the connection!`,
+  [WS_ERRORS.EHOSTUNREACH]: `${WS_ERRORS.EHOSTUNREACH}. Server is not reachable!`,
+  [WS_ERRORS.ENOTFOUND]: `${WS_ERRORS.ENOTFOUND}. Server cannot be found!`,
+};
+
 const defaultWebsocketOptions = {
   handshakeTimeout: 10000,
   followRedirects: true,
@@ -35,10 +42,10 @@ class WebSocketClient {
   #lastPingMessage = 0;
   #lastPongMessage = 0;
   #lastWebsocketMessage = 0;
+  #pongCheckTimeout = undefined;
   #onMessage = undefined;
   autoReconnectInterval = undefined; // ms
   reconnectTimeout = false;
-  systemSettings = SettingsClean.returnSystemSettings();
   url = undefined;
   id = undefined;
   currentUser = undefined;
@@ -69,7 +76,7 @@ class WebSocketClient {
     )
       throw new Error('Missing required keys');
 
-    this.autoReconnectInterval = this.systemSettings.timeout.webSocketRetry;
+    this.autoReconnectInterval = this.#retryInterval();
     this.id = id;
     this.url = webSocketURL + ENDPOINT;
     this.currentUser = currentUser;
@@ -77,6 +84,13 @@ class WebSocketClient {
     this.#onMessage = onMessageFunction;
 
     this.open();
+  }
+
+  // Read on demand rather than snapshotting the settings object at construction:
+  // the cached copy meant a change to webSocketRetry in the UI did nothing until
+  // the socket object was rebuilt.
+  #retryInterval() {
+    return SettingsClean.returnSystemSettings()?.timeout?.webSocketRetry ?? 5000;
   }
 
   open() {
@@ -110,11 +124,6 @@ class WebSocketClient {
       this.reconnect();
     });
 
-    this.#instance.on('isPaused', () => {
-      logger.error(`${this.url}: Websocket Paused!`);
-      this.reconnect();
-    });
-
     this.#instance.on('open', async () => {
       ConnectionMonitorService.updateOrAddResponse(
         this.url,
@@ -132,7 +141,7 @@ class WebSocketClient {
       // These will get overridden.
       getPrinterStoreCache().updatePrinterState(this.id, PRINTER_STATES().PRINTER_TENTATIVE);
       this.#retryNumber = 0;
-      this.autoReconnectInterval = this.systemSettings.timeout.webSocketRetry;
+      this.autoReconnectInterval = this.#retryInterval();
       await this.sendAuth();
       this.sendThrottle();
     });
@@ -181,58 +190,31 @@ class WebSocketClient {
         REQUEST_TYPE.WEBSOCKET,
         REQUEST_KEYS.FAILED_RESPONSE
       );
-      switch (
-        code // https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
-      ) {
-        case 1000: //  1000 indicates a normal closure, meaning that the purpose for which the connection was established has been fulfilled.
-          PrinterTicker.addIssue(
-            new Date(),
-            this.url,
-            `${OF_C_DESC.RE_SYNC} Error: ${code} - ${reason}`,
-            'Offline',
-            this.id
-          );
-          getPrinterStoreCache().updatePrinterState(this.id, {
-            state: 'Socket Closed!',
-            stateColour: mapStateToCategory('Offline'),
-            stateDescription: 'Printer connection was closed. Will not reconnect automatically!',
-          });
-          logger.error('Socket purposefully closed... not reconnecting! Code 1000' + reason);
-          break;
-        case 1006: //Close Code 1006 is a special code that means the connection was closed abnormally (locally) by the server implementation.
-          PrinterTicker.addIssue(
-            new Date(),
-            this.url,
-            `${OF_WS_DESC.SHUTDOWN_RECONNECT} Error: ${code} - ${reason}`,
-            'Offline',
-            this.id
-          );
-          getPrinterStoreCache().updatePrinterState(this.id, {
-            state: 'Socket Closed!',
-            stateColour: mapStateToCategory('Offline'),
-            stateDescription: 'Printer connection was closed. Will reconnect shortly!',
-          });
-          this.reconnect(code);
-          logger.error('Socket Abnormally closed by server... reconnecting! Code 1006 - ' + reason);
-          break;
-        default:
-          // Abnormal closure
-          PrinterTicker.addIssue(
-            new Date(),
-            this.url,
-            `${OF_WS_DESC.SHUTDOWN_RECONNECT} Error: ${code} - ${reason}`,
-            'Offline',
-            this.id
-          );
-          getPrinterStoreCache().updatePrinterState(this.id, {
-            state: 'Socket Closed!',
-            stateColour: mapStateToCategory('Offline'),
-            stateDescription: 'Printer connection was closed. Will reconnect shortly!',
-          });
-          logger.error(`Socket Abnormally closed... reconnecting! Code: ${code} - ${reason}`);
-          this.reconnect(code);
-          break;
+      // 1000 is a deliberate close and is the only code we do not reconnect
+      // after; every other code took an identical path, written out twice.
+      const purposefulClose = code === 1000;
+      PrinterTicker.addIssue(
+        new Date(),
+        this.url,
+        `${
+          purposefulClose ? OF_C_DESC.RE_SYNC : OF_WS_DESC.SHUTDOWN_RECONNECT
+        } Error: ${code} - ${reason}`,
+        'Offline',
+        this.id
+      );
+      getPrinterStoreCache().updatePrinterState(this.id, {
+        state: 'Socket Closed!',
+        stateColour: mapStateToCategory('Offline'),
+        stateDescription: purposefulClose
+          ? 'Printer connection was closed. Will not reconnect automatically!'
+          : 'Printer connection was closed. Will reconnect shortly!',
+      });
+      if (purposefulClose) {
+        logger.error(`Socket purposefully closed... not reconnecting! Code ${code} - ${reason}`);
+        return;
       }
+      logger.error(`Socket abnormally closed... reconnecting! Code: ${code} - ${reason}`);
+      this.reconnect(code);
     });
 
     this.#instance.on('error', (e) => {
@@ -251,53 +233,9 @@ class WebSocketClient {
         REQUEST_TYPE.WEBSOCKET,
         REQUEST_KEYS.FAILED_RESPONSE
       );
-      switch (e.code) {
-        case WS_ERRORS.ECONNREFUSED:
-          PrinterTicker.addIssue(
-            new Date(),
-            this.url,
-            `Error ${WS_ERRORS.ECONNREFUSED}. Server is not accepting connections`,
-            'Offline',
-            this.id
-          );
-          break;
-        case WS_ERRORS.ECONNRESET:
-          PrinterTicker.addIssue(
-            new Date(),
-            this.url,
-            `Error ${WS_ERRORS.ECONNRESET}. Server reset the connection!`,
-            'Offline',
-            this.id
-          );
-          break;
-        case WS_ERRORS.EHOSTUNREACH:
-          PrinterTicker.addIssue(
-            new Date(),
-            this.url,
-            `Error ${WS_ERRORS.EHOSTUNREACH}. Server is not reachable!`,
-            'Offline',
-            this.id
-          );
-          break;
-        case WS_ERRORS.ENOTFOUND:
-          PrinterTicker.addIssue(
-            new Date(),
-            this.url,
-            `Error ${WS_ERRORS.ENOTFOUND}. Server cannot be found!`,
-            'Offline',
-            this.id
-          );
-          break;
-        default:
-          PrinterTicker.addIssue(
-            new Date(),
-            this.url,
-            `Error UNKNOWN. Server is not reachable! ${e.toString()}`,
-            'Offline',
-            this.id
-          );
-          break;
-      }
+      const reason =
+        WS_ERROR_REASONS[e.code] ?? `UNKNOWN. Server is not reachable! ${e.toString()}`;
+      PrinterTicker.addIssue(new Date(), this.url, `Error ${reason}`, 'Offline', this.id);
       this.reconnect(e);
     });
   }
@@ -416,10 +354,10 @@ class WebSocketClient {
     );
 
     if (this.reconnectTimeout !== false) {
-      logger.warning('Ignoring Websocket reconnection attempt!');
+      logger.debug('Websocket reconnect already scheduled, ignoring duplicate request');
       return;
     }
-    clearTimeout(this.reconnectTimeout);
+    // No clearTimeout here: reconnectTimeout is provably false at this point.
     this.#instance.removeAllListeners();
     this.reconnectingIn = Date.now() + this.autoReconnectInterval;
     this.#retryNumber = this.#retryNumber + 1;
@@ -459,7 +397,7 @@ class WebSocketClient {
       });
 
       if (this.#retryNumber > 0) {
-        const modifier = this.systemSettings.timeout.webSocketRetry * 0.1;
+        const modifier = this.#retryInterval() * 0.1;
         this.autoReconnectInterval = this.autoReconnectInterval + modifier;
         logger.debug(`${this.url} retry modifier ${modifier}`);
       } else if (this.#retryNumber === 0) {
@@ -502,8 +440,8 @@ class WebSocketClient {
     if (isPrinterActive && timeSinceLastMessage > this.deadWebsocketTimeout) {
       logger.error(
         `It's been over ${
-          this.deadWebsocketTimeout * 1000
-        }m since last websocket message... forcing reconnect`,
+          this.deadWebsocketTimeout / 1000
+        }s since last websocket message... forcing reconnect`,
         {
           timeSinceLastMessage,
           deadTimeout: this.deadWebsocketTimeout,
@@ -511,7 +449,11 @@ class WebSocketClient {
       );
       this.reconnect('Websocket considered dead, attempting to reconnect...');
     } else {
-      const registerPongCheck = setTimeout(() => {
+      // One timer per ping, cleared on the way out rather than from inside its
+      // own callback (which was a no-op).
+      clearTimeout(this.#pongCheckTimeout);
+      this.#pongCheckTimeout = setTimeout(() => {
+        this.#pongCheckTimeout = undefined;
         if (
           this.#pingPongTimer + this.#currentMessageMSRate <
           Math.abs(this.#lastPingMessage - this.#lastPongMessage)
@@ -534,7 +476,6 @@ class WebSocketClient {
             REQUEST_KEYS.TOTAL_PING_PONG
           );
           this.reconnect("Didn't receive a pong from the client... reconnecting!");
-          clearTimeout(registerPongCheck);
         }
       }, 2000);
     }
@@ -558,7 +499,13 @@ class WebSocketClient {
     logger.info(`${this.url} Killing all listeners`);
     logger.debug('Force terminating websocket connection');
     this.terminate();
+    clearTimeout(this.#pongCheckTimeout);
+    this.#pongCheckTimeout = undefined;
     clearTimeout(this.reconnectTimeout);
+    // A cleared Timeout object is still truthy. Leaving it assigned made
+    // reconnect()'s `!== false` guard permanently true, so a printer whose
+    // connections were killed could never reopen its websocket.
+    this.reconnectTimeout = false;
     logger.debug(this.url + ' Cleared reconnect timeout');
     logger.debug(this.url + ' Removing all listeners');
     this.#instance.removeAllListeners();

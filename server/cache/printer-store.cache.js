@@ -1,16 +1,6 @@
 const PrinterStore = require('../store/printers.store');
+const { createSingleton } = require('./create-singleton');
 
-let printerStore = undefined;
+const getPrinterStoreCache = createSingleton(PrinterStore);
 
-function getPrinterStoreCache() {
-  if (!!printerStore) {
-    return printerStore;
-  } else {
-    printerStore = new PrinterStore();
-    return printerStore;
-  }
-}
-
-module.exports = {
-  getPrinterStoreCache,
-};
+module.exports = { getPrinterStoreCache };

@@ -18,9 +18,9 @@ const config = {
     // Dont override this unless you know what you are doing
     // databaseName: "octofarm",
 
+    // useNewUrlParser / useUnifiedTopology were removed in driver 6; passing
+    // them now is at best ignored and at worst rejected as unknown options.
     options: {
-      useNewUrlParser: true, // removes a deprecation warning when connecting
-      useUnifiedTopology: true, // removes a deprecating warning when connecting
       //   connectTimeoutMS: 3600000, // increase connection timeout to 1 hour
       //   socketTimeoutMS: 3600000, // increase socket timeout to 1 hour
     },

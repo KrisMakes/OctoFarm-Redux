@@ -1,6 +1,7 @@
+const path = require('path');
 const winston = require('winston');
 const { AppConstants } = require('../constants/app.constants');
-const { logRouteToFileMap } = require('../constants/logger.constants');
+const { logRouteToFileMap, LOGGER_FILES } = require('../constants/logger.constants');
 
 const dtFormat = new Intl.DateTimeFormat('en-GB', {
   timeStyle: 'medium',
@@ -8,19 +9,22 @@ const dtFormat = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'UTC',
 });
 
+const ESC = '\u001b';
 const COLOURS = {
-  RED: '\033[0;31m',
-  YELLOW: '\033[1;33m',
-  ORANGE: '\033[0;33m',
-  BLUE: '\033[0;34m',
-  PURPLE: '\033[0;35m',
-  WHITE: '\033[1;37m',
-  CYAN: '\033[0;32m',
+  RESET: `${ESC}[0m`,
+  RED: `${ESC}[0;31m`,
+  YELLOW: `${ESC}[1;33m`,
+  ORANGE: `${ESC}[0;33m`,
+  BLUE: `${ESC}[0;34m`,
+  PURPLE: `${ESC}[0;35m`,
+  WHITE: `${ESC}[1;37m`,
+  CYAN: `${ESC}[0;32m`,
 };
 
 const COLOUR_MAP = {
   info: COLOURS.BLUE,
   warn: COLOURS.ORANGE,
+  verbose: COLOURS.CYAN,
   debug: COLOURS.ORANGE,
   error: COLOURS.RED,
   http: COLOURS.PURPLE,
@@ -37,113 +41,136 @@ const LEVELS = {
   silly: 6,
 };
 
-dateFormat = () => {
-  return dtFormat.format(new Date());
-};
+// Was an implicit global (`dateFormat = () => ...`), which pollutes globalThis
+// and would throw under strict mode.
+const dateFormat = () => dtFormat.format(new Date());
+
+// Resolved against this file rather than process.cwd(): the old `../logs/...`
+// only worked because pm2 happens to start from server/.
+const LOG_DIRECTORY = path.join(__dirname, '..', '..', 'logs');
+
+function formatMeta(meta) {
+  if (meta === undefined || meta === null) {
+    return undefined;
+  }
+  if (typeof meta === 'string' || typeof meta === 'number') {
+    return meta;
+  }
+  try {
+    return JSON.stringify(meta);
+  } catch (e) {
+    return String(meta);
+  }
+}
+
+const plainFormat = winston.format.printf((info) => {
+  const level = info.level.toUpperCase();
+  const metaData = formatMeta(info.meta);
+  const base = `${dateFormat()} | ${level} | ${info.route} \n ${level} MESSAGE: ${info.message} `;
+  return metaData ? `${base}: ${metaData} ` : base;
+});
+
+const colourFormat = winston.format.printf((info) => {
+  const level = info.level.toUpperCase();
+  const colour = COLOUR_MAP[info.level] ?? COLOURS.WHITE;
+  const metaData = formatMeta(info.meta);
+  const base =
+    `${colour}${dateFormat()} ${COLOURS.WHITE}| ${colour}${level} ${COLOURS.WHITE}| ` +
+    `${colour}${info.route} ${COLOURS.WHITE} \n ${colour}${level} MESSAGE: ` +
+    `${COLOURS.WHITE}${info.message}${COLOURS.RESET} `;
+  return metaData ? `${base}| ${COLOURS.WHITE}${metaData}${COLOURS.RESET}` : base;
+});
+
+/**
+ * One winston logger per log FILE, shared by every route that maps to it.
+ *
+ * Each `new Logger(route)` used to build a complete winston logger with its own
+ * Console transport AND its own File transport. There are 66 of them and
+ * logRouteToFileMap collapses those onto four filenames, so roughly forty
+ * independent transports held descriptors on the same four files and could each
+ * attempt a 5MB rotation concurrently.
+ */
+const loggersByFile = new Map();
+let consoleTransport;
+
+function getConsoleTransport(level) {
+  if (!consoleTransport) {
+    consoleTransport = new winston.transports.Console({
+      level,
+      format: colourFormat,
+    });
+  }
+  return consoleTransport;
+}
+
+function getWinstonLogger(fileName, level, enableFileLogs) {
+  const key = `${enableFileLogs ? fileName : 'console-only'}::${level}`;
+  const existing = loggersByFile.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const logger = winston.createLogger({
+    levels: LEVELS,
+    transports: [
+      getConsoleTransport(level),
+      ...(enableFileLogs
+        ? [
+            new winston.transports.File({
+              level,
+              format: plainFormat,
+              filename: path.join(LOG_DIRECTORY, `${fileName}.log`),
+              maxsize: 5242880,
+              maxFiles: 3,
+            }),
+          ]
+        : []),
+    ],
+  });
+
+  loggersByFile.set(key, logger);
+  return logger;
+}
 
 class LoggerService {
   constructor(route, enableFileLogs = true, logFilterLevel = undefined) {
-    if (!logFilterLevel) {
-      logFilterLevel = process.env[AppConstants.LOG_LEVEL];
-    }
-
-    this.log_data = null;
+    const level = logFilterLevel || process.env[AppConstants.LOG_LEVEL] || 'info';
     this.route = route;
+    // A route with no mapping used to produce "logs/undefined.log".
+    const fileName = logRouteToFileMap[route] ?? LOGGER_FILES.SYSTEM;
+    this.logger = getWinstonLogger(fileName, level, enableFileLogs);
+  }
 
-    let alignColorsAndTime = winston.format.combine(
-      winston.format.printf((info) => {
-        const level = info.level.toUpperCase();
-        const date = dateFormat();
-        let metaData = undefined;
-        if (!!info?.meta) {
-          if (typeof info.meta === 'string' || typeof info.meta === 'number') {
-            metaData = info.meta;
-          } else {
-            metaData = Object.assign({}, info.meta);
-            metaData = JSON.stringify(metaData);
-          }
-        }
-        let message = `${COLOUR_MAP[info.level]}${date} ${COLOURS.WHITE}| ${
-          COLOUR_MAP[info.level]
-        }${level} ${COLOURS.WHITE}| ${COLOUR_MAP[info.level]}${route} ${COLOURS.WHITE} \n ${
-          COLOUR_MAP[info.level]
-        }${level} MESSAGE: ${COLOURS.WHITE}${info.message} `;
-        message = metaData ? message + `| ${COLOURS.WHITE}${metaData}` : message;
-        return message;
-      })
-    );
-
-    let prettyPrintMyLogs = winston.format.combine(
-      winston.format.printf((info) => {
-        const level = info.level.toUpperCase();
-        const date = dateFormat();
-        let metaData = undefined;
-        if (!!info?.meta) {
-          if (typeof info.meta === 'string' || typeof info.meta === 'number') {
-            metaData = info.meta;
-          } else {
-            metaData = Object.assign({}, info.meta);
-            metaData = JSON.stringify(metaData);
-          }
-        }
-        let message = `${date} | ${level} | ${route} \n ${level} MESSAGE: ${info.message} `;
-        message = metaData ? message + `: ${metaData} ` : message;
-        return message;
-      })
-    );
-
-    this.logger = winston.createLogger({
-      levels: LEVELS,
-      transports: [
-        new winston.transports.Console({
-          level: logFilterLevel,
-          format: alignColorsAndTime,
-        }),
-        ...(enableFileLogs
-          ? [
-              new winston.transports.File({
-                level: logFilterLevel,
-                format: prettyPrintMyLogs,
-                filename: `../logs/${logRouteToFileMap[this.route]}.log`,
-                maxsize: 5242880,
-                maxFiles: 3,
-              }),
-            ]
-          : []),
-      ],
-    });
+  #log(level, message, meta) {
+    this.logger.log(level, message, { meta, route: this.route });
   }
 
   info(message, meta) {
-    this.logger.log('info', message, {
-      meta,
-    });
+    this.#log('info', message, meta);
   }
 
   warning(message, meta) {
-    this.logger.log('warn', message, {
-      meta,
-    });
+    this.#log('warn', message, meta);
   }
 
   http(message, meta) {
-    this.logger.log('http', message, {
-      meta,
-    });
+    this.#log('http', message, meta);
+  }
+
+  verbose(message, meta) {
+    this.#log('verbose', message, meta);
   }
 
   debug(message, meta) {
-    this.logger.log('debug', message, {
-      meta,
-    });
+    this.#log('debug', message, meta);
   }
 
   error(message, meta) {
-    this.logger.log('error', message, { meta });
+    this.#log('error', message, meta);
   }
 
   silly(message, meta) {
-    this.logger.log('silly', message, { meta });
+    this.#log('silly', message, meta);
   }
 }
 

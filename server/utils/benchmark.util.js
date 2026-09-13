@@ -1,40 +1,25 @@
-const Logger = require('../handlers/logger.js');
-const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
-const logger = new Logger(LOGGER_ROUTE_KEYS.UTILS_BENCHMARK);
-
 /**
- * Timing benchmark function, DO NOT USE IN PRODUCTION - just use it once and remove after.
- * For real benchmarking look for profiling or clinic doctor/flame
- * @param cb
- * @param report
- * @returns {Promise<*|{result: *, time: number}>}
+ * Byte length of a websocket frame, for debug logging only.
+ *
+ * This was `encodeURI(s).split(/%..|./).length - 1`, which re-encodes the whole
+ * string and then allocates an array with one element per byte. It ran
+ * unconditionally on every websocket message -- three call sites in
+ * octoprint-websocket-message.service.js -- purely to build the argument of a
+ * logger.silly() call that is filtered out at every normal log level.
+ *
+ * @param {string|Buffer} value
+ * @returns {number}
  */
-async function bench(cb, report = false) {
-  const beforeTime = Date.now();
-  let result;
-  try {
-    result = await cb();
-  } catch (e) {
-    logger.error(e);
+function byteCount(value) {
+  if (Buffer.isBuffer(value)) {
+    return value.length;
   }
-  const afterTime = Date.now();
-
-  if (!!report) {
-    return {
-      result,
-      time: afterTime - beforeTime,
-    };
-  } else return result;
+  if (typeof value !== 'string') {
+    return 0;
+  }
+  return Buffer.byteLength(value, 'utf8');
 }
-
-function byteCount(s) {
-  return encodeURI(s).split(/%..|./).length - 1;
-}
-
-function noop() {}
 
 module.exports = {
-  bench,
   byteCount,
-  noop,
 };

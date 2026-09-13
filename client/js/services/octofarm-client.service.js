@@ -81,14 +81,12 @@ axios.interceptors.response.use(
 // REFACTOR: this could end up getting big, consider splitting it.
 // Would go by page, each page could get it's own extends class for pre-defined routes building on the CRUD actions available.
 export default class OctoFarmClient {
-  static base = '/api';
   static printerRoute = '/printers';
   static disablePrinterRoute = this.printerRoute + '/disable';
   static enablePrinterRoute = this.printerRoute + '/enable';
   static generatePrinterNameRoute = this.printerRoute + '/generate_printer_name';
   static updateUserActionsLogRoute = this.printerRoute + '/logUserPrintAction';
   static updateActiveUserRoute = this.printerRoute + '/updateActiveUser';
-  static printerStepChangeRoute = this.printerRoute + '/stepChange';
   static forceReconnectRoute = this.printerRoute + '/forceReconnect';
   static serverSettingsRoute = '/settings/server';
   static clientSettingsRoute = '/settings/client';
@@ -107,9 +105,10 @@ export default class OctoFarmClient {
 
   static validatePath(pathname) {
     if (!pathname) {
-      const newURL = new URL(path, window.location.origin);
+      // `path` is not defined in this scope, so this used to throw a
+      // ReferenceError instead of the intended ApplicationError.
       throw new ApplicationError(ClientErrors.FAILED_VALIDATION_PATH, {
-        message: `${ClientErrors.FAILED_VALIDATION_PATH} ${newURL}`,
+        message: `${ClientErrors.FAILED_VALIDATION_PATH.message}: no path supplied`,
       });
     }
   }
@@ -136,17 +135,17 @@ export default class OctoFarmClient {
   }
 
   static async listPrinters(disabled = false, showFullList = false) {
-    let path = `${this.printerRoute}/printerInfo`;
-
+    // Was two separate `?`-prefixed appends, so passing both produced
+    // "?disabled=true?fullList=true" and fullList was silently swallowed.
+    const query = new URLSearchParams();
     if (disabled) {
-      path += '?disabled=true';
+      query.set('disabled', 'true');
     }
-
     if (showFullList) {
-      path += '?fullList=true';
+      query.set('fullList', 'true');
     }
-
-    return this.post(path);
+    const suffix = query.toString();
+    return this.post(`${this.printerRoute}/printerInfo${suffix ? `?${suffix}` : ''}`);
   }
 
   static async disablePrinter(idList) {
@@ -199,7 +198,7 @@ export default class OctoFarmClient {
   }
 
   static async setPrinterSteps(id, newSteps) {
-    return this.post('printers/stepChange', {
+    return this.post(`${this.printerRoute}/stepChange`, {
       printer: id,
       newSteps,
     });

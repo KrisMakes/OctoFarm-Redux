@@ -43,10 +43,22 @@ const authenticationLimits = rateLimit({
   },
 });
 
-//TODO rest of the endpoints
+// The client fires one of these from its global error handler, so a broken page
+// can loop. Cheap to write, unbounded on disk, so give it a real ceiling.
+const clientLogLimits = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: function (req, res /*next*/) {
+    // The client does not read this response; just stop accepting the writes.
+    return res.sendStatus(429);
+  },
+});
 
 module.exports = {
   octofarmGlobalLimits,
   printerActionLimits,
   authenticationLimits,
+  clientLogLimits,
 };

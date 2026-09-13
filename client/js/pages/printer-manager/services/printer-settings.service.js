@@ -5,6 +5,7 @@ import Script from '../../../services/octofarm-scripts.service.js';
 import { ApplicationError } from '../../../exceptions/application-error.handler';
 import { ClientErrors } from '../../../exceptions/octofarm-client.exceptions';
 import '../../../utils/cleanup-modals.util';
+import { findIndex, isEmpty } from 'lodash';
 
 let currentPrinterIndex;
 let printerOnline;
@@ -82,7 +83,7 @@ class PrinterSettingsService {
   static updateCurrentPrinterIndex(printersInformation, printerID) {
     currentPrintersInformation = printersInformation;
     // Printer ID we need to initialise the page.
-    const printersIndex = _.findIndex(printersInformation, function (o) {
+    const printersIndex = findIndex(printersInformation, function (o) {
       return o._id === printerID;
     });
     if (printersIndex !== -1) {
@@ -632,7 +633,7 @@ class PrinterSettingsService {
     if (systemShutdown !== 'N/A') {
       document.getElementById('psSystemShutdown').placeholder = systemShutdown;
     }
-    if (currentPrinter.powerSettings && !_.isEmpty(currentPrinter.powerSettings)) {
+    if (currentPrinter.powerSettings && !isEmpty(currentPrinter.powerSettings)) {
       document.getElementById('psPowerOnCommand').placeholder =
         currentPrinter.powerSettings.powerOnCommand;
       document.getElementById('psPowerOnURL').placeholder = currentPrinter.powerSettings.powerOnURL;

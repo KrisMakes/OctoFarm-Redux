@@ -1,43 +1,36 @@
 const getFirstDayOfLastMonth = function () {
-  var d = new Date();
+  const d = new Date();
   d.setDate(1);
   d.setMonth(d.getMonth() - 1);
+  d.setHours(0, 0, 0, 0);
   return d;
 };
 
+/**
+ * The first of each of the last twelve months, oldest first, as YYYY-MM-01.
+ *
+ * The previous implementation leaked `d`, `y` and `m` as implicit globals,
+ * redeclared `var i` in both branches, and had a padMonth that returned a
+ * number above 9 and a string below it.
+ */
 const last12Month = function () {
-  var dates = [];
-  (d = new Date()), (y = d.getFullYear()), (m = d.getMonth());
-  function padMonth(month) {
-    if (month < 10) {
-      return '0' + month;
-    } else {
-      return month;
-    }
-  }
-
-  if (m === 11) {
-    for (var i = 1; i < 13; i++) {
-      dates.push(y + '-' + padMonth(i) + '-01');
-    }
-  } else {
-    for (var i = m + 1; i < m + 13; i++) {
-      if (i % 12 > m) {
-        dates.push(y - 1 + '-' + padMonth(i + 1) + '-01');
-      } else {
-        dates.push(y + '-' + padMonth((i % 12) + 1) + '-01');
-      }
-    }
+  const now = new Date();
+  const dates = [];
+  for (let offset = 11; offset >= 0; offset--) {
+    const month = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    const paddedMonth = String(month.getMonth() + 1).padStart(2, '0');
+    dates.push(`${month.getFullYear()}-${paddedMonth}-01`);
   }
   return dates;
 };
 
 const generateTodayTextString = () => {
-  let dateString = '';
   const today = new Date();
-  dateString += today.toLocaleDateString().replace(/\//g, '-');
-  dateString += '-' + today.toLocaleTimeString().replace(/:/g, '-');
-  return dateString;
+  return (
+    today.toLocaleDateString().replace(/\//g, '-') +
+    '-' +
+    today.toLocaleTimeString().replace(/:/g, '-')
+  );
 };
 
 module.exports = {

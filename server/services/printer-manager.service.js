@@ -10,9 +10,23 @@ const { isEmpty } = require('lodash');
 const { generatePrinterStatistics } = require('../services/printer-statistics.service');
 const { deleteTemperatureData } = require('./octoprint/utils/octoprint-websocket-helpers.utils');
 const { SettingsClean } = require('./settings-cleaner.service');
+const ConnectionMonitorService = require('./connection-monitor.service');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_PRINTER_MANAGER);
+
+// Seven switch cases collapsed to the three counters they actually resolved to.
+const STATE_COUNTER_BY_CATEGORY = {
+  [CATEGORIES.ACTIVE]: CATEGORIES.ACTIVE,
+  [CATEGORIES.IDLE]: CATEGORIES.IDLE,
+  [CATEGORIES.DISCONNECTED]: CATEGORIES.IDLE,
+  [CATEGORIES.COMPLETE]: CATEGORIES.IDLE,
+  [CATEGORIES.OFFLINE]: CATEGORIES.OFFLINE,
+  [CATEGORIES.ERROR]: CATEGORIES.OFFLINE,
+};
+
+// Must match the STATE_TRACK_COUNTERS task interval in tasks.js.
+const STATE_COUNTER_INTERVAL_MS = 30000;
 
 class PrinterManagerService {
   #printerGroupList = [];
@@ -38,7 +52,7 @@ class PrinterManagerService {
       const printer = new OctoPrintPrinter(p);
       getPrinterStoreCache().addPrinter(printer);
       if (!printer?.disabled) {
-        this.#enablePrintersQueue.push(printer._id);
+        this.#queuePrinterForEnable(printer._id);
       } else {
         printer.disablePrinter();
       }
@@ -50,7 +64,7 @@ class PrinterManagerService {
       const printer = getPrinterStoreCache().getPrinter(id);
       printer.enabling = false;
       printer.setPrinterToSearching();
-      this.#enablePrintersQueue.push(id);
+      this.#queuePrinterForEnable(id);
     }
   }
 
@@ -69,24 +83,37 @@ class PrinterManagerService {
     await patchPrinterValues(printerValues);
     const newPrinter = new OctoPrintPrinter(printerValues);
     getPrinterStoreCache().addPrinter(newPrinter);
-    this.#enablePrintersQueue.push(newPrinter._id);
+    this.#queuePrinterForEnable(newPrinter._id);
 
     return {
       printerURL: newPrinter.printerURL,
     };
   }
 
+  // Queueing the same printer twice just enables it twice; the second pass is
+  // pure waste and, when the printer is mid-enable, used to be the path into the
+  // broken splice below.
+  #queuePrinterForEnable(id) {
+    if (!!id && !this.#enablePrintersQueue.includes(id)) {
+      this.#enablePrintersQueue.push(id);
+    }
+  }
+
   async enablePrinterFromQueue(id) {
-    if (!!id) {
-      const printer = getPrinterStoreCache().getPrinter(id);
-      if (printer && !printer.enabling) {
-        await printer?.enablePrinter();
-        return;
-      }
-
-      const idIndex = this.#enablePrintersQueue.findIndex((index) => currentID === index);
-
-      this.#enablePrintersQueue.splice(idIndex, 1);
+    if (!id) {
+      return;
+    }
+    const printer = getPrinterStoreCache().getPrinter(id);
+    // The printer can have been deleted between being queued and being drained.
+    if (!printer || printer.enabling) {
+      return;
+    }
+    try {
+      await printer.enablePrinter();
+    } finally {
+      // enablePrinter sets this on the way in and never cleared it, so every
+      // subsequent pass saw a permanently "enabling" printer.
+      printer.enabling = false;
     }
   }
 
@@ -95,7 +122,8 @@ class PrinterManagerService {
     return 'Killed Printer Onboard Queues';
   }
 
-  async startPrinterEnableQueue() {
+  startPrinterEnableQueue() {
+    clearTimeout(this.#printerEnableTimeout);
     this.#printerEnableTimeout = setTimeout(() => {
       this.handlePrinterEnableQueue().catch((e) => {
         logger.error('Printer enable queue failed', e.toString());
@@ -104,24 +132,28 @@ class PrinterManagerService {
   }
 
   async handlePrinterEnableQueue(batchSize = 10) {
-    const enablePrinterQueueBatch = async () => {
-      const queueLength = this.#enablePrintersQueue.length;
-      for (let i = 0; i < queueLength; i += batchSize) {
-        const requests = this.#enablePrintersQueue.slice(i, i + batchSize).map((id) => {
-          if (!!id) {
-            return this.enablePrinterFromQueue(id);
-          }
-        });
+    // Drain the queue before working it. Nothing used to remove ids, so every
+    // tick re-enabled every printer that had ever been queued, forever. A
+    // printer that fails to come up retries through its own reconnectAPI
+    // timer, so there is nothing to requeue here.
+    const queued = this.#enablePrintersQueue.splice(0, this.#enablePrintersQueue.length);
 
-        // requests will have 100 or less pending promises.
-        // Promise.all will wait till all the promises got resolves and then take the next 100.
-        logger.debug(`Running printer enable batch ${i + 1}`);
-        await Promise.allSettled(requests).catch((e) =>
-          logger.error(`Error in batch enable printers! ${i} - ${e}`)
-        ); // Catch the error.
-      }
-    };
-    await enablePrinterQueueBatch();
+    for (let i = 0; i < queued.length; i += batchSize) {
+      const batch = queued.slice(i, i + batchSize);
+      logger.debug(`Running printer enable batch ${i / batchSize + 1}`);
+      // allSettled never rejects, so the .catch this used to carry was dead.
+      // Report the individual failures instead.
+      const results = await Promise.allSettled(batch.map((id) => this.enablePrinterFromQueue(id)));
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          logger.error(
+            `Failed to enable printer ${batch[index]}`,
+            result.reason instanceof Error ? result.reason.stack : String(result.reason)
+          );
+        }
+      });
+    }
+
     await this.startPrinterEnableQueue();
   }
 
@@ -141,42 +173,28 @@ class PrinterManagerService {
     const printerList = getPrinterStoreCache().listPrinters();
     logger.debug(printerList.length + ' printers updating state counters...');
     for (const printer of printerList) {
-      if (!printer.disabled && printer?.printerState?.colour?.category !== 'Offline') {
-        switch (printer.printerState.colour.category) {
-          case CATEGORIES.ACTIVE:
-            this.updateStateCounterCategory(CATEGORIES.ACTIVE, printer);
-            break;
-          case CATEGORIES.IDLE:
-            this.updateStateCounterCategory(CATEGORIES.IDLE, printer);
-            break;
-          case CATEGORIES.DISCONNECTED:
-            this.updateStateCounterCategory(CATEGORIES.IDLE, printer);
-            break;
-          case CATEGORIES.COMPLETE:
-            this.updateStateCounterCategory(CATEGORIES.IDLE, printer);
-            break;
-          case CATEGORIES.OFFLINE:
-            this.updateStateCounterCategory(CATEGORIES.OFFLINE, printer);
-            break;
-          case CATEGORIES.ERROR:
-            this.updateStateCounterCategory(CATEGORIES.OFFLINE, printer);
-            break;
-          case CATEGORIES.DISABLED:
-            break;
-          default:
-            logger.debug("Don't know category", printer.printerState.colour.category);
-        }
+      if (printer.disabled || printer?.printerState?.colour?.category === 'Offline') {
+        continue;
       }
+      const category = printer.printerState.colour.category;
+      const counter = STATE_COUNTER_BY_CATEGORY[category];
+      if (!counter) {
+        // DISABLED maps to nothing on purpose; anything else is unexpected.
+        if (category !== CATEGORIES.DISABLED) {
+          logger.debug("Don't know category", category);
+        }
+        continue;
+      }
+      this.updateStateCounterCategory(counter, printer);
     }
   }
 
   updateStateCounterCategory(category, printer) {
-    logger.debug('Updating ' + category + ' counter', {
-      before: printer['current' + category],
-      after: printer['current' + category] + 30000,
-    });
-    printer['current' + category] = printer['current' + category] + 30000;
-    printer.updateStateTrackingCounters(category, printer['current' + category]);
+    const key = 'current' + category;
+    const next = printer[key] + STATE_COUNTER_INTERVAL_MS;
+    logger.debug('Updating ' + category + ' counter', { before: printer[key], after: next });
+    printer[key] = next;
+    printer.updateStateTrackingCounters(category, next);
   }
 
   bulkUpdateBasicPrinterInformation(newPrintersInformation) {
@@ -198,13 +216,18 @@ class PrinterManagerService {
     const removedPrinterList = [];
     this.clearPrinterQueuesTimeout();
     for (const id of deleteList) {
-      const printer = getPrinterStoreCache().getPrinterInformation(id);
-      await getPrinterStoreCache().deletePrinter(printer._id);
-      removedPrinterList.push({
-        printerURL: printer.printerURL,
-        printerId: printer._id,
-      });
-      await deleteTemperatureData(printer._id);
+      // getPrinterInformation deep-clones the whole printer and re-cleans its
+      // file list; two fields are needed here.
+      const printer = getPrinterStoreCache().getPrinter(id);
+      if (!printer) {
+        logger.warning('Asked to delete a printer that is not in the store', id);
+        continue;
+      }
+      const { _id, printerURL } = printer;
+      await getPrinterStoreCache().deletePrinter(_id);
+      removedPrinterList.push({ printerURL, printerId: _id });
+      await deleteTemperatureData(_id);
+      ConnectionMonitorService.forgetPrinter(printerURL);
     }
     // Regenerate groups list
     this.updateGroupList();
@@ -230,16 +253,17 @@ class PrinterManagerService {
     }
 
     if (!!idList) {
-      for (let i = 0; i < idList.length; i++) {
-        const orderedID = idList[i];
-        logger.debug('Updating printers sort index', i);
+      const updates = [];
+      idList.forEach((orderedID, i) => {
         getPrinterStoreCache().updatePrinterLiveValue(orderedID, {
           order: i,
           sortIndex: i,
         });
         // We have to bypass the database object here and go straight to the printer service as the printer might not have this existing.
-        await PrinterService.findOneAndUpdate(orderedID, { sortIndex: i });
-      }
+        updates.push({ id: orderedID, update: { sortIndex: i } });
+      });
+      // One bulkWrite instead of a serial findOneAndUpdate per printer.
+      await PrinterService.bulkUpdate(updates);
       return 'Regenerated sortIndex for all printers...';
     }
   }
@@ -290,52 +314,38 @@ class PrinterManagerService {
     }
   }
 
+  /**
+   * Run an async operation across a printer list in fixed-size batches.
+   *
+   * batchReScanAPI and batchReSyncWebsockets were byte-identical apart from the
+   * method each called.
+   */
+  async #runInBatches(printerList, operation, batchSize) {
+    for (let i = 0; i < printerList.length; i += batchSize) {
+      const batch = printerList.slice(i, i + batchSize);
+      logger.debug(`Running printer batch ${i / batchSize + 1}`);
+      const results = await Promise.allSettled(batch.map((printer) => operation(printer)));
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          logger.error(
+            `Batch operation failed for ${batch[index]?.printerURL}`,
+            result.reason instanceof Error ? result.reason.stack : String(result.reason)
+          );
+        }
+      });
+    }
+  }
+
   async batchReScanAPI(force, printerList = [], batchSize = 10) {
-    const createNewPrinterBatches = async (printer) => {
-      const printerLength = printer.length;
-
-      for (let i = 0; i < printerLength; i += batchSize) {
-        const requests = printer.slice(i, i + batchSize).map((scanPrinter) => {
-          // The batch size is 100. We are processing in a set of 100 users.
-          return scanPrinter.reScanAPI(force);
-        });
-
-        // requests will have 100 or less pending promises.
-        // Promise.all will wait till all the promises got resolves and then take the next 100.
-        logger.debug(`Running printer batch ${i + 1}`);
-        await Promise.all(requests).catch((e) =>
-          logger.error(`Error in batch printers! ${i} - ${e}`)
-        ); // Catch the error.
-      }
-    };
-
-    await createNewPrinterBatches(printerList);
+    await this.#runInBatches(printerList, (printer) => printer.reScanAPI(force), batchSize);
   }
 
   async batchReSyncWebsockets(printerList = [], batchSize = 10) {
-    const createNewPrinterBatches = async (printer) => {
-      const printerLength = printer.length;
-
-      for (let i = 0; i < printerLength; i += batchSize) {
-        const requests = printer.slice(i, i + batchSize).map((syncPrinter) => {
-          // The batch size is 100. We are processing in a set of 100 users.
-          return syncPrinter.reConnectWebsocket();
-        });
-
-        // requests will have 100 or less pending promises.
-        // Promise.all will wait till all the promises got resolves and then take the next 100.
-        logger.debug(`Running printer batch ${i + 1}`);
-        await Promise.all(requests).catch((e) =>
-          logger.error(`Error in batch printers! ${i} - ${e}`)
-        ); // Catch the error.
-      }
-    };
-
-    await createNewPrinterBatches(printerList);
+    await this.#runInBatches(printerList, (printer) => printer.reConnectWebsocket(), batchSize);
   }
 
   async checkForOctoPrintUpdates() {
-    const printerList = getPrinterStoreCache().listPrintersInformation();
+    const printerList = getPrinterStoreCache().listPrinterSummaries();
     logger.debug(printerList.length + ' checking for any octoprint updates');
     for (let printer of printerList) {
       if (printer.printerState.colour.category !== CATEGORIES.OFFLINE) {
@@ -345,7 +355,9 @@ class PrinterManagerService {
   }
 
   async generatePrintersControlDropList() {
-    const printersInformation = getPrinterStoreCache().listPrintersInformation();
+    // Runs every five seconds and reads three fields, so it must not go
+    // through the deep-cloning + file-cleaning list.
+    const printersInformation = getPrinterStoreCache().listPrinterSummaries();
     const printerControlList = [];
     printersInformation.forEach((sortedPrinter) => {
       printerControlList.push({
@@ -363,12 +375,19 @@ class PrinterManagerService {
 
   async generatePrintersStatisticsCache() {
     const pList = getPrinterStoreCache().listPrinters();
-    if (pList?.length > 0) {
-      for (let printer of pList) {
+    if (!pList?.length) {
+      return;
+    }
+    // In batches rather than strictly one at a time: each entry is a history
+    // query, and there is no ordering dependency between printers.
+    await this.#runInBatches(
+      pList,
+      async (printer) => {
         const printerStatistics = await generatePrinterStatistics(printer._id);
         getPrinterStoreCache().updatePrinterStatistics(printer._id, printerStatistics);
-      }
-    }
+      },
+      5
+    );
   }
 
   killAllConnections() {

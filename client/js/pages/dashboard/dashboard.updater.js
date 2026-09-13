@@ -176,23 +176,31 @@ export class DashUpdate {
     `;
   }
 
-  static async environmentalData(datadata) {
-    let analyzedLabels = [];
+  /**
+   * @param data array of { name, data: [...] } series.
+   *
+   * The parameter used to be called `datadata` and the loop iterated
+   * `datadata.length` -- a number, which is not iterable -- so this threw
+   * TypeError on its first call. Every reference below the loop was to an
+   * undefined `data`, so the series-label pass and the chart update never
+   * agreed on what they were looking at.
+   */
+  static async environmentalData(data) {
+    if (!Array.isArray(data)) {
+      return;
+    }
+
+    const analyzedLabels = [];
     if (!environmentDataChartExists) {
-      for (const data of datadata.length) {
-        if (data.data.length !== 0) {
-          if (data.name === 'Temperature') {
-            analyzedLabels.push(temperatureLabel);
-          }
-          if (data.name === 'Humidity') {
-            analyzedLabels.push(humidityLabel);
-          }
-          if (data.name === 'Pressure') {
-            analyzedLabels.push(pressureLabel);
-          }
-          if (data.name === 'IAQ') {
-            analyzedLabels.push(iaqLabel);
-          }
+      const labelsByName = {
+        Temperature: temperatureLabel,
+        Humidity: humidityLabel,
+        Pressure: pressureLabel,
+        IAQ: iaqLabel,
+      };
+      for (const series of data) {
+        if (series.data.length !== 0 && labelsByName[series.name]) {
+          analyzedLabels.push(labelsByName[series.name]);
         }
       }
       environmentDataChartExists = true;
@@ -205,8 +213,9 @@ export class DashUpdate {
       let impact = '';
       let suggestedActions = '';
       const airQualityElement = document.getElementById('indoorAirQualityAlert');
-      if (data[3].data.length > 0) {
-        const lastValue = data[3].data[data[3].data.length - 1].y;
+      const iaqSeries = data.find((series) => series.name === 'IAQ');
+      if (iaqSeries?.data?.length > 0) {
+        const lastValue = iaqSeries.data[iaqSeries.data.length - 1].y;
         if (airQualityElement.classList.contains('d-none')) {
           airQualityElement.classList.remove('d-none');
         }

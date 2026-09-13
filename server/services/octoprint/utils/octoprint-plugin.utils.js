@@ -171,10 +171,13 @@ const captureKlipperPluginData = (id, data) => {
 const capturePluginManagerData = (id, type, data) => {
   logger.debug('Plugin Manager data', data);
   switch (type) {
-    case 'loglines':
+    // Braces: a lexical declaration in an unbraced case shares the whole
+    // switch block's scope.
+    case 'loglines': {
       const { loglines } = data;
       captureLogLines(id, loglines);
       break;
+    }
     case 'result':
       captureResultsData(id, data);
       break;

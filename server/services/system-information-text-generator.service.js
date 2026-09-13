@@ -130,7 +130,7 @@ async function generateSystemInformationContents() {
 
   systemInformationContents += '-- History Settings --\n\n';
   for (const key in history) {
-    if (history.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(history, key)) {
       if (history[key].onComplete) {
         systemInformationContents += `History ${key} on complete? \n${yes}`;
       } else {
@@ -150,7 +150,7 @@ async function generateSystemInformationContents() {
   }
   systemInformationContents += '\n-- API Settings --\n\n';
   for (const key in timeout) {
-    if (timeout.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(timeout, key)) {
       systemInformationContents += `${key}\n${timeout[key]}\n`;
     }
   }
@@ -158,7 +158,7 @@ async function generateSystemInformationContents() {
   // Replace with printer Overviews
   systemInformationContents += '\n --- Printer Overview ---\n\n';
   const printerOverViewTable = [];
-  const printers = getPrinterStoreCache().listPrintersInformation();
+  const printers = getPrinterStoreCache().listPrinterSummaries();
   printerOverViewTable.push([
     'Printer Name',
     'OctoPrint Version',

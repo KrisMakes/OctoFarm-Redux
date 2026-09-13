@@ -12,6 +12,7 @@ import { closePrinterManagerModalIfOffline, imageOrCamera } from '../../../utils
 import { ClientErrors } from '../../../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../../../exceptions/application-error.handler';
 import { setupModalSwitcher } from './modal-switcher.service';
+import { findIndex } from 'lodash';
 
 let currentIndex = 0;
 
@@ -24,7 +25,7 @@ export default class PrinterTerminalManagerService {
     //clear camera
     if (index !== '') {
       currentIndex = index;
-      const id = _.findIndex(printers, function (o) {
+      const id = findIndex(printers, function (o) {
         return o._id == index;
       });
       currentPrinter = printers[id];
@@ -44,7 +45,7 @@ export default class PrinterTerminalManagerService {
       elements.terminal.terminalWindow.scrollTop = elements.terminal.terminalWindow.scrollHeight;
     } else {
       if (document.getElementById('terminal')) {
-        const id = _.findIndex(printers, function (o) {
+        const id = findIndex(printers, function (o) {
           return o._id == currentIndex;
         });
         currentPrinter = printers[id];

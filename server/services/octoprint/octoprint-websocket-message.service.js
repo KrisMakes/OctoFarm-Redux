@@ -5,6 +5,7 @@ const {
   EVENT_TYPES,
 } = require('../octoprint/constants/octoprint-websocket.constants');
 const { byteCount } = require('../../utils/benchmark.util');
+const { AppConstants } = require('../../constants/app.constants');
 const {
   captureTemperatureData,
   captureJobData,
@@ -69,12 +70,18 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.OP_SERVICE_WEBSOCKET_MESSAGES);
 
 const loggedMissingPlugins = {};
 
+// byteCount is only ever wanted for the silly-level trace. Checking the level
+// first keeps it -- and the string interpolation around it -- off the hot path.
+const SILLY_ENABLED = () => process.env[AppConstants.LOG_LEVEL] === 'silly';
+
 class OctoprintWebsocketMessageService {
   static parseOctoPrintWebsocketMessage = (message) => {
     const packet = JSON.parse(message);
     const header = Object.keys(packet)[0];
 
-    logger.silly(`DEBUG WS ['${header}', ${byteCount(message)} bytes]`);
+    if (SILLY_ENABLED()) {
+      logger.silly(`DEBUG WS ['${header}', ${byteCount(message)} bytes]`);
+    }
 
     return {
       header,
@@ -85,7 +92,11 @@ class OctoprintWebsocketMessageService {
   static parseOctoPrintPluginMessage = (message) => {
     const header = Object.values(message.plugin)[0];
 
-    logger.silly(`DEBUG WS ['${header}', ${byteCount(message)} bytes]`);
+    if (SILLY_ENABLED()) {
+      // message is an object here, so byteCount used to be handed
+      // "[object Object]" -- log the header alone.
+      logger.silly(`DEBUG WS plugin ['${header}']`);
+    }
 
     return {
       header,
@@ -96,7 +107,9 @@ class OctoprintWebsocketMessageService {
   static parseOctoPrintPluginType = (message) => {
     const type = Object.values(message)[0];
 
-    logger.silly(`DEBUG WS ['${type}', ${byteCount(message)} bytes]`);
+    if (SILLY_ENABLED()) {
+      logger.silly(`DEBUG WS plugin type ['${type}']`);
+    }
 
     return type;
   };

@@ -1,28 +1,26 @@
 import { parse } from 'flatted';
 
-export const asyncParse = async function (str) {
+/**
+ * Parse an SSE payload, or false when it will not parse.
+ *
+ * Was `asyncParse`, marked async while doing nothing asynchronous -- a promise
+ * allocation and a microtask per frame, on a stream that ticks every second.
+ * Callers must check for `false` before destructuring the result.
+ */
+export const parsePayload = function (str) {
   try {
     return parse(str);
   } catch (e) {
+    console.error('Could not parse an SSE payload', e);
     return false;
   }
-};
-export const isFunction = function (functionToCheck) {
-  return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
 };
 
 export const debounce = function (func, wait) {
   let timeout;
-  let waitFunc;
+  // Resolved once, not re-tested on every call into a shared outer binding.
+  const waitFunc = typeof wait === 'function' ? wait : () => wait;
   return function () {
-    if (isFunction(wait)) {
-      waitFunc = wait;
-    } else {
-      waitFunc = function () {
-        return wait;
-      };
-    }
-
     const context = this,
       args = arguments;
     const later = function () {

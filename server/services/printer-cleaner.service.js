@@ -13,42 +13,34 @@ const {
   systemCommands,
 } = require('./printers/constants/printer-defaults.constants');
 
-let printerConnectionLogs = [];
 class PrinterCleanerService {
-  static returnPrinterLogs(sortIndex) {
-    if (typeof sortIndex !== 'undefined') {
-      return printerConnectionLogs[sortIndex];
-    } else {
-      return printerConnectionLogs;
-    }
-  }
-
   static async generateConnectionLogs(farmPrinter) {
-    const printerErrorLogs = await ErrorLogs.find({ 'errorLog.printerID': farmPrinter._id })
-      .sort({ _id: -1 })
-      .limit(1000);
-    const tempHistory = await TempHistory.find({ printer_id: farmPrinter._id })
-      .sort({ _id: -1 })
-      .limit(720);
-    const pluginManagerLogs = await PluginLogs.find({
-      printerID: farmPrinter._id,
-      pluginDisplay: { $ne: 'OctoKlipper' },
-    })
-      .sort({ _id: -1 })
-      .limit(1000);
-
-    const klipperLogs = await PluginLogs.find({
-      printerID: farmPrinter._id,
-      pluginDisplay: 'OctoKlipper',
-    })
-      .sort({ _id: -1 })
-      .limit(1000);
-
-    const userActionLogs = await UserActions.find({
-      printerID: farmPrinter._id,
-    })
-      .sort({ _id: -1 })
-      .limit(1000);
+    // Five independent queries, so run them together rather than in series --
+    // this is up to 4,720 documents fetched every time the logs modal opens.
+    // .lean() throughout: nothing here needs a hydrated Mongoose document.
+    const [printerErrorLogs, tempHistory, pluginManagerLogs, klipperLogs, userActionLogs] =
+      await Promise.all([
+        ErrorLogs.find({ 'errorLog.printerID': farmPrinter._id })
+          .sort({ _id: -1 })
+          .limit(1000)
+          .lean(),
+        TempHistory.find({ printer_id: farmPrinter._id }).sort({ _id: -1 }).limit(720).lean(),
+        PluginLogs.find({
+          printerID: farmPrinter._id,
+          pluginDisplay: { $ne: 'OctoKlipper' },
+        })
+          .sort({ _id: -1 })
+          .limit(1000)
+          .lean(),
+        PluginLogs.find({
+          printerID: farmPrinter._id,
+          pluginDisplay: 'OctoKlipper',
+        })
+          .sort({ _id: -1 })
+          .limit(1000)
+          .lean(),
+        UserActions.find({ printerID: farmPrinter._id }).sort({ _id: -1 }).limit(1000).lean(),
+      ]);
 
     let currentOctoFarmLogs = [];
     let currentErrorLogs = [];
@@ -60,7 +52,7 @@ class PrinterCleanerService {
     for (const element of userActionLogs) {
       if (!!element) {
         const userActionLog = {
-          id: element.id,
+          id: element._id,
           date: element.date,
           currentUser: element.currentUser,
           data: element.data,
@@ -217,17 +209,24 @@ class PrinterCleanerService {
   }
 
   static sortOptions(options) {
-    if (typeof options !== 'undefined') {
-      const connectionOptions = options;
-      if (!!connectionOptions?.ports && !connectionOptions.ports.includes('AUTO')) {
-        connectionOptions.ports.unshift('AUTO');
-      }
-      if (!!connectionOptions?.baudrates && !connectionOptions.baudrates.includes(0)) {
-        connectionOptions.baudrates.unshift(0);
-      }
-      return connectionOptions;
+    if (typeof options === 'undefined' || options === null) {
+      return null;
     }
-    return null;
+    // Return a new object rather than unshifting into the caller's live,
+    // database-backed arrays.
+    return {
+      ...options,
+      ports: Array.isArray(options.ports)
+        ? options.ports.includes('AUTO')
+          ? [...options.ports]
+          : ['AUTO', ...options.ports]
+        : options.ports,
+      baudrates: Array.isArray(options.baudrates)
+        ? options.baudrates.includes(0)
+          ? [...options.baudrates]
+          : [0, ...options.baudrates]
+        : options.baudrates,
+    };
   }
 
   static sortProfile(profile, current) {
@@ -239,15 +238,21 @@ class PrinterCleanerService {
   }
 
   static sortTemps(temps) {
-    if (!temps) return null;
-    if (temps.length === 0) return null;
-    if (!temps[0]?.tool0) return null;
-
-    return temps;
+    if (!temps || temps.length === 0) {
+      return null;
+    }
+    // Was `if (!temps[0]?.tool0) return null`, which threw away every reading
+    // from a printer that reports only a bed or a chamber.
+    const first = temps[0];
+    const hasAnySensor =
+      !!first && Object.keys(first).some((key) => key !== 'time' && !!first[key]);
+    return hasAnySensor ? temps : null;
   }
 
   static grabOctoPrintName(settingsAppearance) {
-    return settingsAppearance?.name.length === 0 ? generateRandomName() : settingsAppearance.name;
+    // `settingsAppearance?.name.length` guarded the object but not the property,
+    // so a printer whose OctoPrint appearance has no name threw here.
+    return settingsAppearance?.name?.length ? settingsAppearance.name : generateRandomName();
   }
 
   static grabPrinterName(settingsAppearance, printerURL) {

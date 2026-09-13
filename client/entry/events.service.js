@@ -1,4 +1,4 @@
-import { asyncParse, debounce } from '../js/utils/sse.utils';
+import { parsePayload, debounce } from '../js/utils/sse.utils';
 import { MESSAGE_TYPES } from '../../server/constants/sse.constants';
 import { updateLiveFileInformation } from '../js/pages/file-manager/file-manager-sse.handler';
 import currentOperationsPanelService from '../js/services/current-operations-panel.service';
@@ -8,74 +8,8 @@ import {
   setServerAlive,
   reconnectFrequency,
 } from '../js/services/amialive.service';
-import { ClientErrors } from '../js/exceptions/octofarm-client.exceptions';
-import { ApplicationError } from '../js/exceptions/application-error.handler';
 import { startCameraStreamWatchdog } from '../js/services/camera-stream-watchdog.service';
 
-// Keeping hold of this, may return a use for later...
-// function checkUpdateAndNotify(updateResponse) {
-//   if (!!updateResponse?.update_available && !pageReloadPersistedRead) {
-//     // Show the notification once per page load
-//     pageReloadPersistedRead = true;
-//     // Disregard notification if it it's version is already stored
-//     let parsedStorageReleaseInfo;
-//     try {
-//       parsedStorageReleaseInfo = JSON.parse(localStorage.getItem(notificationMarkReadSessionKey));
-//     } catch (e) {
-//       parsedStorageReleaseInfo = null;
-//     }
-//     // If the update button is available, we are on the system page. React to available updates accordingly.
-//     let updateOctoFarmBtn = document.getElementById("updateOctoFarmBtn");
-//     if (updateOctoFarmBtn) {
-//       updateOctoFarmBtn.disabled = false;
-//     }
-//     // Process the full notification or a shorter reminder
-//     if (
-//       !parsedStorageReleaseInfo ||
-//       parsedStorageReleaseInfo?.tag_name !== updateResponse?.latestReleaseKnown?.tag_name
-//     ) {
-//       if (window.location?.href.includes("/system")) {
-//         return;
-//       }
-//
-//       var n = new noty({
-//         type: "success",
-//         theme: "bootstrap-v4",
-//         layout: "bottomRight",
-//         text: updateResponse?.message,
-//         buttons: [
-//           noty.button(
-//             "UPDATE",
-//             "btn btn-success",
-//             function () {
-//               window.location = "/system";
-//             },
-//             { id: "button1", "data-status": "ok" }
-//           ),
-//           noty.button("Mark read", "btn btn-error", function () {
-//             // Update the stored version to become the newest
-//             localStorage.setItem(
-//               notificationMarkReadSessionKey,
-//               JSON.stringify(updateResponse.latestReleaseKnown)
-//             );
-//             n.close();
-//           }),
-//           noty.button("Later", "btn btn-error", function () {
-//             n.close();
-//           })
-//         ]
-//       });
-//       n.show();
-//     } else {
-//       UI.createAlert(
-//         "success",
-//         `A small reminder: OctoFarm update available from ${updateResponse.current_version} to ${updateResponse?.latestReleaseKnown?.tag_name} ;)`,
-//         1000,
-//         "clicked"
-//       );
-//     }
-//   }
-// }
 // reconnectFrequencySeconds doubles every retry
 
 let evtSource;
@@ -98,7 +32,13 @@ const reconnectFunc = debounce(
 function setupEventSource() {
   evtSource = new EventSource('/events');
   evtSource.onmessage = async function (e) {
-    const { type, message, id } = await asyncParse(e.data);
+    const payload = parsePayload(e.data);
+    // parsePayload returns false on a malformed frame; destructuring that threw
+    // a TypeError out of the handler.
+    if (payload === false) {
+      return;
+    }
+    const { type, message, id } = payload;
     if (type === MESSAGE_TYPES.AM_I_ALIVE) {
       await setServerAlive(message);
     }
@@ -117,27 +57,17 @@ function setupEventSource() {
     // Reset reconnect frequency upon successful connection
     reconnectFrequency.setSeconds = 3;
   };
+  // No `throw` from inside this handler -- it is invoked by the event loop, so
+  // the ApplicationError became an unhandled rejection every time the server
+  // blipped. EventSource has no 'close' event either, so the onclose handler
+  // that used to follow was dead code.
   evtSource.onerror = async function (e) {
     window.serverOffline = true;
     console.debug(
       'Server connection lost! Re-connecting in... ' + reconnectFrequency.getSeconds + 's'
     );
+    console.debug('Events service error', e?.target?.readyState);
     triggerCountDownTimer(reconnectFrequency.getSeconds);
-    console.error(e);
-    await drawModal();
-    evtSource.close();
-    reconnectFunc();
-    const errorObject = ClientErrors.SILENT_ERROR;
-    errorObject.message = `Events Service - ${e.target.url}: ${e.target.readyState}`;
-    throw new ApplicationError(errorObject);
-  };
-  evtSource.onclose = async function (e) {
-    window.serverOffline = true;
-    console.debug(
-      'Server connection closed! Re-establishing...' + reconnectFrequency.getSeconds + 's'
-    );
-    triggerCountDownTimer(reconnectFrequency.getSeconds);
-    console.warn(e);
     await drawModal();
     evtSource.close();
     reconnectFunc();
@@ -145,4 +75,18 @@ function setupEventSource() {
 }
 
 setupEventSource();
-startCameraStreamWatchdog();
+
+// layout.ejs loads this bundle on every page, so only start the camera watchdog
+// on views that actually render a camera. The check has to wait for the body --
+// this script is in <head>.
+function startWatchdogIfCamerasPresent() {
+  if (document.querySelector('.camImg, #printerControlCamera')) {
+    startCameraStreamWatchdog();
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startWatchdogIfCamerasPresent, { once: true });
+} else {
+  startWatchdogIfCamerasPresent();
+}

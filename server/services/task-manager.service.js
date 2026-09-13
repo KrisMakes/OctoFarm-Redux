@@ -123,7 +123,10 @@ class TaskManagerService {
       taskState.firstCompletion = Date.now();
     }
     if (taskState.options?.periodic) {
-      taskState.nextRun = new Date(Date.now() + taskState.options.milliseconds).getTime();
+      const { milliseconds = 0, seconds = 0, minutes = 0, hours = 0, days = 0 } = taskState.options;
+      const intervalMs =
+        milliseconds + seconds * 1000 + minutes * 60000 + hours * 3600000 + days * 86400000;
+      taskState.nextRun = Date.now() + intervalMs;
     }
     // Always log when the task was last executed
     taskState.lastExecuted = Date.now();
@@ -140,13 +143,20 @@ class TaskManagerService {
     return (error) => {
       const registration = this.taskStates[taskId];
 
-      if (!registration.lastError)
-        registration.erroredlastError = {
+      // Was `if (!registration.lastError) registration.erroredlastError = ...`:
+      // it tested a key that was never written and wrote a key nothing read, so
+      // the System page's task table never showed an error.
+      if (registration) {
+        registration.lastError = {
           time: Date.now(),
-          error,
+          error: error instanceof Error ? error.message : String(error),
         };
+      }
 
-      logger.error(`Task '${taskId}' threw an exception:` + error.stack);
+      logger.error(
+        `Task '${taskId}' threw an exception`,
+        error instanceof Error ? error.stack : String(error)
+      );
     };
   }
 
@@ -162,9 +172,21 @@ class TaskManagerService {
   /**
    * Runs the tasks which were registered
    */
+  /**
+   * Run a registered task now. Returns the task's promise so callers can await
+   * the work -- execute() returns undefined, so `await forceRunTask(...)` used
+   * to yield for a single microtask and carry on with stale data.
+   */
   static forceRunTask(taskId) {
-    if (!taskId) return;
-    this.taskStates[taskId].task.execute();
+    if (!taskId) return Promise.resolve();
+    const registration = this.taskStates[taskId];
+    if (!registration) {
+      logger.warning(`Asked to force-run an unregistered task '${taskId}'`);
+      return Promise.resolve();
+    }
+    return Promise.resolve(registration.task.execute()).catch((e) => {
+      logger.error(`Forced run of task '${taskId}' failed`, e.toString());
+    });
   }
 }
 

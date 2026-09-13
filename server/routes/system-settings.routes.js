@@ -35,6 +35,9 @@ const { getPrinterManagerCache } = require('../cache/printer-manager.cache');
 const { getImagesPath, getLogsPath } = require('../utils/system-paths.utils');
 const S_VALID = require('../constants/validate-settings.constants');
 const { validateParamsMiddleware } = require('../middleware/validators');
+const { clientLogLimits } = require('../middleware/rate-limiting');
+const path = require('path');
+const { ALL_PRINTERS_GCODE_ID } = require('../constants/settings.constants');
 const M_VALID = require('../constants/validate-mongo.constants');
 const { sanitizeString } = require('../utils/sanitize-utils');
 // databaseNamesList (constants/database.constants) is generated from serverDatabaseKeys, and four of the names it
@@ -106,8 +109,23 @@ router.delete(
     }
   }
 );
+// req.paramString is String() with a null check -- it sanitises nothing -- and
+// Express decodes %2F inside a path segment, so an unchecked name here was an
+// arbitrary file read and an arbitrary file delete. Match the request against
+// the directory listing instead of trying to scrub the input.
+async function resolveLogFileName(requestedName) {
+  if (!requestedName) {
+    return null;
+  }
+  const logs = await Logs.grabLogs();
+  return logs.some((log) => log.name === requestedName) ? requestedName : null;
+}
+
 router.delete('/server/logs/:name', ensureAuthenticated, ensureAdministrator, async (req, res) => {
-  const fileName = req.paramString('name');
+  const fileName = await resolveLogFileName(req.paramString('name'));
+  if (!fileName) {
+    return res.sendStatus(404);
+  }
   try {
     Logs.deleteLogByName(fileName);
     res.sendStatus(201);
@@ -117,10 +135,12 @@ router.delete('/server/logs/:name', ensureAuthenticated, ensureAdministrator, as
   }
 });
 
-router.get('/server/logs/:name', ensureAuthenticated, ensureAdministrator, (req, res) => {
-  const download = req.paramString('name');
-  const file = `${getLogsPath()}/${download}`;
-  res.download(file, download); // Set disposition and send it.
+router.get('/server/logs/:name', ensureAuthenticated, ensureAdministrator, async (req, res) => {
+  const download = await resolveLogFileName(req.paramString('name'));
+  if (!download) {
+    return res.sendStatus(404);
+  }
+  res.download(path.join(getLogsPath(), download), download); // Set disposition and send it.
 });
 router.post(
   '/server/logs/generateLogDump',
@@ -162,16 +182,12 @@ router.get(
     // (ERR_HTTP_HEADERS_SENT) and restarted twice -- and an unknown name was logged
     // as an error and then reported to the client as a success.
     if (databaseName === 'EverythingDB') {
-      await ServerSettingsDB.deleteMany({});
-      await ClientSettingsDB.deleteMany({});
-      await HistoryDB.deleteMany({});
-      await SpoolsDB.deleteMany({});
-      await ProfilesDB.deleteMany({});
-      await RoomDataDB.deleteMany({});
-      await UserDB.deleteMany({});
-      await PrintersDB.deleteMany({});
-      await AlertsDB.deleteMany({});
-      await GcodeDB.deleteMany({});
+      // Every model in DATABASE_MODELS, not the hand-written subset this used to
+      // carry -- that one silently skipped ErrorLogDB, FarmStatisticsDB and
+      // TempHistoryDB, the largest collection in the database.
+      for (const model of Object.values(DATABASE_MODELS)) {
+        await model.deleteMany({});
+      }
       logger.info('Database completely wiped.... Restarting server...');
     } else if (databaseName === 'FilamentDB') {
       await SpoolsDB.deleteMany({});
@@ -201,10 +217,12 @@ router.get(
     logger.info('Client requests export of ' + databaseName);
     const returnedObjects = [];
     if (databaseName === 'FilamentDB') {
-      returnedObjects.push(await ProfilesDB.find({}));
-      returnedObjects.push(await SpoolsDB.find({}));
+      returnedObjects.push(await ProfilesDB.find({}).lean());
+      returnedObjects.push(await SpoolsDB.find({}).lean());
     } else if (DATABASE_MODELS[databaseName]) {
-      returnedObjects.push(await DATABASE_MODELS[databaseName].find({}));
+      // Never hand out password hashes or remember-me tokens, even to an admin.
+      const projection = databaseName === 'UserDB' ? '-password -loginToken -apiKey' : undefined;
+      returnedObjects.push(await DATABASE_MODELS[databaseName].find({}, projection).lean());
     }
     logger.info('Returning to client database object: ' + databaseName);
     res.send({ databases: returnedObjects });
@@ -301,48 +319,74 @@ router.post(
     res.redirect('/system');
   }
 );
-router.get('/server/get', ensureAuthenticated, (req, res) => {
-  ServerSettingsDB.find({}).then((checked) => {
+// Administrator only: the document carries influxExport.username / .password.
+router.get('/server/get', ensureAuthenticated, ensureAdministrator, async (req, res) => {
+  try {
+    const checked = await ServerSettingsDB.find({}).lean();
     res.send(checked[0]);
-  });
+  } catch (e) {
+    logger.error('Failed to read server settings', e.toString());
+    res.sendStatus(500);
+  }
 });
-router.post('/server/update', ensureAuthenticated, ensureAdministrator, (req, res) => {
-  ServerSettingsDB.find({}).then(async (checked) => {
+const SERVER_SETTINGS_SECTIONS = [
+  'server',
+  'timeout',
+  'filament',
+  'history',
+  'influxExport',
+  'monitoringViews',
+  'cameras',
+];
+
+router.post('/server/update', ensureAuthenticated, ensureAdministrator, async (req, res) => {
+  // Every section has to be present and be an object: the handler below reads
+  // through all of them and assigns them onto the document unconditionally.
+  const missing = SERVER_SETTINGS_SECTIONS.filter(
+    (section) => typeof req.body?.[section] !== 'object' || req.body[section] === null
+  );
+  if (missing.length) {
+    return res.status(400).send({
+      msg: `Missing or malformed settings sections: ${missing.join(', ')}`,
+      status: 'error',
+    });
+  }
+
+  return ServerSettingsDB.find({}).then(async (checked) => {
     let restartRequired = false;
 
     const sentOnline = JSON.parse(JSON.stringify(req.body));
     const actualOnline = JSON.parse(JSON.stringify(checked[0]));
 
-    const serverChanges = isEqual(actualOnline.server, sentOnline.server);
-    const timeoutChanges = isEqual(actualOnline.timeout, sentOnline.timeout);
-    const filamentChanges = isEqual(actualOnline.filament, sentOnline.filament);
-    const hideEmptyChanges = actualOnline.filament.hideEmpty !== sentOnline.filament.hideEmpty;
-    const cameraUpdateIntervalChanges =
+    // These were all named "...Changes" while holding the result of isEqual,
+    // i.e. "unchanged" -- which is how `!filamentChanges` below ended up meaning
+    // "the filament settings DID change". Name them for what they hold.
+    const serverUnchanged = isEqual(actualOnline.server, sentOnline.server);
+    const timeoutUnchanged = isEqual(actualOnline.timeout, sentOnline.timeout);
+    const filamentUnchanged = isEqual(actualOnline.filament, sentOnline.filament);
+    const hideEmptyChanged = actualOnline.filament.hideEmpty !== sentOnline.filament.hideEmpty;
+    const cameraIntervalUnchanged =
       parseInt(actualOnline.cameras.updateInterval) === parseInt(sentOnline.cameras.updateInterval);
-    const cameraProxyChanges =
+    const cameraProxyUnchanged =
       actualOnline.cameras.proxyEnabled === sentOnline.cameras.proxyEnabled;
 
-    checked[0].server = sentOnline.server;
-    checked[0].timeout = sentOnline.timeout;
-    checked[0].filament = sentOnline.filament;
-    checked[0].history = sentOnline.history;
-    checked[0].influxExport = sentOnline.influxExport;
-    checked[0].monitoringViews = sentOnline.monitoringViews;
-    checked[0].cameras = sentOnline.cameras;
-
-    if (
-      [serverChanges, timeoutChanges, cameraUpdateIntervalChanges, cameraProxyChanges].includes(
-        false
-      )
-    ) {
-      restartRequired = true;
+    for (const section of SERVER_SETTINGS_SECTIONS) {
+      checked[0][section] = sentOnline[section];
     }
 
-    if (hideEmptyChanges) {
+    // A restart is needed if any of these actually changed.
+    restartRequired = [
+      serverUnchanged,
+      timeoutUnchanged,
+      cameraIntervalUnchanged,
+      cameraProxyUnchanged,
+    ].includes(false);
+
+    if (hideEmptyChanged) {
       TaskManager.forceRunTask('FILAMENT_CLEAN_TASK');
     }
 
-    if (!filamentChanges && checked[0].filament.allowMultiSelect === false) {
+    if (!filamentUnchanged && checked[0].filament.allowMultiSelect === false) {
       const spoolList = FilamentClean.getSpools();
       spoolList.forEach((spool) => {
         getPrinterStoreCache().deattachSpoolFromAllPrinters(`${spool._id}`);
@@ -386,23 +430,28 @@ router.post('/server/update', ensureAuthenticated, ensureAdministrator, (req, re
   });
 });
 
-router.get(
+// Was a GET, which any cross-site page could trigger.
+router.delete(
   '/customGcode/delete/:id',
   ensureAuthenticated,
+  ensureAdministrator,
   validateParamsMiddleware(M_VALID.MONGO_ID),
   async (req, res) => {
     const scriptId = req.paramString('id');
-    GcodeDB.findByIdAndDelete(scriptId, function (err) {
-      if (err) {
-        res.send(err);
-      } else {
-        res.send(scriptId);
-      }
-    });
+    try {
+      await GcodeDB.findByIdAndDelete(scriptId);
+      res.send(scriptId);
+    } catch (e) {
+      logger.error('Failed to delete custom gcode script', e.toString());
+      res.sendStatus(500);
+    }
   }
 );
-router.post('/customGcode/edit', ensureAuthenticated, async (req, res) => {
+router.post('/customGcode/edit', ensureAuthenticated, ensureAdministrator, async (req, res) => {
   const script = await GcodeDB.findById(req.bodyString('id'));
+  if (!script) {
+    return res.status(404).send({ message: 'No script with that id' });
+  }
   script.gcode = req.body.gcode;
   script.name = req.bodyString('name');
   script.description = req.bodyString('description');
@@ -414,17 +463,29 @@ router.post('/customGcode/edit', ensureAuthenticated, async (req, res) => {
   }
   script.printerIds = printerIDList;
   script.buttonColour = req.bodyString('buttonColour');
-  script.save();
+  await script.save();
   res.send(script);
 });
 
-router.post('/customGcode', ensureAuthenticated, async (req, res) => {
-  const newScript = req.body;
-  const saveScript = new GcodeDB(newScript);
-  saveScript
-    .save()
-    .then(res.send(saveScript))
-    .catch((e) => res.send(e));
+router.post('/customGcode', ensureAuthenticated, ensureAdministrator, async (req, res) => {
+  // res.send(saveScript) used to be *invoked* while building the .then() call,
+  // so the response went out before the save and a failure then sent again.
+  const saveScript = new GcodeDB({
+    name: req.bodyString('name'),
+    description: req.bodyString('description'),
+    gcode: req.body.gcode,
+    printerIds: Array.isArray(req.body.printerIds)
+      ? req.body.printerIds.map((id) => sanitizeString(id))
+      : [],
+    buttonColour: req.bodyString('buttonColour'),
+  });
+  try {
+    await saveScript.save();
+    res.send(saveScript);
+  } catch (e) {
+    logger.error('Failed to save custom gcode script', e.toString());
+    res.status(400).send({ message: 'Could not save the script' });
+  }
 });
 
 router.get('/customGcode', ensureAuthenticated, async (req, res) => {
@@ -436,16 +497,12 @@ router.get(
   validateParamsMiddleware(M_VALID.MONGO_ID),
   async (req, res) => {
     const printerId = req.paramString('id');
-    const all = await GcodeDB.find();
-    const returnCode = [];
-    all.forEach((script) => {
-      if (
-        script.printerIds.includes(printerId) ||
-        script.printerIds.includes('99aa99aaa9999a99999999aa')
-      ) {
-        returnCode.push(script);
-      }
-    });
+    // Query for the two matching cases rather than loading every script and
+    // filtering in JavaScript. ALL_PRINTERS_GCODE_ID is the sentinel the client
+    // writes for "applies to every printer".
+    const returnCode = await GcodeDB.find({
+      printerIds: { $in: [printerId, ALL_PRINTERS_GCODE_ID] },
+    }).lean();
     res.send(returnCode);
   }
 );
@@ -466,7 +523,7 @@ router.get('/system/tasks', ensureAuthenticated, ensureAdministrator, async (req
 
 router.get('/system/activeUsers', ensureAuthenticated, ensureAdministrator, listActiveClientsRes);
 
-router.post('/client/logs', ensureAuthenticated, async (req, res) => {
+router.post('/client/logs', ensureAuthenticated, clientLogLimits, async (req, res) => {
   const { code, message, name, statusCode, type, color, developerMessage } = req.body;
   const loggingMessage = `${code ? code : 'No Code'}: ${message ? message : 'No Message'}`;
   const errorObject = {
@@ -480,6 +537,9 @@ router.post('/client/logs', ensureAuthenticated, async (req, res) => {
     clientLogger.error(loggingMessage, errorObject);
     clientLogger.info('Developer Message: ', developerMessage);
   }
+  // This never sent anything, so every client-side error left a request hanging
+  // until the browser timed it out.
+  res.sendStatus(204);
 });
 
 module.exports = router;

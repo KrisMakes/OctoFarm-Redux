@@ -7,6 +7,7 @@ import {
   renderProfilesManagerTable,
   renderSpoolsManagerTable,
 } from './filament-manager.utils';
+import { findIndex } from 'lodash';
 
 export const printErrors = (errors) => {
   let errorMessage = 'OctoFarm is having issues! Error(s): <br>';
@@ -45,12 +46,12 @@ export const updateProfileDrop = async () => {
       );
     });
     const spoolID = drop?.id.split('-');
-    const spool = _.findIndex(spools, function (o) {
+    const spool = findIndex(spools, function (o) {
       return o?._id === spoolID[1];
     });
     if (typeof spools[spool] !== 'undefined') {
       drop.value = spools[spool].profile;
-      const profileID = _.findIndex(profiles, function (o) {
+      const profileID = findIndex(profiles, function (o) {
         return o._id === spools[spool].profile;
       });
       drop.className = `form-control ${profiles[profileID]?.material
@@ -66,11 +67,11 @@ export const updateProfileDrop = async () => {
   //Fix for not updating main spool list with correct information, not skipping fo shizzle
   spoolsListManufacture.forEach((text) => {
     const spoolID = text.id.split('-');
-    const spool = _.findIndex(spools, function (o) {
+    const spool = findIndex(spools, function (o) {
       return o._id === spoolID[1];
     });
     if (typeof spools[spool] !== 'undefined') {
-      const profileID = _.findIndex(profiles, function (o) {
+      const profileID = findIndex(profiles, function (o) {
         return o._id === spools[spool]?.profile;
       });
       text.innerHTML = `${profiles[profileID]?.manufacturer}`;
@@ -78,11 +79,11 @@ export const updateProfileDrop = async () => {
   });
   printerListMaterials.forEach((text) => {
     const spoolID = text.id.split('-');
-    const spool = _.findIndex(spools, function (o) {
+    const spool = findIndex(spools, function (o) {
       return o._id === spoolID[1];
     });
     if (typeof spools[spool] !== 'undefined') {
-      const profileID = _.findIndex(profiles, function (o) {
+      const profileID = findIndex(profiles, function (o) {
         return o._id === spools[spool]?.profile;
       });
       text.innerHTML = `${profiles[profileID]?.material}`;
@@ -102,7 +103,7 @@ export const updatePrinterDrops = async () => {
   printerDrops.forEach((drop) => {
     const split = drop.id.split('-');
     const spoolID = split[1];
-    const spool = _.findIndex(spools, function (o) {
+    const spool = findIndex(spools, function (o) {
       return o?._id === spoolID;
     });
     drop.innerHTML = printerDropList;
@@ -128,7 +129,7 @@ export const updatePrinterDrops = async () => {
     text.innerHTML = '';
     const split = text.id.split('-');
     const spoolID = split[1];
-    const spoolIndex = _.findIndex(spools, function (o) {
+    const spoolIndex = findIndex(spools, function (o) {
       return o?._id === spoolID;
     });
     if (typeof spools[spoolIndex] !== 'undefined') {

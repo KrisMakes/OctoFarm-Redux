@@ -65,7 +65,6 @@ const INITIALISE_PRINTERS_TASK = async () => {
     initHistoryCache: () => initHistoryCache(),
     getInfluxCleanerCache: () => getInfluxCleanerCache(),
   });
-  const pList = getPrinterStoreCache().listPrintersInformation();
   await runStepsInOrder({
     initFarmInformation: () => initFarmInformation(),
     generatePrinterHeatMap: () => generatePrinterHeatMap(),
@@ -75,8 +74,11 @@ const INITIALISE_PRINTERS_TASK = async () => {
       getPrinterManagerCache().generatePrintersStatisticsCache(),
     generatePrintersControlDropList: () =>
       getPrinterManagerCache().generatePrintersControlDropList(),
-    fileStatistics: () => FileClean.statistics(pList),
-    sortCurrentOperations: () => sortCurrentOperations(pList),
+    // Only the file statistics need the cleaned file lists; current operations
+    // reads state and job fields, which the cheap projection carries.
+    fileStatistics: () => FileClean.statistics(getPrinterStoreCache().listPrintersInformation()),
+    sortCurrentOperations: () =>
+      sortCurrentOperations(getPrinterStoreCache().listPrinterSummaries()),
     startPrinterEnableQueue: () => getPrinterManagerCache().startPrinterEnableQueue(),
   });
 
@@ -105,7 +107,9 @@ const SERVER_BOOT_TASK = async () => {
 };
 
 const SORT_CURRENT_OPERATIONS = async () => {
-  const printerList = getPrinterStoreCache().listPrintersInformation();
+  // Runs every second; sortCurrentOperations only reads ids, names, sortIndex,
+  // printerState and currentJob.
+  const printerList = getPrinterStoreCache().listPrinterSummaries();
   await sortCurrentOperations(printerList);
 };
 
@@ -200,7 +204,9 @@ class OctoFarmTasks {
     TaskStart(CPU_PROFILING_TASK, TaskPresets.PERIODIC_10000MS),
     TaskStart(MEMORY_PROFILING_TASK, TaskPresets.PERIODIC_10000MS),
     TaskStart(SORT_CURRENT_OPERATIONS, TaskPresets.PERIODIC_1000MS),
-    TaskStart(GENERATE_PRINTER_HEAT_MAP, TaskPresets.PERIODIC_1000MS),
+    // The heat map summarises minutes of farm activity; regenerating it every
+    // second was pure cost.
+    TaskStart(GENERATE_PRINTER_HEAT_MAP, TaskPresets.PERIODIC_10000MS),
     TaskStart(GENERATE_PRINTER_CONTROL_LIST, TaskPresets.PERIODIC_5000MS),
     TaskStart(STATE_TRACK_COUNTERS, TaskPresets.PERIODIC, 30000),
     TaskStart(CHECK_PRINTERS_POWER_STATES, TaskPresets.PERIODIC, 30000),

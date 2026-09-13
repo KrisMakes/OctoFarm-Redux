@@ -19,16 +19,18 @@ let printerHealthChecks = [];
  * @param {Boolean} force
  * @returns {*[]}
  */
-const returnPrinterHealthChecks = (force = false) => {
+const returnPrinterHealthChecks = async (force = false) => {
   if (force) {
     logger.debug('Running printer health check.', { force });
-    updatePrinterHealthChecks().then();
+    // Was `updatePrinterHealthChecks().then()` followed by a synchronous return
+    // of the previous run's array, so the force flag never reached the caller.
+    return updatePrinterHealthChecks();
   }
   return printerHealthChecks;
 };
 
 const updatePrinterHealthChecks = async () => {
-  const farmPrinters = getPrinterStoreCache().listPrintersInformation();
+  const farmPrinters = getPrinterStoreCache().listPrinterSummaries();
   printerHealthChecks = [];
   for (const printer of farmPrinters) {
     if (
@@ -36,7 +38,15 @@ const updatePrinterHealthChecks = async () => {
       printer.printerState.colour.category !== 'Info'
     ) {
       logger.debug('Checking printer', { printer: printer.printerURL });
-      const currentURL = new URL(printer.printerURL);
+      let currentURL;
+      try {
+        currentURL = new URL(printer.printerURL);
+      } catch (e) {
+        // A malformed URL used to throw out of the whole loop, so one bad
+        // printer skipped the health checks for every printer after it.
+        logger.warning('Skipping health check for an unparseable printer URL', printer.printerURL);
+        continue;
+      }
 
       const printerCheck = {
         dateChecked: new Date(),

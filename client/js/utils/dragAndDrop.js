@@ -90,7 +90,7 @@ export function dragAndDropEnableMultiplePrinters(element, printers) {
 export function dragAndDropGroupEnable(printers) {
   const groupedPrinters = mapValues(groupBy(printers, 'group'));
   for (const key in groupedPrinters) {
-    if (groupedPrinters.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(groupedPrinters, key)) {
       if (key !== '') {
         const currentGroupEncoded = encodeURIComponent(key);
         const dropArea = document.getElementById(`dropPanel-${currentGroupEncoded}`);

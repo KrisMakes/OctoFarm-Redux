@@ -1,5 +1,3 @@
-const _ = require('lodash');
-
 const bytes = function (a, b) {
   if (a === undefined || isNaN(a) || a === null) {
     return 'No File Estimate';

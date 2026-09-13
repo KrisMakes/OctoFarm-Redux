@@ -48,6 +48,12 @@ function getDefaultDashboardSettings() {
   };
 }
 
+// Sentinel printer id meaning "this custom gcode script applies to every
+// printer". It is a hard-coded ObjectId-shaped string in the templates and the
+// client; naming it here stops it being copied around as a magic literal.
+const ALL_PRINTERS_GCODE_ID = '99aa99aaa9999a99999999aa';
+
 module.exports = {
   getDefaultDashboardSettings,
+  ALL_PRINTERS_GCODE_ID,
 };

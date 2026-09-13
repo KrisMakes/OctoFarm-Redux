@@ -1,6 +1,5 @@
 'use strict';
 
-const _ = require('lodash');
 const Logger = require('../handlers/logger.js');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const { getMaintenanceCosts, getElectricityCosts } = require('../utils/print-cost.util');
@@ -21,51 +20,54 @@ class FileCleanerService {
   }
 
   static statistics(farmPrinters) {
-    const storageFree = [];
-    const storageTotal = [];
-    const devices = [];
+    const devicesByURL = new Map();
     const fileSizes = [];
     const fileLengths = [];
-    const fileCount = [];
-    const folderCount = [];
-    // Collect unique devices - Total for farm storage should not duplicate storage on instances running on same devices.
+    let fileCount = 0;
+    let folderCount = 0;
+
     for (const printer of farmPrinters) {
-      const fileList = JSON.parse(JSON.stringify(printer.fileList));
-
-      if (!!printer.storage) {
-        const device = {
-          ip: printer.printerURL,
-          index: printer.index,
-          storage: printer.storage,
-        };
-        devices.push(device);
+      // De-duplicate on the printer URL. This used to build objects keyed `ip`
+      // and then call _.uniqBy(devices, "printerURL") -- a property none of them
+      // had -- so every device resolved to undefined and only one survived,
+      // making the farm storage total a single printer's disk.
+      if (!!printer.storage && !devicesByURL.has(printer.printerURL)) {
+        devicesByURL.set(printer.printerURL, printer.storage);
       }
-      if (!!fileList) {
-        for (let i = 0; i < fileList?.fileList?.length; i++) {
-          const file = fileList.fileList[i];
-          if (!isNaN(file.fileSize)) {
-            fileSizes.push(file.fileSize);
-          }
-          if (!isNaN(file.filamentLength)) {
-            fileLengths.push(file.filamentLength / 1000);
-          }
 
-          fileCount.push(file);
+      const fileList = printer?.fileList;
+      if (!fileList) {
+        continue;
+      }
+
+      for (const file of fileList.fileList ?? []) {
+        fileCount++;
+        if (typeof file.fileSize === 'number' && !Number.isNaN(file.fileSize)) {
+          fileSizes.push(file.fileSize);
         }
-        for (let i = 0; i < printer.fileList.folderList.length; i++) {
-          folderCount.push(printer.fileList.folderList[i]);
+        // filamentLength is an array of per-tool lengths. isNaN(array) is only
+        // false for single-element arrays, so multi-tool files were dropped and
+        // single-tool ones were silently coerced.
+        const lengths = Array.isArray(file.filamentLength) ? file.filamentLength : [];
+        const totalLength = lengths.reduce(
+          (sum, value) => sum + (Number.isFinite(value) ? value : 0),
+          0
+        );
+        if (totalLength > 0) {
+          fileLengths.push(totalLength / 1000);
         }
       }
+
+      folderCount += fileList.folderList?.length ?? 0;
     }
 
-    const uniqueDevices = _.uniqBy(devices, 'printerURL');
-    uniqueDevices.forEach((device) => {
-      storageFree.push(device.storage.free);
-      storageTotal.push(device.storage.total);
-    });
+    let storageFreeTotal = 0;
+    let storageTotalTotal = 0;
+    for (const storage of devicesByURL.values()) {
+      storageFreeTotal += storage.free ?? 0;
+      storageTotalTotal += storage.total ?? 0;
+    }
 
-    const storageFreeTotal = storageFree.reduce((a, b) => a + b, 0);
-    const storageTotalTotal = storageTotal.reduce((a, b) => a + b, 0);
     fileStatistics.storageUsed = storageTotalTotal - storageFreeTotal;
     fileStatistics.storageTotal = storageTotalTotal;
     fileStatistics.storageRemain = storageFreeTotal;
@@ -73,18 +75,20 @@ class FileCleanerService {
       storageTotalTotal === 0
         ? 0
         : Math.floor((fileStatistics.storageUsed / storageTotalTotal) * 100);
-    fileStatistics.fileCount = fileCount.length;
-    fileStatistics.folderCount = folderCount.length;
+    fileStatistics.fileCount = fileCount;
+    fileStatistics.folderCount = folderCount;
 
     if (fileSizes.length !== 0) {
       fileStatistics.biggestFile = Math.max(...fileSizes);
       fileStatistics.smallestFile = Math.min(...fileSizes);
-      fileStatistics.averageFile = fileSizes.reduce((a, b) => a + b, 0) / fileCount.length;
+      // Divide by the number of files that actually contributed a size, not by
+      // the number of files in the farm.
+      fileStatistics.averageFile = fileSizes.reduce((a, b) => a + b, 0) / fileSizes.length;
     }
     if (fileLengths.length !== 0) {
       fileStatistics.biggestLength = Math.max(...fileLengths);
       fileStatistics.smallestLength = Math.min(...fileLengths);
-      fileStatistics.averageLength = fileLengths.reduce((a, b) => a + b, 0) / fileCount.length;
+      fileStatistics.averageLength = fileLengths.reduce((a, b) => a + b, 0) / fileLengths.length;
     }
     return fileStatistics;
   }
@@ -229,39 +233,38 @@ class FileCleanerService {
    * @returns {*[]}
    */
   static getCost(filamentSelection, units) {
-    units = JSON.parse(JSON.stringify(units));
+    // No deep clones. This used to JSON round-trip both arguments -- twice per
+    // file, and generate() runs over every file of every printer on a one-second
+    // task -- purely so it could unshift("SKIP") onto the copy to realign
+    // indexes against the total row getUnits() prepends. Offset by one instead.
     if (!Array.isArray(units) || units.length === 0) {
       return [];
     }
 
     const strings = [];
     const costArray = [];
-    filamentSelection = JSON.parse(JSON.stringify(filamentSelection));
-    filamentSelection.unshift('SKIP');
-    for (let u = 0; u < units.length; u++) {
-      if (typeof filamentSelection !== 'undefined' && Array.isArray(filamentSelection)) {
-        if (filamentSelection[u] === 'SKIP') {
-          //Skip
-        } else if (typeof filamentSelection[u] !== 'undefined' && filamentSelection[u] !== null) {
-          let newUnit = units[u].split(' / ');
-          newUnit = newUnit[1].replace('g', '');
-          if (!units[u].includes('Total')) {
-            const cost = (
-              (filamentSelection[u].spools.price / filamentSelection[u].spools.weight) *
-              parseFloat(newUnit)
-            ).toFixed(2);
-            costArray.push(parseFloat(cost));
-            strings.push(cost);
-          }
-        } else {
-          costArray.push(0);
-          strings.push('(No Spool)');
-        }
-      } else {
+    const spools = Array.isArray(filamentSelection) ? filamentSelection : [];
+
+    // units[0] is the "Total:" row getUnits() prepends; units[n] describes
+    // tool n-1.
+    for (let u = 1; u < units.length; u++) {
+      const spool = spools[u - 1];
+      if (!spool) {
         costArray.push(0);
         strings.push('(No Spool)');
+        continue;
       }
+      const grams = parseFloat(units[u].split(' / ')[1]?.replace('g', ''));
+      if (!Number.isFinite(grams)) {
+        costArray.push(0);
+        strings.push('(No Spool)');
+        continue;
+      }
+      const cost = ((spool.spools.price / spool.spools.weight) * grams).toFixed(2);
+      costArray.push(parseFloat(cost));
+      strings.push(cost);
     }
+
     const totalCost = costArray.reduce((a, b) => a + b, 0);
     strings.unshift(totalCost.toFixed(2));
     return strings;

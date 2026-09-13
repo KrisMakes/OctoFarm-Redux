@@ -1,12 +1,16 @@
 import UI from '../utils/ui.js';
 import { ClientErrors } from '../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../exceptions/application-error.handler';
-import packageJson from '../../../package.json';
+// Was `import packageJson from '../../../package.json'` just to read .version.
+// JSON imports are not tree-shaken, so the whole root manifest -- dependency
+// list included -- was inlined into every runner. CLIENT_VERSION is injected by
+// webpack's DefinePlugin.
 
 let worker = null;
 let savedWorkerEventFunction = null;
 let currentFileURL = null;
-const workerResource = `/assets/js/sse.client.${packageJson.version}.min.js`;
+let visibilityListenerAttached = false;
+const workerResource = `/assets/js/sse.client.${CLIENT_VERSION}.min.js`;
 
 function webWorkerFunction(url, workerEventFunction) {
   worker = new Worker(workerResource);
@@ -55,15 +59,20 @@ export function createClientSSEWorker(url, workerEventFunction) {
     }
   } else {
     // Sorry! No Web Worker support..
+    // `e` does not exist in this branch -- interpolating it threw a
+    // ReferenceError instead of showing the intended message.
     UI.createAlert(
       'error',
       'Sorry web workers are not supported in your browser, please check the supported browser list.',
       0
     );
-    console.error(`Web workers not available... sorry! <br> ${e}`);
+    console.error('Web workers are not available in this browser.');
     const errorObject = ClientErrors.SILENT_ERROR;
-    errorObject.message = `Client Worker - ${e}`;
+    errorObject.message = 'Client Worker - web workers unavailable';
     throw new ApplicationError(errorObject);
   }
-  document.addEventListener('visibilitychange', handleVisibilityChange, false);
+  if (!visibilityListenerAttached) {
+    visibilityListenerAttached = true;
+    document.addEventListener('visibilitychange', handleVisibilityChange, false);
+  }
 }

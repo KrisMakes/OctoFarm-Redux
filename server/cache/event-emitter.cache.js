@@ -1,14 +1,6 @@
 const EventEmitterService = require('../services/event-emitter.service');
+const { createSingleton } = require('./create-singleton');
 
-let eventEmitterState = undefined;
-
-function getEventEmitterCache() {
-  if (!!eventEmitterState) {
-    return eventEmitterState;
-  } else {
-    eventEmitterState = new EventEmitterService();
-    return eventEmitterState;
-  }
-}
+const getEventEmitterCache = createSingleton(EventEmitterService);
 
 module.exports = { getEventEmitterCache };

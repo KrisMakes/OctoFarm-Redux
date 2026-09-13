@@ -1,0 +1,119 @@
+{
+  "bulk-action-commands.functions": [
+    "js/runtime.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/bulk-action-commands.functions.2.0.0.min.js"
+  ],
+  "camera-view.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/camera-view.runner.2.0.0.min.js"
+  ],
+  "client-error.modal": [
+    "js/runtime.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/client-error.modal.2.0.0.min.js"
+  ],
+  "combined-view.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/combined-view.runner.2.0.0.min.js"
+  ],
+  "current-operations-view.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/current-operations-view.runner.2.0.0.min.js"
+  ],
+  "dashboard.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/dashboard.runner.2.0.0.min.js"
+  ],
+  "events.service": [
+    "js/runtime.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/events.service.2.0.0.min.js"
+  ],
+  "filament-manager.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/filament-manager.runner.2.0.0.min.js"
+  ],
+  "file-manager.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/file-manager.runner.2.0.0.min.js"
+  ],
+  "group-view.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/group-view.runner.2.0.0.min.js"
+  ],
+  "history.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/history.runner.2.0.0.min.js"
+  ],
+  "list-view.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/list-view.runner.2.0.0.min.js"
+  ],
+  "panel-view.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/panel-view.runner.2.0.0.min.js"
+  ],
+  "printer-management.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/printer-management.runner.2.0.0.min.js"
+  ],
+  "sse.client": [
+    "js/runtime.2.0.0.min.js",
+    "js/sse.client.2.0.0.min.js"
+  ],
+  "system.runner": [
+    "js/runtime.2.0.0.min.js",
+    "js/apexcharts.2.0.0.min.js",
+    "js/shared-vendor.2.0.0.min.js",
+    "js/shared-app.2.0.0.min.js",
+    "js/system.runner.2.0.0.min.js"
+  ],
+  "octofarm": [
+    "js/runtime.2.0.0.min.js",
+    "js/octofarm.2.0.0.min.js"
+  ],
+  "vendor": [
+    "js/runtime.2.0.0.min.js",
+    "js/vendor.2.0.0.min.js"
+  ],
+  "bootstrap": [
+    "js/runtime.2.0.0.min.js",
+    "js/bootstrap.2.0.0.min.js"
+  ]
+}

@@ -43,7 +43,8 @@ class FilamentCleanerService {
   static async start() {
     const profiles = await Profiles.find({});
     const spools = await Spools.find({});
-    const farmPrinters = getPrinterStoreCache().listPrintersInformation();
+    // Only selectedFilament and printerName are read from these.
+    const farmPrinters = getPrinterStoreCache().listPrinterSummaries();
     const spoolsArray = [];
     const profilesArray = [];
 

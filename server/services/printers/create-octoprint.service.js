@@ -39,6 +39,60 @@ const { LOGGER_ROUTE_KEYS } = require('../../constants/logger.constants');
 const { FilamentClean } = require('../filament-cleaner.service');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_OCTOPRINT);
 
+const HOST_FAILURES = {
+  408: {
+    state: {
+      hostState: 'Timeout!',
+      hostDescription: 'Printer timed out, will attempt reconnection...',
+    },
+    reconnect: true,
+    message: 'Failed to test the waters! Please check the connection log',
+  },
+  502: {
+    state: {
+      hostState: 'Bad Gateway!',
+      hostDescription: 'Printer is unavailable, will attempt reconnection...',
+    },
+    reconnect: true,
+    message: 'Failed because of octoprint server error!',
+  },
+  503: {
+    state: {
+      hostState: 'Service Unavailable!',
+      hostDescription: 'Printer is unavailable, will attempt reconnection...',
+    },
+    reconnect: true,
+    message: 'Failed because of octoprint server error!',
+  },
+  404: {
+    state: {
+      hostState: 'Not Found!',
+      hostDescription:
+        "Couldn't find endpoint... please check your URL! will not attempt reconnect...",
+    },
+    reconnect: false,
+    message: 'Failed because octoprint is unavailable',
+  },
+  403: {
+    state: {
+      hostState: 'Forbidden!',
+      hostDescription:
+        'Could not establish authentication... please check your API key and try again!',
+    },
+    reconnect: false,
+    message: 'Failed because octoprint forbid OctoFarm!',
+  },
+  default: {
+    state: {
+      hostState: 'Hard Fail!',
+      hostDescription:
+        'Something is seriously wrong... please check all settings! will not attempt reconnect...',
+    },
+    reconnect: false,
+    message: 'Failed due to unknown causes',
+  },
+};
+
 class OctoPrintPrinter {
   //OctoFarm state
   disabled = false;
@@ -225,188 +279,70 @@ class OctoPrintPrinter {
     this.#updatePrinterSettingsFromDatabase();
   }
 
+  // Fields copied straight across when the database has a value for them. This
+  // was 40 repetitions of `if (!!x) { this.x = x }` -- about 180 lines, with
+  // settingsSerial written out twice.
+  static #DATABASE_FIELDS = [
+    'onboarding',
+    'settingsAppearance',
+    'currentUser',
+    'userList',
+    'dateAdded',
+    'alerts',
+    'currentIdle',
+    'currentActive',
+    'currentOffline',
+    'selectedFilament',
+    'octoPrintVersion',
+    'tempTriggers',
+    'feedRate',
+    'quickConnectSettings',
+    'flowRate',
+    'group',
+    'costSettings',
+    'powerSettings',
+    'storage',
+    'current',
+    'options',
+    'profiles',
+    'pluginsListEnabled',
+    'pluginsListDisabled',
+    'octoPrintUpdate',
+    'octoPrintPluginUpdates',
+    'settingsApi',
+    'settingsFeature',
+    'settingsFolder',
+    'settingsPlugins',
+    'settingsScripts',
+    'settingsSerial',
+    'settingsServer',
+    'settingsSystem',
+    'settingsWebcam',
+    'core',
+    'octoPi',
+    'octoPrintSystemInfo',
+    'printerFirmware',
+    'printerName',
+    'activeControlUser',
+  ];
+
   #updatePrinterRecordsFromDatabase(printer) {
-    const {
-      disabled,
-      onboarding,
-      _id,
-      settingsAppearance,
-      dateAdded,
-      alerts,
-      currentIdle,
-      currentActive,
-      currentOffline,
-      currentUser,
-      userList,
-      selectedFilament,
-      octoPrintVersion,
-      quickConnectSettings,
-      octoPi,
-      tempTriggers,
-      feedRate,
-      flowRate,
-      group,
-      costSettings,
-      powerSettings,
-      storage,
-      fileList,
-      current,
-      options,
-      profiles,
-      pluginsListEnabled,
-      pluginsListDisabled,
-      octoPrintUpdate,
-      octoPrintPluginUpdates,
-      settingsApi,
-      settingsFeature,
-      settingsFolder,
-      settingsPlugins,
-      settingsScripts,
-      settingsSerial,
-      settingsServer,
-      settingsSystem,
-      settingsWebcam,
-      core,
-      octoPrintSystemInfo,
-      printerFirmware,
-      activeControlUser,
-      printerName,
-    } = printer;
-    this._id = _id.toString();
+    this._id = printer._id.toString();
+
     //Only update the below if received from database, otherwise is required from scans.
-    if (!!onboarding) {
-      this.onboarding = onboarding;
+    for (const field of OctoPrintPrinter.#DATABASE_FIELDS) {
+      if (!!printer[field]) {
+        this[field] = printer[field];
+      }
     }
 
-    if (!!settingsAppearance) {
-      this.settingsAppearance = settingsAppearance;
+    // disabled is a boolean, so it cannot go through the truthiness loop above.
+    if (typeof printer.disabled === 'boolean') {
+      this.disabled = printer.disabled;
     }
 
-    if (!!currentUser) {
-      this.currentUser = currentUser;
-    }
-    if (!!userList) {
-      this.userList = userList;
-    }
-    if (!!dateAdded) {
-      this.dateAdded = dateAdded;
-    }
-    if (!!alerts) {
-      this.alerts = alerts;
-    }
-    if (!!currentIdle) {
-      this.currentIdle = currentIdle;
-    }
-    if (!!currentActive) {
-      this.currentActive = currentActive;
-    }
-    if (!!currentOffline) {
-      this.currentOffline = currentOffline;
-    }
-    if (!!selectedFilament) {
-      this.selectedFilament = selectedFilament;
-    }
-    if (!!octoPrintVersion) {
-      this.octoPrintVersion = octoPrintVersion;
-    }
-
-    if (!!tempTriggers) {
-      this.tempTriggers = tempTriggers;
-    }
-    if (!!feedRate) {
-      this.feedRate = feedRate;
-    }
-
-    if (!!quickConnectSettings) {
-      this.quickConnectSettings = quickConnectSettings;
-    }
-
-    if (!!flowRate) {
-      this.flowRate = flowRate;
-    }
-    if (!!group) {
-      this.group = group;
-    }
-    if (!!costSettings) {
-      this.costSettings = costSettings;
-    }
-    if (!!powerSettings) {
-      this.powerSettings = powerSettings;
-    }
-    if (!!storage) {
-      this.storage = storage;
-    }
-    if (!!current) {
-      this.current = current;
-    }
-    if (!!options) {
-      this.options = options;
-    }
-    if (!!profiles) {
-      this.profiles = profiles;
-    }
-    if (!!pluginsListEnabled) {
-      this.pluginsListEnabled = pluginsListEnabled;
-    }
-    if (!!pluginsListDisabled) {
-      this.pluginsListDisabled = pluginsListDisabled;
-    }
-
-    if (!!octoPrintUpdate) {
-      this.octoPrintUpdate = octoPrintUpdate;
-    }
-    if (!!octoPrintPluginUpdates) {
-      this.octoPrintPluginUpdates = octoPrintPluginUpdates;
-    }
-    if (!!settingsApi) {
-      this.settingsApi = settingsApi;
-    }
-    if (!!settingsFeature) {
-      this.settingsFeature = settingsFeature;
-    }
-    if (!!settingsFolder) {
-      this.settingsFolder = settingsFolder;
-    }
-    if (!!settingsPlugins) {
-      this.settingsPlugins = settingsPlugins;
-    }
-    if (!!settingsScripts) {
-      this.settingsScripts = settingsScripts;
-    }
-    if (!!settingsSerial) {
-      this.settingsSerial = settingsSerial;
-    }
-    if (!!settingsServer) {
-      this.settingsServer = settingsServer;
-    }
-    if (!!settingsSystem) {
-      this.settingsSystem = settingsSystem;
-    }
-    if (!!settingsWebcam) {
-      this.settingsWebcam = settingsWebcam;
-    }
-    if (!!settingsSerial) {
-      this.settingsSerial = settingsSerial;
-    }
-    if (!!core) {
-      this.core = core;
-    }
-    if (typeof disabled === 'boolean') {
-      this.disabled = disabled;
-    }
-    if (!!octoPi) {
-      this.octoPi = octoPi;
-    }
-
-    if (!!octoPrintSystemInfo) {
-      this.octoPrintSystemInfo = octoPrintSystemInfo;
-    }
-
-    if (!!printerFirmware) {
-      this.printerFirmware = printerFirmware;
-    }
-
-    if (!!fileList) {
+    if (!!printer.fileList) {
+      const { fileList } = printer;
       this.fileList = {
         fileList: fileList?.files ? fileList.files : fileList.fileList,
         filecount: fileList?.files ? fileList.files.length : fileList.fileList.length,
@@ -415,20 +351,20 @@ class OctoPrintPrinter {
       };
     }
 
-    if (!!profiles && !!current) {
-      this.currentProfile = PrinterClean.sortProfile(profiles, current);
+    if (!!this.profiles && !!this.current) {
+      this.currentProfile = PrinterClean.sortProfile(this.profiles, this.current);
     }
 
-    if (!!current) {
-      this.currentConnection = PrinterClean.sortConnection(current);
+    if (!!this.current) {
+      this.currentConnection = PrinterClean.sortConnection(this.current);
     }
 
-    if (!!options) {
-      this.connectionOptions = PrinterClean.sortOptions(options);
+    if (!!this.options) {
+      this.connectionOptions = PrinterClean.sortOptions(this.options);
     }
 
-    if (!!settingsScripts) {
-      this.gcodeScripts = PrinterClean.sortGCODE(settingsScripts);
+    if (!!this.settingsScripts) {
+      this.gcodeScripts = PrinterClean.sortGCODE(this.settingsScripts);
     }
 
     if (!!this.tempTriggers || !!this.settingsWebcam || !!this.settingsServer) {
@@ -437,14 +373,6 @@ class OctoPrintPrinter {
         this.settingsWebcam,
         this.settingsServer
       );
-    }
-
-    if (!!printerName) {
-      this.printerName = printerName;
-    }
-
-    if (!!activeControlUser) {
-      this.activeControlUser = activeControlUser;
     }
 
     this.resetJobInformation();
@@ -657,61 +585,21 @@ class OctoPrintPrinter {
   }
 
   checkStatusNumber(status) {
-    switch (status) {
-      case 200:
-      case 201:
-        this.setHostState(PRINTER_STATES().HOST_ONLINE);
-        return true;
-      case 408:
-        // Failed to find the printer on the high seas, fail and don't reconnect user iteraction required...
-        const timeout = {
-          hostState: 'Timeout!',
-          hostDescription: 'Printer timed out, will attempt reconnection...',
-        };
-        this.setAllPrinterStates(PRINTER_STATES(timeout).SHUTDOWN);
-        this.reconnectAPI();
-        return 'Failed to test the waters! Please check the connection log';
-      case 503:
-        const unavailable = {
-          hostState: 'Service Unavailable!',
-          hostDescription: 'Printer is unavailable, will attempt reconnection...',
-        };
-        this.setAllPrinterStates(PRINTER_STATES(unavailable).SHUTDOWN);
-        this.reconnectAPI();
-        return 'Failed because of octoprint server error!';
-      case 502:
-        const badGateway = {
-          hostState: 'Bad Gateway!',
-          hostDescription: 'Printer is unavailable, will attempt reconnection...',
-        };
-        this.setAllPrinterStates(PRINTER_STATES(badGateway).SHUTDOWN);
-        this.reconnectAPI();
-        return 'Failed because of octoprint server error!';
-      case 404:
-        const notFound = {
-          hostState: 'Not Found!',
-          hostDescription:
-            "Couldn't find endpoint... please check your URL! will not attempt reconnect...",
-        };
-        this.setAllPrinterStates(PRINTER_STATES(notFound).SHUTDOWN);
-        return 'Failed because octoprint is unavailable';
-      case 403:
-        const forbidden = {
-          hostState: 'Forbidden!',
-          hostDescription:
-            'Could not establish authentication... please check your API key and try again!',
-        };
-        this.setAllPrinterStates(PRINTER_STATES(forbidden).SHUTDOWN);
-        return 'Failed because octoprint forbid OctoFarm!';
-      default:
-        const unknown = {
-          hostState: 'Hard Fail!',
-          hostDescription:
-            'Something is seriously wrong... please check all settings! will not attempt reconnect...',
-        };
-        this.setAllPrinterStates(PRINTER_STATES(unknown).SHUTDOWN);
-        return 'Failed due to unknown causes';
+    if (status === 200 || status === 201) {
+      this.setHostState(PRINTER_STATES().HOST_ONLINE);
+      return true;
     }
+
+    // Was a switch whose cases each declared a `const` without braces -- one
+    // shared block scope, and a TDZ hazard -- with the 502 and 503 arms written
+    // out identically.
+    const failure = HOST_FAILURES[status] ?? HOST_FAILURES.default;
+
+    this.setAllPrinterStates(PRINTER_STATES(failure.state).SHUTDOWN);
+    if (failure.reconnect) {
+      this.reconnectAPI();
+    }
+    return failure.message;
   }
 
   async grabInformationFromDevice({
@@ -837,10 +725,10 @@ class OctoPrintPrinter {
     if (this.disabled === false) {
       this.disabled = true;
       printerModel
-        .findOneAndUpdate({ _id: this._id }, { disabled: true })
-        .then(() => logger.debug('Successfully saved enable state for printer'), {
-          disabled: true,
-        })
+        // The old call passed `{ disabled: true }` as .then()'s rejection
+        // handler, which is a no-op object in a callback slot.
+        .updateOne({ _id: this._id }, { disabled: true })
+        .then(() => logger.debug('Successfully saved enable state for printer'))
         .catch((e) => logger.error('Failed saving enable state for printer', e));
     }
     this.setupDatabase();
@@ -905,243 +793,207 @@ class OctoPrintPrinter {
   async acquireOctoPrintSessionKey() {
     this.#apiPrinterTickerWrap('Attempting passive login', 'Active');
     const passiveLogin = await this.#api.login(true);
-    logger.warning('Passive login results: ', passiveLogin);
     const globalStatusCode = checkApiStatusResponse(passiveLogin);
+    logger.debug('Passive login status', { status: globalStatusCode });
     if (globalStatusCode === 200) {
       const sessionJson = await passiveLogin.json();
-      logger.warning('Session json', sessionJson);
+      // Never log sessionJson: it contains the OctoPrint session key, and this
+      // used to do it at warning level so no log filter suppressed it.
       this.sessionKey = sessionJson.session;
       this.#apiPrinterTickerWrap('Passive login was successful!', 'Complete');
       return this.sessionKey;
     } else {
-      logger.http('Passive login failed...' + passiveLogin);
-      logger.error('Passive login failed...' + globalStatusCode);
+      logger.error('Passive login failed', { status: globalStatusCode });
       this.#apiPrinterTickerWrap('Passive login failed...', 'Offline', globalStatusCode);
       return globalStatusCode;
     }
   }
 
   async acquireOctoPrintPiPluginData(force = false) {
-    this.#apiPrinterTickerWrap('Checking if RaspberryPi', 'Info');
-    // Would like to skip this if not a Pi, won't even fit in the retry/not retry system so call and fail for now.
-    if (!this?.octoPi || force) {
-      let piPluginCheck = await this.#api.getPluginPiSupport(true).catch((e) => {
-        logger.http('Failed check for raspberry pi', e.toString());
-        return false;
-      });
-
-      const globalStatusCode = checkApiStatusResponse(piPluginCheck);
-      if (globalStatusCode === 200) {
-        const octoPi = await piPluginCheck.json();
-        this.#db.update({
-          octoPi: octoPi,
-        });
-        this.octoPi = octoPi;
-        this.#apiPrinterTickerWrap('Detected a RaspberryPi installation', 'Complete');
-        return true;
-      } else {
-        this.octoPi = {};
-        this.#db.update({
-          octoPi: this.octoPi,
-        });
-        logger.http('Failed to acquire raspberry pi data...', piPluginCheck);
-        this.#apiPrinterTickerWrap("Couldn't detect RaspberryPi", 'Offline');
-        return globalStatusCode;
-      }
-    } else {
+    if (!force && !!this.octoPi && Object.keys(this.octoPi).length !== 0) {
       this.#apiPrinterTickerWrap('RaspberryPi data acquired previously... skipping!', 'Complete');
-      // Call was skipped as we have data or not forced
       return true;
     }
+
+    const result = await this.#acquire({
+      label: 'RaspberryPi data',
+      systemCheck: ALLOWED_SYSTEM_CHECKS().SYSTEM,
+      request: () => this.#api.getPluginPiSupport(),
+      apply: (octoPi) => {
+        this.octoPi = octoPi;
+        return { octoPi };
+      },
+    });
+
+    if (result !== true) {
+      // Not a Pi, or the plugin is not installed. Record the absence so we do
+      // not ask again on every scan.
+      this.octoPi = {};
+      this.#db.update({ octoPi: this.octoPi });
+    }
+
+    return result;
+  }
+
+  /**
+   * The skeleton every acquireOctoPrintXData method repeated: ticker line,
+   * "already onboarded" short-circuit, API call, status check, database write,
+   * onboarding flag, ticker + system-check updates on both paths.
+   *
+   * Eight methods carried ~40 near-identical lines each.
+   *
+   * @param label        human name used in the ticker lines
+   * @param systemCheck  ALLOWED_SYSTEM_CHECKS key
+   * @param onboardingKey optional this.onboarding flag that short-circuits
+   * @param request      () => Promise<Response>
+   * @param apply        async (json) => object|undefined; the object is written
+   *                     to the database alongside the onboarding flag
+   */
+  async #acquire({ label, systemCheck, onboardingKey, request, apply }) {
+    this.#apiPrinterTickerWrap(`Acquiring ${label}`, 'Info');
+    this.#apiChecksUpdateWrap(systemCheck, 'warning');
+
+    if (onboardingKey && this.onboarding?.[onboardingKey]) {
+      this.#apiChecksUpdateWrap(systemCheck, 'success', true);
+      return true;
+    }
+
+    const response = await request().catch((e) => {
+      logger.http(`Failed to acquire ${label}`, e.toString());
+      return undefined;
+    });
+
+    const globalStatusCode = checkApiStatusResponse(response);
+    if (globalStatusCode !== 200) {
+      logger.http(`Failed to acquire ${label}`, { status: globalStatusCode });
+      this.#apiPrinterTickerWrap(`Failed to acquire ${label}`, 'Offline', globalStatusCode);
+      this.#apiChecksUpdateWrap(systemCheck, 'danger', true);
+      return globalStatusCode;
+    }
+
+    const databaseUpdate = (await apply(await response.json())) ?? {};
+
+    if (onboardingKey) {
+      this.onboarding[onboardingKey] = true;
+      databaseUpdate.onboarding = this.onboarding;
+    }
+    // One database write, not one for the payload and a second for onboarding.
+    if (Object.keys(databaseUpdate).length > 0) {
+      this.#db.update(databaseUpdate);
+    }
+
+    this.#apiPrinterTickerWrap(`Acquired ${label}!`, 'Complete');
+    this.#apiChecksUpdateWrap(systemCheck, 'success', true);
+    return true;
   }
 
   async acquireOctoPrintSystemData(force = false) {
-    this.#apiPrinterTickerWrap('Acquiring system data', 'Info');
-    this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SYSTEM, 'warning');
-
-    if (this.onboarding.systemApi && !force) {
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SYSTEM, 'success', true);
-      return true;
-    }
-
-    let systemCheck = await this.#api.getSystemCommands(true).catch((e) => {
-      logger.http('Failed Aquire system data', e.toString());
-      return false;
+    return this.#acquire({
+      label: 'system data',
+      systemCheck: ALLOWED_SYSTEM_CHECKS().SYSTEM,
+      onboardingKey: force ? undefined : 'systemApi',
+      request: () => this.#api.getSystemCommands(),
+      apply: (json) => {
+        this.core = json.core;
+        return { core: json.core };
+      },
     });
-
-    let globalStatusCode = checkApiStatusResponse(systemCheck);
-    if (globalStatusCode === 200) {
-      const systemJson = await systemCheck.json();
-
-      this.core = systemJson.core;
-      this.#db.update({
-        core: systemJson.core,
-      });
-
-      this.#apiPrinterTickerWrap('Acquired system data!', 'Complete');
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SYSTEM, 'success', true);
-      this.onboarding.systemApi = true;
-      this.#db.update({ onboarding: this.onboarding });
-      return true;
-    } else {
-      logger.http('Failed to acquire system data...' + systemCheck);
-      this.#apiPrinterTickerWrap('Failed to acquire system data', 'Offline', systemCheck);
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SYSTEM, 'danger', true);
-      return globalStatusCode;
-    }
   }
 
   async acquireOctoPrintProfileData(force = false) {
-    this.#apiPrinterTickerWrap('Acquiring state data', 'Info');
-    this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().STATE, 'warning');
-    if (!force && this.onboarding.profileApi) {
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().PROFILE, 'success', true);
-      return true;
-    }
-
-    let profileCheck = await this.#api.getPrinterProfiles(true).catch((e) => {
-      logger.http('Failed Acquire profile data', e.toString());
-      return false;
+    return this.#acquire({
+      label: 'profile data',
+      systemCheck: ALLOWED_SYSTEM_CHECKS().PROFILE,
+      onboardingKey: force ? undefined : 'profileApi',
+      request: () => this.#api.getPrinterProfiles(),
+      apply: ({ profiles }) => {
+        this.profiles = profiles;
+        return { profiles };
+      },
     });
-    const globalStatusCode = checkApiStatusResponse(profileCheck);
-    if (globalStatusCode === 200) {
-      const { profiles } = await profileCheck.json();
-      this.profiles = profiles;
-
-      this.#db.update({
-        profiles: profiles,
-      });
-
-      this.#apiPrinterTickerWrap('Acquired profile data!', 'Complete');
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().PROFILE, 'success', true);
-
-      this.onboarding.profileApi = true;
-      this.#db.update({ onboarding: this.onboarding });
-      return true;
-    } else {
-      logger.http('Failed to acquire profile data...' + profileCheck);
-      this.#apiPrinterTickerWrap('Failed to acquire profile data', 'Offline', profileCheck);
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().PROFILE, 'danger', true);
-      return globalStatusCode;
-    }
   }
 
   async acquireOctoPrintStateData(force = false) {
-    this.#apiPrinterTickerWrap('Acquiring state data', 'Info');
-    this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().STATE, 'warning');
-
-    if (!force && this.onboarding.stateApi) {
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().STATE, 'success', true);
-      return false;
-    }
-
-    let stateCheck = await this.#api.getConnection(true).catch((e) => {
-      logger.http('Failed Aquire state data', e.toString());
-      return false;
+    return this.#acquire({
+      label: 'state data',
+      systemCheck: ALLOWED_SYSTEM_CHECKS().STATE,
+      onboardingKey: force ? undefined : 'stateApi',
+      request: () => this.#api.getConnection(),
+      apply: ({ current, options }) => {
+        this.current = current;
+        this.options = options;
+        if (!!this.current) {
+          this.currentConnection = PrinterClean.sortConnection(this.current);
+        }
+        if (!!this.options) {
+          this.connectionOptions = PrinterClean.sortOptions(this.options);
+        }
+        return { current, options };
+      },
     });
-
-    const globalStatusCode = checkApiStatusResponse(stateCheck);
-
-    if (globalStatusCode === 200) {
-      const { current, options } = await stateCheck.json();
-      this.current = current;
-      this.options = options;
-      this.#db.update({
-        current: current,
-        options: options,
-      });
-
-      if (!!this?.current) {
-        this.currentConnection = PrinterClean.sortConnection(this.current);
-      }
-
-      if (!!this?.options) {
-        this.connectionOptions = PrinterClean.sortOptions(this.options);
-      }
-      this.#apiPrinterTickerWrap('Acquired state data!', 'Complete');
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().STATE, 'success', true);
-
-      this.onboarding.stateApi = true;
-      this.#db.update({ onboarding: this.onboarding });
-      return true;
-    } else {
-      logger.http('Failed to acquire state data...' + stateCheck);
-      this.#apiPrinterTickerWrap('Failed to acquire state data', 'Offline', stateCheck);
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().STATE, 'danger', true);
-      return globalStatusCode;
-    }
   }
 
   async acquireOctoPrintSettingsData(force = false) {
-    this.#apiPrinterTickerWrap('Acquiring settings data', 'Info');
-    this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SETTINGS, 'warning');
+    return this.#acquire({
+      label: 'settings data',
+      systemCheck: ALLOWED_SYSTEM_CHECKS().SETTINGS,
+      onboardingKey: force ? undefined : 'settingsApi',
+      request: () => this.#api.getSettings(),
+      apply: ({
+        api,
+        feature,
+        folder,
+        plugins,
+        scripts,
+        serial,
+        server,
+        system,
+        webcam,
+        appearance,
+      }) => {
+        this.settingsApi = api;
+        this.settingsFeature = feature;
+        this.settingsFolder = folder;
+        this.settingsPlugins = plugins;
+        this.settingsScripts = scripts;
+        this.settingsSerial = serial;
+        this.settingsServer = server;
+        this.settingsSystem = system;
+        this.settingsWebcam = webcam;
 
-    if (!force && this.onboarding.settingsApi) {
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SETTINGS, 'success', true);
-      return true;
-    }
+        //These should not run ever again if this endpoint is forcibly updated. They are for initial scan only.
+        if (this.camURL.length === 0) {
+          this.camURL = acquireWebCamData(this.camURL, this.printerURL, webcam.streamUrl);
+        }
+        this.costSettings = testAndCollectCostPlugin(this._id, this.costSettings, plugins);
+        this.powerSettings = testAndCollectPSUControlPlugin(this._id, this.powerSettings, plugins);
+        if (this.settingsAppearance.name === 'Grabbing from OctoPrint...') {
+          this.settingsAppearance.name = PrinterClean.grabOctoPrintName(appearance);
+        }
+        if (this.settingsAppearance.color !== appearance.color) {
+          this.settingsAppearance.color = appearance.color;
+        }
 
-    let settingsCheck = await this.#api.getSettings(true).catch((e) => {
-      logger.http('Failed Aquire settings data', e.toString());
-      return false;
+        this.gcodeScripts = PrinterClean.sortGCODE(scripts);
+        this.otherSettings = PrinterClean.sortOtherSettings(this.tempTriggers, webcam, server);
+
+        return {
+          camURL: this.camURL,
+          settingsAppearance: this.settingsAppearance,
+          costSettings: this.costSettings,
+          powerSettings: this.powerSettings,
+          settingsApi: api,
+          settingsFeature: feature,
+          settingsFolder: folder,
+          settingsPlugins: plugins,
+          settingsScripts: scripts,
+          settingsSerial: serial,
+          settingsServer: server,
+          settingsSystem: system,
+          settingsWebcam: webcam,
+        };
+      },
     });
-
-    const globalStatusCode = checkApiStatusResponse(settingsCheck);
-    if (globalStatusCode === 200) {
-      const { api, feature, folder, plugins, scripts, serial, server, system, webcam, appearance } =
-        await settingsCheck.json();
-      this.settingsApi = api;
-      this.settingsFeature = feature;
-      this.settingsFolder = folder;
-      this.settingsPlugins = plugins;
-      this.settingsScripts = scripts;
-      this.settingsSerial = serial;
-      this.settingsServer = server;
-      this.settingsSystem = system;
-      this.settingsWebcam = webcam;
-
-      //These should not run ever again if this endpoint is forcibly updated. They are for initial scan only.
-      if (this.camURL.length === 0) {
-        this.camURL = acquireWebCamData(this.camURL, this.printerURL, webcam.streamUrl);
-      }
-      this.costSettings = testAndCollectCostPlugin(this._id, this.costSettings, plugins);
-      this.powerSettings = testAndCollectPSUControlPlugin(this._id, this.powerSettings, plugins);
-      if (this.settingsAppearance.name === 'Grabbing from OctoPrint...') {
-        this.settingsAppearance.name = PrinterClean.grabOctoPrintName(appearance, this.printerURL);
-      }
-      if (this.settingsAppearance.color !== appearance.color) {
-        this.settingsAppearance.color = appearance.color;
-      }
-      this.#db.update({
-        camURL: this.camURL,
-        settingsAppearance: this.settingsAppearance,
-        costSettings: this.costSettings,
-        powerSettings: this.powerSettings,
-        settingsApi: api,
-        settingsFeature: feature,
-        settingsFolder: folder,
-        settingsPlugins: plugins,
-        settingsScripts: scripts,
-        settingsSerial: serial,
-        settingsServer: server,
-        settingsSystem: system,
-        settingsWebcam: webcam,
-      });
-
-      this.gcodeScripts = PrinterClean.sortGCODE(scripts);
-      this.otherSettings = PrinterClean.sortOtherSettings(this.tempTriggers, webcam, server);
-
-      this.#apiPrinterTickerWrap('Acquired settings data!', 'Complete');
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SETTINGS, 'success', true);
-      this.onboarding.settingsApi = true;
-      this.#db.update({ onboarding: this.onboarding });
-      return true;
-    } else {
-      logger.http('Failed to acquire settings data...' + settingsCheck);
-      this.#apiPrinterTickerWrap('Failed to acquire settings data', 'Offline', settingsCheck);
-      this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().SETTINGS, 'danger', true);
-      return globalStatusCode;
-    }
   }
 
   async acquireOctoPrintPluginsListData(force = true) {
@@ -1149,114 +1001,35 @@ class OctoPrintPrinter {
       this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().PLUGINS, 'danger');
       return false;
     }
-    this.#apiPrinterTickerWrap('Acquiring plugin lists data', 'Info');
-    this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().PLUGINS, 'warning');
-    if (!this?.pluginsList || this.pluginsList.length === 0 || force) {
-      this.pluginsList = [];
-      const pluginList = await this.#api.getPluginManager(this.octoPrintVersion).catch((e) => {
-        logger.http('Failed Aquire plugin lists data', e.toString());
-        return e;
-      });
-      const globalStatusCode = checkApiStatusResponse(pluginList);
-
-      if (globalStatusCode === 200) {
-        const { plugins } = await pluginList.json();
-        this.pluginsListEnabled = plugins.filter(function (plugin) {
-          return plugin.enabled;
-        });
-        this.pluginsListDisabled = plugins.filter(function (plugin) {
-          return !plugin.enabled;
-        });
-
-        this.#db.update({
-          pluginsListEnabled: this.pluginsListEnabled,
-          pluginsListDisabled: this.pluginsListDisabled,
-        });
-        this.#apiPrinterTickerWrap('Acquired plugin lists data!', 'Complete');
-        this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().PLUGINS, 'success', true);
-        return true;
-      } else {
-        logger.http('Failed to acquire plugin data...' + pluginList);
-        this.#apiPrinterTickerWrap('Failed to acquire plugin lists data', 'Offline', pluginList);
-        this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().PLUGINS, 'danger', true);
-        return globalStatusCode;
-      }
-    } else {
+    if (!force && !!this.pluginsListEnabled) {
       this.#apiPrinterTickerWrap('Plugin lists data acquired previously... skipped!', 'Complete');
       this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().PLUGINS, 'success');
       return true;
     }
+
+    return this.#acquire({
+      label: 'plugin lists data',
+      systemCheck: ALLOWED_SYSTEM_CHECKS().PLUGINS,
+      request: () => this.#api.getPluginManager(this.octoPrintVersion),
+      apply: ({ plugins }) => {
+        this.pluginsListEnabled = plugins.filter((plugin) => plugin.enabled);
+        this.pluginsListDisabled = plugins.filter((plugin) => !plugin.enabled);
+        return {
+          pluginsListEnabled: this.pluginsListEnabled,
+          pluginsListDisabled: this.pluginsListDisabled,
+        };
+      },
+    });
   }
 
   async acquireOctoPrintUpdatesData(force = false) {
     if (softwareUpdateChecker.getUpdateNotificationIfAny().air_gapped) return false;
-    this.#apiPrinterTickerWrap('Acquiring OctoPrint updates data', 'Info');
-    this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().UPDATES, 'warning');
-    if (
-      force ||
-      !this?.octoPrintUpdate ||
-      !this?.octoPrintPluginUpdates ||
-      this?.octoPrintPluginUpdates.length === 0
-    ) {
-      const updateCheck = await this.#api.getSoftwareUpdateCheck(force, true).catch((e) => {
-        logger.http('Failed Aquire updates data', e.toString());
-        return false;
-      });
-      const globalStatusCode = checkApiStatusResponse(updateCheck);
 
-      if (globalStatusCode === 200) {
-        const { information } = await updateCheck.json();
-
-        this.octoPrintUpdate = [];
-        this.octoPrintPluginUpdates = [];
-
-        let octoPrintUpdate = false;
-        const pluginUpdates = [];
-
-        for (const key in information) {
-          if (information.hasOwnProperty(key)) {
-            if (information[key].updateAvailable) {
-              if (key === 'octoprint') {
-                octoPrintUpdate = {
-                  id: key,
-                  displayName: information[key].displayName,
-                  displayVersion: information[key].displayVersion,
-                  updateAvailable: information[key].updateAvailable,
-                  releaseNotesURL: information[key].releaseNotes,
-                };
-              } else {
-                pluginUpdates.push({
-                  id: key,
-                  displayName: information[key].displayName,
-                  displayVersion: information[key].displayVersion,
-                  updateAvailable: information[key].updateAvailable,
-                  releaseNotesURL: information[key].releaseNotes,
-                });
-              }
-            }
-          }
-        }
-        this.octoPrintUpdate = octoPrintUpdate;
-        this.octoPrintPluginUpdates = pluginUpdates;
-        this.#db.update({
-          octoPrintUpdate: octoPrintUpdate,
-          octoPrintPluginUpdates: pluginUpdates,
-        });
-        this.#apiPrinterTickerWrap('Acquired OctoPrint updates data!', 'Complete');
-        this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().UPDATES, 'success', true);
-
-        return true;
-      } else {
-        logger.http('Failed to acquire octoprint updates data...' + updateCheck);
-        this.#apiPrinterTickerWrap(
-          'Failed to acquire OctoPrint updates data',
-          'Offline',
-          updateCheck
-        );
-        this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().UPDATES, 'danger', true);
-        return globalStatusCode;
-      }
-    } else {
+    const alreadyHaveData =
+      !!this.octoPrintUpdate &&
+      !!this.octoPrintPluginUpdates &&
+      this.octoPrintPluginUpdates.length !== 0;
+    if (!force && alreadyHaveData) {
       this.#apiPrinterTickerWrap(
         'OctoPrint updates data acquired previously... skipped!',
         'Complete'
@@ -1264,6 +1037,38 @@ class OctoPrintPrinter {
       this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().UPDATES, 'success');
       return true;
     }
+
+    return this.#acquire({
+      label: 'OctoPrint updates data',
+      systemCheck: ALLOWED_SYSTEM_CHECKS().UPDATES,
+      request: () => this.#api.getSoftwareUpdateCheck(force),
+      apply: ({ information }) => {
+        let octoPrintUpdate = false;
+        const pluginUpdates = [];
+
+        for (const [key, entry] of Object.entries(information ?? {})) {
+          if (!entry.updateAvailable) {
+            continue;
+          }
+          const update = {
+            id: key,
+            displayName: entry.displayName,
+            displayVersion: entry.displayVersion,
+            updateAvailable: entry.updateAvailable,
+            releaseNotesURL: entry.releaseNotes,
+          };
+          if (key === 'octoprint') {
+            octoPrintUpdate = update;
+          } else {
+            pluginUpdates.push(update);
+          }
+        }
+
+        this.octoPrintUpdate = octoPrintUpdate;
+        this.octoPrintPluginUpdates = pluginUpdates;
+        return { octoPrintUpdate, octoPrintPluginUpdates: pluginUpdates };
+      },
+    });
   }
 
   async acquireOctoPrintFileData(fullPath) {
@@ -1333,13 +1138,20 @@ class OctoPrintPrinter {
         return o.fullPath === fileInformation.fullPath;
       });
 
-      this.fileList.fileList[fileIndex] = fileInformation;
+      // findIndex returns -1 on a miss, and fileList[-1] = ... sets a stray
+      // "-1" property on the array while silently dropping the file.
+      if (fileIndex > -1) {
+        this.fileList.fileList[fileIndex] = fileInformation;
+      } else {
+        this.fileList.fileList.push(fileInformation);
+        this.fileList.filecount = this.fileList.fileList.length;
+      }
 
       this.#db.update({ fileList: this.fileList });
 
       return fileInformation;
     } else {
-      logger.http('File could not be re-synced' + filesCheck);
+      logger.http('File could not be re-synced', { status: globalStatusCode });
       return false;
     }
   }
@@ -1399,7 +1211,9 @@ class OctoPrintPrinter {
           };
         }
       } else {
-        logger.http('Failed to acquire file list data...' + filesCheck);
+        logger.http('Failed to acquire file list data', {
+          status: checkApiStatusResponse(filesCheck),
+        });
         this.#apiPrinterTickerWrap('Failed to acquire file list data', 'Offline', filesCheck);
         this.#apiChecksUpdateWrap(ALLOWED_SYSTEM_CHECKS().FILES, 'danger', true);
         return globalStatusCode;
@@ -1434,7 +1248,9 @@ class OctoPrintPrinter {
 
     if (!allowedCounters.includes(counter))
       throw new Error("Don't know what counter that is! " + counter);
-    if (Number.isNaN(value)) {
+    // Number.isNaN is only true for the literal NaN; a string or undefined used
+    // to pass straight through into the database.
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
       throw new Error('Value is not a number!');
     }
 
@@ -1532,32 +1348,24 @@ class OctoPrintPrinter {
     }
 
     if (this.#reconnectTimeout !== false) {
-      logger.warning('Ignoring Setup reconnection attempt!');
+      logger.debug('Reconnect already scheduled, ignoring duplicate request');
       return;
     }
     this.#retryNumber = this.#retryNumber + 1;
     this.reconnectingIn = Date.now() + this.#apiRetry;
-    if (!!this.#reconnectTimeout) return; //Reconnection is planned..
     this.#reconnectTimeout = setTimeout(() => {
       this.reconnectingIn = 0;
-      if (this.#retryNumber > 0) {
-        const modifier = this.timeout.apiRetry * 0.1;
-        this.#apiRetry = this.#apiRetry + modifier;
-        logger.debug(this.printerURL + ': API modifier ' + modifier);
-      } else if (this.#retryNumber === 0) {
-        logger.info(this.printerURL + ': Attempting to reconnect to printer!');
-        PrinterTicker.addIssue(
-          new Date(),
-          this.printerURL,
-          'Attempting to reconnect to printer! Any subsequent logs will be silenced...',
-          'Active',
-          this._id
-        );
-      }
-      clearTimeout(this.#reconnectTimeout);
+      // #retryNumber was incremented above before this timer was scheduled, so
+      // it is always >= 1 here; the old `else if (#retryNumber === 0)` arm was
+      // unreachable.
+      const modifier = this.timeout.apiRetry * 0.1;
+      this.#apiRetry = this.#apiRetry + modifier;
+      logger.debug(this.printerURL + ': API modifier ' + modifier);
       this.#reconnectTimeout = false;
       this.setAllPrinterStates(PRINTER_STATES().SEARCHING);
-      return this.resetSocketConnection();
+      this.resetSocketConnection().catch((e) => {
+        logger.error(`${this.printerURL}: API reconnect attempt failed`, e.toString());
+      });
     }, this.#apiRetry);
   }
 
@@ -1567,7 +1375,7 @@ class OctoPrintPrinter {
       this.acquireOctoPrintSystemData(force),
       this.acquireOctoPrintSettingsData(force),
     ]);
-    await this.cleanPrintersInformation();
+    this.cleanPrintersInformation();
   }
 
   async acquirePrinterPowerState() {
@@ -1578,22 +1386,33 @@ class OctoPrintPrinter {
     }
 
     const powerURL = createPrinterPowerURL(powerStatusURL);
-    let powerReturnState;
-    if (!!powerStatusCommand && powerStatusCommand.length === 0) {
-      powerReturnState = await this.#api.getPrinterPowerState(powerURL).catch((e) => {
-        logger.http('Failed Aquire profile data', e.toString());
-        return 900;
-      });
-    } else {
-      powerReturnState = await this.#api
-        .postPrinterPowerState(powerURL, JSON.parse(powerStatusCommand))
-        .catch((e) => {
-          logger.http('Failed Aquire profile data', e.toString());
-          return 900;
-        });
+
+    // `!!powerStatusCommand && powerStatusCommand.length === 0` needs the string
+    // to be both truthy and empty, so the GET arm never ran and JSON.parse was
+    // handed an empty command -- every 30 seconds, for every non-offline
+    // printer.
+    let body;
+    if (powerStatusCommand && powerStatusCommand.length > 0) {
+      try {
+        body = JSON.parse(powerStatusCommand);
+      } catch (e) {
+        logger.error(
+          `${this.printerURL}: power status command is not valid JSON, skipping`,
+          powerStatusCommand
+        );
+        return this.printerPowerState;
+      }
     }
 
-    if (powerReturnState.ok) {
+    const powerReturnState = await (body === undefined
+      ? this.#api.getPrinterPowerState(powerURL)
+      : this.#api.postPrinterPowerState(powerURL, body)
+    ).catch((e) => {
+      logger.http('Failed to acquire printer power state', e.toString());
+      return undefined;
+    });
+
+    if (powerReturnState?.ok) {
       this.printerPowerState = parseOctoPrintPowerResponse(await powerReturnState.json());
     }
 
@@ -1601,8 +1420,12 @@ class OctoPrintPrinter {
   }
 
   killApiTimeout() {
-    logger.debug('Clearning API Timeout');
+    logger.debug('Clearing API Timeout');
     clearTimeout(this.#reconnectTimeout);
+    // A cleared Timeout object is still truthy. Leaving it assigned made
+    // reconnectAPI's `!== false` guard permanently true, so after any
+    // killAllConnections() the printer could never schedule another reconnect.
+    this.#reconnectTimeout = false;
     this.reconnectingIn = 0;
   }
 
@@ -1725,14 +1548,23 @@ class OctoPrintPrinter {
       printTimeLeftOrigin: null,
     };
 
+    // No file is selected in a reset job, so there is no thumbnail.
     this.currentJob = JobClean.generate(
       job,
       this.selectedFilament,
-      this.fileList,
+      null,
       0,
       this.costSettings,
       progress
     );
+  }
+
+  #selectedFileThumbnail() {
+    const path = this.job?.file?.path;
+    if (!path) {
+      return null;
+    }
+    return this.fileList?.fileList?.find((file) => file.fullPath === path)?.thumbnail ?? null;
   }
 
   cleanPrintersInformation() {
@@ -1752,7 +1584,7 @@ class OctoPrintPrinter {
     this.currentJob = JobClean.generate(
       this.job,
       this.selectedFilament,
-      this.fileList,
+      this.#selectedFileThumbnail(),
       this.currentZ,
       this.costSettings,
       this.progress
@@ -1778,7 +1610,11 @@ class OctoPrintPrinter {
         const fileIndex = findIndex(this.fileList.fileList, function (o) {
           return o.fullPath === path.fullPath;
         });
-        this.fileList.fileList.splice(fileIndex, 1);
+        // splice(-1, 1) removes the LAST entry, so a miss used to delete an
+        // unrelated file from the cached list.
+        if (fileIndex > -1) {
+          this.fileList.fileList.splice(fileIndex, 1);
+        }
         deletedFiles.push(path.fullPath);
         logger.info('Deleted: ', path.fullPath);
       } else {
@@ -1799,7 +1635,9 @@ class OctoPrintPrinter {
           return o.name === path.name;
         });
 
-        this.fileList.folderList.splice(folderIndex, 1);
+        if (folderIndex > -1) {
+          this.fileList.folderList.splice(folderIndex, 1);
+        }
         deletedFolders.push(path.name);
         logger.info('Deleted Folder: ', path.name);
       } else {
@@ -1829,7 +1667,9 @@ class OctoPrintPrinter {
         const fileIndex = findIndex(this.fileList.fileList, function (o) {
           return o.fullPath === path;
         });
-        this.fileList.fileList.splice(fileIndex, 1);
+        if (fileIndex > -1) {
+          this.fileList.fileList.splice(fileIndex, 1);
+        }
       } else {
         logger.error('Failed to delete file...', path);
       }

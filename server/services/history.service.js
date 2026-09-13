@@ -2,7 +2,7 @@ const historyModel = require('../models/History');
 const {
   myCustomLabels,
   defaultPaginationOptions,
-  defaultInputFilters,
+  getDefaultInputFilters,
 } = require('../constants/history-sort.constants');
 
 /**
@@ -10,10 +10,18 @@ const {
  * @param {any} input
  * @param options
  */
-async function find(input = defaultInputFilters, options = defaultPaginationOptions) {
+async function find(input = undefined, options = defaultPaginationOptions) {
+  // Resolve the default per call so the date window tracks real time.
+  const filter = input ?? getDefaultInputFilters();
   //Merge in the custom labels used
-  options = { ...options, ...{ customLabels: myCustomLabels } };
-  return historyModel.paginate(input, options, function (err, result) {
+  options = { ...options, ...{ customLabels: myCustomLabels }, lean: true };
+  return historyModel.paginate(filter, options, function (err, result) {
+    // paginate resolves with whatever this callback returns, so a database
+    // error arrived here as (error, undefined) and `result.docs` threw a
+    // TypeError that masked the real failure.
+    if (err) {
+      throw err;
+    }
     return { itemList: result.docs, pagination: result.paginator };
   });
 }

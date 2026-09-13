@@ -7,8 +7,8 @@
 
       </div>
     </div>
-    <script src="/assets/js/panel-view.runner.<%= clientVersion %>.min.js" type="module"></script>
-    <script src="/assets/js/bulk-action-commands.functions.<%= clientVersion %>.min.js" type="module"></script>
+    <%- scriptTags('panel-view.runner') %>
+    <%- scriptTags('bulk-action-commands.functions') %>
 <% }else{ %>
   <%- include('./addPrinters.ejs') %>
 <% } %>

@@ -47,6 +47,7 @@ import Queue from '../../../services/file-manager-queue.service.js';
 import OctoPrintClient from '../../../services/octoprint/octoprint-client.service';
 import { ClientErrors } from '../../../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../../../exceptions/application-error.handler';
+import { sortBy, uniqBy } from 'lodash';
 
 const fileUploads = new Queue();
 
@@ -265,72 +266,76 @@ function setupMultiFileMode(printers, files, folder = '') {
 }
 
 function fileUpload(file) {
-  return new Promise(async function (resolve, _reject) {
-    // Grab folder location
-    const { currentFolder } = file;
-    // Grab Client Info
-    const { index } = file;
-    const { printerInfo } = file;
+  // The executor is async, so anything it throws is swallowed rather than
+  // rejecting the promise. Catch explicitly and reject.
+  return new Promise(function (resolve, reject) {
+    (async function () {
+      // Grab folder location
+      const { currentFolder } = file;
+      // Grab Client Info
+      const { index } = file;
+      const { printerInfo } = file;
 
-    // XHR doesn't like posting without it been a form, can't use offical octoprint api way...
-    // Create form data
-    const formData = new FormData();
-    let path = '';
-    if (currentFolder.includes('local/')) {
-      path = currentFolder.replace('local/', '');
-    }
-    formData.append('file', file.file);
-    formData.append('path', path);
-    if (file.print) {
-      formData.append('print', true);
-    }
-    const url = `/octoprint/${printerInfo._id}/api/files/local`;
-    const xhr = new XMLHttpRequest();
-    file = file.file;
-    xhr.open('POST', url);
-    xhr.upload.onprogress = function (e) {
-      if (e.lengthComputable) {
-        // Update progress
-        const progressBar = document.getElementById('bpUploadProgress-' + index);
-        progressBar.classList = 'progress-bar progress-bar-striped bg-warning';
-        if (progressBar) {
-          let percentLoad = (e.loaded / e.total) * 100;
-          if (isNaN(percentLoad)) {
-            percentLoad = 0;
-          }
-          progressBar.style.width = `${Math.floor(percentLoad)}%`;
-          progressBar.innerHTML = `Uploading: ${Math.floor(percentLoad)}%`;
-          if (percentLoad === 100) {
-            progressBar.classList = 'progress-bar progress-bar-striped bg-success';
+      // XHR doesn't like posting without it been a form, can't use offical octoprint api way...
+      // Create form data
+      const formData = new FormData();
+      let path = '';
+      if (currentFolder.includes('local/')) {
+        path = currentFolder.replace('local/', '');
+      }
+      formData.append('file', file.file);
+      formData.append('path', path);
+      if (file.print) {
+        formData.append('print', true);
+      }
+      const url = `/octoprint/${printerInfo._id}/api/files/local`;
+      const xhr = new XMLHttpRequest();
+      file = file.file;
+      xhr.open('POST', url);
+      xhr.upload.onprogress = function (e) {
+        if (e.lengthComputable) {
+          // Update progress
+          const progressBar = document.getElementById('bpUploadProgress-' + index);
+          progressBar.classList = 'progress-bar progress-bar-striped bg-warning';
+          if (progressBar) {
+            let percentLoad = (e.loaded / e.total) * 100;
+            if (isNaN(percentLoad)) {
+              percentLoad = 0;
+            }
+            progressBar.style.width = `${Math.floor(percentLoad)}%`;
+            progressBar.innerHTML = `Uploading: ${Math.floor(percentLoad)}%`;
+            if (percentLoad === 100) {
+              progressBar.classList = 'progress-bar progress-bar-striped bg-success';
+            }
           }
         }
-      }
-    };
+      };
 
-    xhr.setRequestHeader('X-Api-Key', printerInfo.apikey);
-    xhr.onloadend = async function () {
-      if (this.status >= 200 && this.status < 300) {
-        resolve({
-          status: bulkActionsStates.SUCCESS,
-          message: 'Successfully uploaded your file! Printing started.',
-        });
-        // Success!
-      } else {
+      xhr.setRequestHeader('X-Api-Key', printerInfo.apikey);
+      xhr.onloadend = async function () {
+        if (this.status >= 200 && this.status < 300) {
+          resolve({
+            status: bulkActionsStates.SUCCESS,
+            message: 'Successfully uploaded your file! Printing started.',
+          });
+          // Success!
+        } else {
+          resolve({
+            status: bulkActionsStates.ERROR,
+            message: 'An error occured whilst updating your file... Printing failed.',
+          });
+          // Error occured
+        }
+      };
+      xhr.onerror = function () {
         resolve({
           status: bulkActionsStates.ERROR,
-          message: 'An error occured whilst updating your file... Printing failed.',
+          message: 'An error occured whilst updating your file... printing failed.',
         });
-        // Error occured
-      }
-    };
-    xhr.onerror = function () {
-      resolve({
-        status: bulkActionsStates.ERROR,
-        message: 'An error occured whilst updating your file... printing failed.',
-      });
-      // Error occured!
-    };
-    xhr.send(formData);
+        // Error occured!
+      };
+      xhr.send(formData);
+    })().catch(reject);
   });
 }
 
@@ -1103,13 +1108,13 @@ export async function bulkOctoPrintPluginAction(action) {
       }
     }
 
-    const sortedPluginList = _.sortBy(pluginList, [
+    const sortedPluginList = sortBy(pluginList, [
       function (o) {
         return o.text;
       },
     ]);
 
-    const uniquePluginList = _.uniqBy(sortedPluginList, function (e) {
+    const uniquePluginList = uniqBy(sortedPluginList, function (e) {
       return e.text;
     });
 

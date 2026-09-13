@@ -1,20 +1,48 @@
-name: Node.js CI
+name: CI
 
+# The previous version ran a matrix of Node 14/15/16/17 -- all end of life, and
+# all below the >= 20.19.0 that server/package.json requires -- on
+# actions/checkout@v2 and actions/setup-node@v1, and its only step was
+# `npm ci`. It could not have passed.
 on:
   push:
-    branches: [ beta, master ]
+    branches: [master]
   pull_request:
+
 jobs:
-  nodejs-build:
+  build:
+    name: Lint and build
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [ 17.x, 16.x, 15.x, 14.x ]
     steps:
-      - uses: actions/checkout@v2
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-      - run: npm install -g npm
-      - run: cd server && npm ci
+          # Matches the version the monolithic image ships.
+          node-version: '24'
+
+      - name: Install root tooling
+        run: npm ci
+
+      - name: Install server dependencies
+        run: cd server && npm ci
+
+      - name: Install client dependencies
+        run: cd client && npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build the client
+        run: cd client && npm run build
+
+      # The webpack build is byte-for-byte reproducible, so a client change that
+      # was committed without rebuilding shows up here rather than shipping
+      # stale JS -- which is the failure mode this repository actually hits.
+      - name: Check the committed bundles match the sources
+        run: |
+          if ! git diff --quiet -- server/assets; then
+            echo "::error::server/assets is out of date. Run 'npm run build' and commit the result."
+            git --no-pager diff --stat -- server/assets
+            exit 1
+          fi

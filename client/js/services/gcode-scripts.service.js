@@ -159,7 +159,8 @@ async function drawScriptTable(scripts) {
   const saveButton = document.getElementById(`saveScript-${scripts._id}`);
 
   document.getElementById('deleteScript-' + scripts._id).addEventListener('click', async (e) => {
-    const delt = await OctoFarmClient.get('settings/customGcode/delete/' + scripts._id);
+    // DELETE, not GET: a GET that deletes is reachable cross-site.
+    const delt = await OctoFarmClient.delete('settings/customGcode/delete/' + scripts._id);
     if (!!delt) {
       UI.createAlert('success', 'Successfully deleted your script...', 3000, 'Clicked');
       document.getElementById('scriptRow-' + scripts._id).remove();

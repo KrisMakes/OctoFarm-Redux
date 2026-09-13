@@ -16,25 +16,21 @@ const addClientConnection = (req, res) => {
     Expires: 0,
     Connection: 'keep-alive',
   };
+  // The route now carries ensureAuthenticated and layout.ejs only loads the
+  // events bundle for a signed-in user, so this can refuse before writing the
+  // stream preamble rather than after it.
+  if (!req?.user) {
+    return res.sendStatus(401);
+  }
+
   res.writeHead(200, headers);
-  res.write('\n');
+  // Sticky per connection, so it only needs sending once -- this used to be
+  // written ahead of every single message.
+  res.write('retry: 10000\n\n');
 
   // Add a new client that just connected
   // Store the id and the whole response object with a clone of the user information
   // Limitations it doesn't update user information, don't think it's needed
-  //
-  // This deliberately leaves the 200 and the preamble already written rather than
-  // answering 401. The login page renders through layout.ejs, which loads
-  // events.service.js and opens this stream unconditionally, and that client
-  // draws a "server connection lost" modal plus a backoff retry loop on *any*
-  // non-200. Returning a status here is therefore user-visible breakage on the
-  // login screen. The idle stream costs one connection that the browser closes
-  // on navigation; closing it properly needs layout.ejs to stop loading the
-  // events bundle when nobody is signed in.
-  if (!req?.user) {
-    // On login page... no user available... do not register connection
-    return;
-  }
 
   // A monotonic counter, not Date.now(): two clients connecting in the same
   // millisecond shared an id, and removeClient's filter then dropped both when
@@ -115,7 +111,6 @@ const notifySubscribers = (id, type, message, printerInfo = undefined) => {
 
     clientList.forEach((client) => {
       try {
-        client.res.write(`retry: ${10000}\n`);
         client.res.write(`data: ${serialisedPayload}\n\n`);
       } catch (e) {
         // Socket died between its 'close' event firing and this write.

@@ -79,15 +79,36 @@ export default class UI {
     return alert;
   }
 
+  /**
+   * Write to an element only when the value has actually changed.
+   *
+   * Two problems with the previous version:
+   *  - it compared with JSON.stringify on both sides. For meta "innerHTML" that
+   *    forced the browser to serialise the whole subtree and then allocated two
+   *    more copies of both strings, so the guard cost more than the write it
+   *    was avoiding.
+   *  - for meta "classList", element.classList is a DOMTokenList with no own
+   *    enumerable properties, so JSON.stringify returned "{}" every time. The
+   *    comparison could never match and the class attribute was rewritten on
+   *    every tick, for every printer.
+   *  - the `!value` early return made it impossible to clear a field to "" or 0.
+   */
   static doesElementNeedUpdating(value, element, meta) {
-    if (!value || !element || !meta) {
+    if (value === undefined || value === null || !element || !meta) {
       return;
     }
-    //Quick check to see if the UI value differs, if so update.
-    if (element) {
-      if (JSON.stringify(value) !== JSON.stringify(element[meta])) {
-        element[meta] = value;
+
+    // classList is read-only as an object; its [PutForwards=value] setter writes
+    // the class attribute. Compare against className, which is a plain string.
+    if (meta === 'classList') {
+      if (element.className !== value) {
+        element.className = value;
       }
+      return;
+    }
+
+    if (element[meta] !== value) {
+      element[meta] = value;
     }
   }
 

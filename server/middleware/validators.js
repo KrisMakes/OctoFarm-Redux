@@ -11,26 +11,10 @@ const errorMessage = (req) => {
   return `Invalid body input detected in ${req.protocol}://${req.get('host')}${req.originalUrl}`;
 };
 
-// REFACTOR should be a utility -_-
-const arrayValidator = function arrayLengthValidator(minIncl = null, maxIncl = null) {
-  return (arrayValue) => {
-    let isMinLength = true;
-    let isMaxLength = true;
-    if (!!minIncl) {
-      isMinLength = arrayValue.length >= minIncl;
-    }
-    if (!!maxIncl) {
-      isMaxLength = arrayValue.length <= maxIncl;
-    }
-    return isMinLength && isMaxLength;
-  };
-};
-
 function validateMongoURL(mongoURL) {
-  const mongoString = mongoURL.toLowerCase();
+  const mongoString = String(mongoURL).toLowerCase();
   const hasMongoPrefix =
-    mongoString.toLowerCase().includes('mongodb://') ||
-    mongoString.toLowerCase().includes('mongodb+srv://');
+    mongoString.includes('mongodb://') || mongoString.includes('mongodb+srv://');
 
   // const hasOctoFarmTable = mongoString.includes("/octofarm");
   // this should not be a validation rule on mongo... people can call their database whatever they like!
@@ -40,13 +24,31 @@ function validateMongoURL(mongoURL) {
   };
 }
 //REFACTOR this needs splitting up for each section of the app
+// Registered once at module load. getExtendedValidator() used to run all five
+// nodeInputValidator.extend() calls against the module-level singleton on every
+// single validated request.
+let rulesRegistered = false;
+
 function getExtendedValidator() {
-  nodeInputValidator.extend('wss_url', ({ value, args }) => {
-    const url = new URL(value).href;
-    return url.includes('ws://') || url.includes('wss://');
+  if (rulesRegistered) {
+    return nodeInputValidator;
+  }
+  rulesRegistered = true;
+
+  nodeInputValidator.extend('wss_url', ({ value }) => {
+    try {
+      const url = new URL(value).href;
+      return url.startsWith('ws://') || url.startsWith('wss://');
+    } catch (e) {
+      // new URL throws on anything that is not a URL at all.
+      return false;
+    }
   });
-  nodeInputValidator.extend('mongoose_object_id', async ({ value, args }) => {
-    return mongoose.Types.ObjectId.isValid(value) || typeof value !== 'undefined';
+  nodeInputValidator.extend('mongoose_object_id', async ({ value }) => {
+    // Was `isValid(value) || typeof value !== "undefined"`, whose second clause
+    // is true for every defined value -- so this validated nothing at all on
+    // the ~15 routes that use it.
+    return mongoose.Types.ObjectId.isValid(value);
   });
   //FIX this needs a custom message passing back out, can remove the logger then.
   nodeInputValidator.extend('settings_appearance', async ({ value, args }) => {
@@ -59,13 +61,13 @@ function getExtendedValidator() {
     const nameValid = typeof name === 'string' && name.length < 50; // Can be blank, must be less than 50 characters
     const showFahrenheitAlsoValid = typeof showFahrenheitAlso === 'boolean';
 
-    logger.info(`
-      Color is Valid: ${colorValid},
-      Colour Transparent is Valid: ${colorTransparentValid},
-      Default Language is Valid: ${defaultLanguageValid},
-      Name is Valid: ${nameValid},
-      Show Fahrenheit Is Valid: ${showFahrenheitAlsoValid}
-    `);
+    logger.debug('settings_appearance validation', {
+      colorValid,
+      colorTransparentValid,
+      defaultLanguageValid,
+      nameValid,
+      showFahrenheitAlsoValid,
+    });
 
     return ![
       colorValid,
@@ -118,10 +120,13 @@ function validateBodyMiddleware(rules) {
 }
 
 function dealWithError(e, req, res) {
-  logger.error(errorMessage(req), e);
-  res.statusCode = 400;
-  res.statusMessage = e;
-  return res.send(e);
+  logger.error(errorMessage(req), e?.errors ?? e?.message ?? String(e));
+  // res.statusMessage = e put an exception object into the HTTP status line.
+  // Send the field errors, not the validator's internals.
+  return res.status(400).send({
+    message: 'Invalid request',
+    errors: e?.errors ?? undefined,
+  });
 }
 
 function validateParamsMiddleware(rules) {
@@ -138,7 +143,6 @@ function validateParamsMiddleware(rules) {
 }
 
 module.exports = {
-  arrayValidator,
   validateBodyMiddleware,
   validateParamsMiddleware,
   validateInput,

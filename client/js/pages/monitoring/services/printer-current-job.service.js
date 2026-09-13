@@ -10,6 +10,7 @@ import {
 import ApexCharts from 'apexcharts';
 import UI from '../../../utils/ui';
 import { setupModalSwitcher } from './modal-switcher.service';
+import { findIndex } from 'lodash';
 
 let chart = null;
 let chartTimer = 0;
@@ -113,7 +114,7 @@ export const initialiseCurrentJobPopover = (index, printers, printerControlList)
   //clear camera
   if (index !== '') {
     currentIndex = index;
-    const id = _.findIndex(printers, function (o) {
+    const id = findIndex(printers, function (o) {
       return o._id === index;
     });
     currentPrinter = printers[id];
@@ -128,7 +129,7 @@ export const initialiseCurrentJobPopover = (index, printers, printerControlList)
     updateCurrentJobStatus(currentPrinter, elements);
     chartTimer = 0;
   } else {
-    const id = _.findIndex(printers, function (o) {
+    const id = findIndex(printers, function (o) {
       return o._id === currentIndex;
     });
     currentPrinter = printers[id];

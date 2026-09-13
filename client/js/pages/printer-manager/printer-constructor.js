@@ -1,6 +1,7 @@
 import Validate from '../../utils/validate';
 import UI from '../../utils/ui';
 import OctoFarmClient from '../../services/octofarm-client.service.js';
+import { findIndex } from 'lodash';
 
 let newPrintersIndex = 0;
 
@@ -218,7 +219,7 @@ export class PrintersManagement {
     let printCheck = -1;
     if (printerURL.value !== '') {
       const printerInfo = await OctoFarmClient.listPrinters();
-      printCheck = _.findIndex(printerInfo, function (o) {
+      printCheck = findIndex(printerInfo, function (o) {
         return JSON.stringify(o.printerURL) === JSON.stringify(printerURL.value);
       });
     }

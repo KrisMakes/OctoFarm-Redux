@@ -16,6 +16,7 @@ import {
 import { daysBetweenTwoDates, getFirstDayOfLastMonth } from '../js/utils/date.utils';
 import Litepicker from 'litepicker';
 import { dashboardOptions } from '../js/pages/charts/dashboard.options';
+import { findIndex } from 'lodash';
 
 let timelapseCount;
 let snapshotCount;
@@ -1231,7 +1232,7 @@ class History {
       thumbnail.innerHTML = '';
       thumbnailIndicators.innerHTML = '';
       const split = e.target.id.split('-');
-      const index = _.findIndex(this.historyList, function (o) {
+      const index = findIndex(this.historyList, function (o) {
         return o._id == split[1];
       });
       const current = this.historyList[index];
@@ -1380,7 +1381,7 @@ class History {
       thumbnail.innerHTML = '';
       thumbnailIndicators.innerHTML = '';
       const split = e.target.id.split('-');
-      const index = _.findIndex(this.historyList, function (o) {
+      const index = findIndex(this.historyList, function (o) {
         return o._id == split[1];
       });
       const current = this.historyList[index];

@@ -65,7 +65,7 @@ export async function updateOctoPrintClient(printer) {
     UI.createAlert(
       'success',
       'OctoPrint responded with a status of: ' +
-        post.status +
+        updateRequest.status +
         '... there may be bugs on your instance!',
       3000,
       'clicked'
@@ -74,7 +74,7 @@ export async function updateOctoPrintClient(printer) {
       status: bulkActionsStates.ERROR,
       message:
         'OctoPrint responded with a status of: ' +
-        post.status +
+        updateRequest.status +
         '... there may be bugs on your instance!',
     };
   }

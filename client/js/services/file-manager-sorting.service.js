@@ -1,5 +1,6 @@
 import FileManagerService from './file-manager.service.js';
 import OctoFarmClient from './octofarm-client.service';
+import { sortBy } from 'lodash';
 
 export default class FileManagerSortingService {
   static saveSort(meta, reverse) {
@@ -80,12 +81,12 @@ export default class FileManagerSortingService {
   static sortFileName(printer, reverse, recursive) {
     const sortHeader = document.getElementById('fileSortDropdownMenu');
     if (sortHeader) {
-      printer.fileList.fileList = _.sortBy(printer.fileList.fileList, [
+      printer.fileList.fileList = sortBy(printer.fileList.fileList, [
         function (o) {
           return o.display;
         },
       ]);
-      printer.fileList.folderList = _.sortBy(printer.fileList.folderList, [
+      printer.fileList.folderList = sortBy(printer.fileList.folderList, [
         function (o) {
           return o.name;
         },
@@ -106,12 +107,12 @@ export default class FileManagerSortingService {
   static sortUploadDate(printer, reverse, recursive) {
     const sortHeader = document.getElementById('fileSortDropdownMenu');
     if (sortHeader) {
-      printer.fileList.fileList = _.sortBy(printer.fileList.fileList, [
+      printer.fileList.fileList = sortBy(printer.fileList.fileList, [
         function (o) {
           return o.uploadDate;
         },
       ]);
-      printer.fileList.folderList = _.sortBy(printer.fileList.folderList, [
+      printer.fileList.folderList = sortBy(printer.fileList.folderList, [
         function (o) {
           return o.name;
         },
@@ -132,12 +133,12 @@ export default class FileManagerSortingService {
   static sortPrintTime(printer, reverse, recursive) {
     const sortHeader = document.getElementById('fileSortDropdownMenu');
     if (sortHeader) {
-      printer.fileList.fileList = _.sortBy(printer.fileList.fileList, [
+      printer.fileList.fileList = sortBy(printer.fileList.fileList, [
         function (o) {
           return o.expectedPrintTime;
         },
       ]);
-      printer.fileList.folderList = _.sortBy(printer.fileList.folderList, [
+      printer.fileList.folderList = sortBy(printer.fileList.folderList, [
         function (o) {
           return o.name;
         },

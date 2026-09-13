@@ -1,15 +1,16 @@
 import Calc from '../js/utils/calc.js';
 import OctoPrintClient from '../js/services/octoprint/octoprint-client.service.js';
+import { difference, findIndex, orderBy } from 'lodash';
 
 let printers = [];
 const resetFile = function (id) {
-  const i = _.findIndex(printers, function (o) {
+  const i = findIndex(printers, function (o) {
     return o._id == id;
   });
   OctoPrintClient.file(printers[i], printers[i].currentJob.filePath, 'load');
 };
 const rePrint = function (id) {
-  const i = _.findIndex(printers, function (o) {
+  const i = findIndex(printers, function (o) {
     return o._id == id;
   });
   OctoPrintClient.file(printers[i], printers[i].currentJob.filePath, 'print');
@@ -47,7 +48,7 @@ function currentOperationsView(currentOperations, currentOperationsCount, printe
     'farmProgress'
   ).classList = `progress-bar progress-bar-striped bg-${currentOperationsCount.farmProgressColour}`;
 
-  currentOperations = _.orderBy(currentOperations, ['progress'], ['desc']);
+  currentOperations = orderBy(currentOperations, ['progress'], ['desc']);
 
   currentOperations.forEach((current, index) => {
     // Generate future time
@@ -61,7 +62,9 @@ function currentOperationsView(currentOperations, currentOperationsCount, printe
     const restartPrint = `<button id='restartCurrentPrint-${current.index}' type='button' title="Restart your current selected print" class='tag btn btn-warning btn-sm mt-0 pt-0 pb-0'>Restart Print</button>`;
     // check if exists, create if not....
     let fileName = null;
-    if (typeof current.fileName !== undefined) {
+    // Was `typeof ... !== undefined`, comparing a string against the
+    // undefined value, so it was always true.
+    if (typeof current.fileName === 'string') {
       fileName = current.fileName.replace('.gcode', '');
       if (fileName.length > 15) {
         fileName.substring(0, 16);
@@ -159,7 +162,7 @@ function currentOperationsView(currentOperations, currentOperationsCount, printe
       const ca = card.id.split('-');
       cards.push(ca[1]);
     });
-    const remove = _.difference(cards, curr);
+    const remove = difference(cards, curr);
     remove.forEach((rem) => {
       document.getElementById('viewPanel-' + rem).remove();
     });

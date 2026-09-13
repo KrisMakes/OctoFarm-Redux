@@ -11,6 +11,22 @@ const { ErrorCaptureService } = require('../../error-capture.service');
 const { LOGGER_ROUTE_KEYS } = require('../../../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.OP_UTIL_EVENTS);
 
+/**
+ * Fire the user's local script for an OctoPrint event.
+ *
+ * Thirty capture functions each repeated this same
+ * .check(...).then(log).catch(log) block verbatim.
+ */
+const runEventScript = (id, eventName) => {
+  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), eventName, undefined)
+    .then((res) => {
+      logger.debug(`Successfully checked ${eventName} script`, res);
+    })
+    .catch((e) => {
+      logger.error(`Failed to check ${eventName} script`, e.toString());
+    });
+};
+
 const tickerWrapper = (id, state, message) => {
   PrinterTicker.addIssue(new Date(), getPrinterStoreCache().getPrinterURL(id), message, state, id);
 };
@@ -20,7 +36,7 @@ const captureClientAuthed = (id, data) => {
   if (!networkIpAddresses) networkIpAddresses = [];
   const { remoteAddress, username } = data;
 
-  let detectedAddress = 'Socked Authed for: ';
+  let detectedAddress = 'Socket authed for: ';
 
   if (networkIpAddresses.includes(parseOutIPAddress(remoteAddress))) {
     detectedAddress += process.env[AppConstants.OCTOFARM_SITE_TITLE_KEY];
@@ -44,16 +60,10 @@ const captureClientAuthed = (id, data) => {
       detectedUser += currentUser;
   }
   const message = `${detectedAddress} with user: ${detectedUser}`;
-  logger.warning(message);
+  // Routine: fires whenever anyone opens OctoPrint's own web UI.
+  logger.debug(message);
   tickerWrapper(id, 'Complete', message);
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'clientauthed', undefined)
-    .then((res) => {
-      logger.info('Successfully checked client authed script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check client authed script', e);
-    });
+  runEventScript(id, 'clientauthed');
 };
 const captureClientClosed = (id, data) => {
   let { networkIpAddresses } = SystemRunner.returnInfo();
@@ -64,16 +74,9 @@ const captureClientClosed = (id, data) => {
   const detectedAddress =
     'Socket was closed for: ' + matchRemoteAddressToOctoFarm(networkIpAddresses, remoteAddress);
 
-  logger.warning(detectedAddress);
+  logger.debug(detectedAddress);
   tickerWrapper(id, 'Info', detectedAddress);
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'clientclosed', undefined)
-    .then((res) => {
-      logger.info('Successfully checked client closed script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check client closed script', e);
-    });
+  runEventScript(id, 'clientclosed');
 };
 const captureClientOpened = (id, data) => {
   let { networkIpAddresses } = SystemRunner.returnInfo();
@@ -84,63 +87,24 @@ const captureClientOpened = (id, data) => {
   const detectedAddress =
     'Socket Opened for: ' + matchRemoteAddressToOctoFarm(networkIpAddresses, remoteAddress);
 
-  logger.warning(detectedAddress);
+  logger.debug(detectedAddress);
   tickerWrapper(id, 'Info', detectedAddress);
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'clientopened', undefined)
-    .then((res) => {
-      logger.info('Successfully checked client opened script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check client opened script', e);
-    });
+  runEventScript(id, 'clientopened');
 };
 const captureConnected = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'connected', undefined)
-    .then((res) => {
-      logger.info('Successfully checked connected script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check connected script', e);
-      return e;
-    });
+  runEventScript(id, 'connected');
 };
 const captureDisconnecting = (id, data) => {
   getPrinterStoreCache().resetThrottleRate(id);
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'disconnecting', undefined)
-    .then((res) => {
-      logger.info('Successfully checked disconnecting script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check disconnecting script', e);
-      return e;
-    });
+  runEventScript(id, 'disconnecting');
 };
 const captureDisconnected = (id, data) => {
   getPrinterStoreCache().resetThrottleRate(id);
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'disconnected', undefined)
-    .then((res) => {
-      logger.info('Successfully checked disconnected script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check disconnected script', e);
-      return e;
-    });
+  runEventScript(id, 'disconnected');
   getPrinterStoreCache().reRunJobCleaner(id);
 };
 const captureDwelling = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'dwelling', undefined)
-    .then((res) => {
-      logger.info('Successfully checked dwelling script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check dwelling script', e);
-      return e;
-    });
+  runEventScript(id, 'dwelling');
 };
 const captureError = (id, data) => {
   const currentPrinterInfo = getPrinterStoreCache().getPrinterInformation(id);
@@ -158,37 +122,13 @@ const captureError = (id, data) => {
     });
 };
 const captureFileAdded = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'fileadded', undefined)
-    .then((res) => {
-      logger.info('Successfully checked file added script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check file added script', e);
-      return e;
-    });
+  runEventScript(id, 'fileadded');
 };
 const captureFileDeselected = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'filedeselected', undefined)
-    .then((res) => {
-      logger.info('Successfully checked file deselected script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check file deselected script', e);
-      return e;
-    });
+  runEventScript(id, 'filedeselected');
 };
 const captureFileRemoved = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'fileremoved', undefined)
-    .then((res) => {
-      logger.info('Successfully checked file removed script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check fil eremoved script', e);
-      return e;
-    });
+  runEventScript(id, 'fileremoved');
 };
 const captureFirmwareData = (id, data) => {
   logger.debug('Firmware data', data);
@@ -205,61 +145,23 @@ const captureFirmwareData = (id, data) => {
   }
 };
 const captureFolderAdded = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'folderadded', undefined)
-    .then((res) => {
-      logger.info('Successfully checked folder added script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check folder added script', e);
-      return e;
-    });
+  runEventScript(id, 'folderadded');
 };
 const captureFolderRemoved = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'folderremoved', undefined)
-    .then((res) => {
-      logger.info('Successfully checked folder removed script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check folder removed script', e);
-      return e;
-    });
+  runEventScript(id, 'folderremoved');
 };
 const captureHome = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'homed', undefined)
-    .then((res) => {
-      logger.info('Successfully checked homed script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check homed script', e);
-      return e;
-    });
+  runEventScript(id, 'homed');
 };
 
 //WTF Why is this returning a promise!?
 const captureMetadataAnalysisFinished = async (id, data) => {
   await getPrinterStoreCache().updateFileInformation(id, data);
 
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'metadatafinished', undefined)
-    .then((res) => {
-      logger.info('Successfully checked metadata finished script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check metadata finished script', e);
-    });
+  runEventScript(id, 'metadatafinished');
 };
 const captureMetadataAnalysisStarted = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'metadatastarted', undefined)
-    .then((res) => {
-      logger.info('Successfully checked metadata started script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check metadata started script', e);
-    });
+  runEventScript(id, 'metadatastarted');
 };
 const captureMetadataStatisticsUpdated = (id, data) => {
   getPrinterStoreCache()
@@ -271,44 +173,16 @@ const captureMetadataStatisticsUpdated = (id, data) => {
     .catch((e) => {
       logger.error('Failed to automatically update file information', e);
     });
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'metadataupdated', undefined)
-    .then((res) => {
-      logger.info('Successfully checked metadata updated script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check metadata updated script', e);
-    });
+  runEventScript(id, 'metadataupdated');
 };
 const capturePositionUpdate = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'positionupdated', undefined)
-    .then((res) => {
-      logger.info('Successfully checked position updated script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check position updated script', e);
-    });
+  runEventScript(id, 'positionupdated');
 };
 const capturePrintCancelled = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'cancelled', undefined)
-    .then((res) => {
-      logger.info('Successfully checked cancelled script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check cancelled script', e);
-    });
+  runEventScript(id, 'cancelled');
 };
 const capturePrintCancelling = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'cancelling', undefined)
-    .then((res) => {
-      logger.info('Successfully checked cancelling script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check cancelling script', e);
-    });
+  runEventScript(id, 'cancelling');
 };
 
 const printCaptureHelper = (id, data, state) => {
@@ -340,74 +214,25 @@ const captureFinishedPrint = (id, data) => {
   printCaptureHelper(id, data, true);
 };
 const capturePrintPaused = (id) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'paused', undefined)
-    .then((res) => {
-      logger.info('Successfully checked paused script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check paused script', e);
-    });
+  runEventScript(id, 'paused');
 };
 const capturePrintStarted = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'started', undefined)
-    .then((res) => {
-      logger.info('Successfully checked started script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check started script', e);
-    });
+  runEventScript(id, 'started');
 };
 const capturePrinterStateChanged = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'statechange', undefined)
-    .then((res) => {
-      logger.info('Successfully checked statechange script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check statechange script', e);
-    });
+  runEventScript(id, 'statechange');
 };
 const captureTransferDone = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'fileupload', undefined)
-    .then((res) => {
-      logger.info('Successfully checked file upload script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check file upload script', e);
-    });
+  runEventScript(id, 'fileupload');
 };
 const captureTransferStarted = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'fileuploading', undefined)
-    .then((res) => {
-      logger.info('Successfully checked file uploading script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check file uploading script', e);
-    });
+  runEventScript(id, 'fileuploading');
 };
 const captureUpdatedFiles = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'fileupdate', undefined)
-    .then((res) => {
-      logger.info('Successfully checked file update script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check file update script', e);
-    });
+  runEventScript(id, 'fileupdate');
 };
 const captureUpload = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'fileupload', undefined)
-    .then((res) => {
-      logger.info('Successfully checked file upload script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check file upload script', e);
-    });
+  runEventScript(id, 'fileupload');
 };
 const captureUserLoggedOut = (id, data) => {
   const currentUser = getPrinterStoreCache().getCurrentUser(id);
@@ -446,14 +271,7 @@ const captureUserLoggedIn = (id, data) => {
   tickerWrapper(id, 'Info', detectedUser + hasLoggedIn);
 };
 const captureZChange = (id, data) => {
-  ScriptRunner.check(getPrinterStoreCache().getPrinter(id), 'zchange', undefined)
-    .then((res) => {
-      logger.debug('Successfully checked zchange script', res);
-      return res;
-    })
-    .catch((e) => {
-      logger.error('Failed to check zchange script', e);
-    });
+  runEventScript(id, 'zchange');
 };
 
 module.exports = {

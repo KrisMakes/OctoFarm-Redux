@@ -345,7 +345,7 @@
                 </div>
             </div>
         </div>
-    <script src="/assets/js/file-manager.runner.<%= clientVersion %>.min.js" type="module"></script>
+    <%- scriptTags('file-manager.runner') %>
 <% }else{ %>
     <%- include('./addPrinters.ejs') %>
 <% } %>

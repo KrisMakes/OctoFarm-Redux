@@ -16,14 +16,16 @@ const { floatOrZero } = require('../utils/number.util');
 const { toTimeFormat } = require('../utils/time.util');
 const { last12Month } = require('../utils/date.utils');
 const { orderBy } = require('lodash');
-const { SettingsClean } = require('./settings-cleaner.service');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
-let logger;
+
+// Module-level logger for the static methods. There used to be a bare
+// `let logger;` here that was never assigned, so assignYCumSum's catch block
+// threw a TypeError on top of whatever it was catching.
+const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_HISTORY_CLEANER);
 
 class HistoryCleanerService {
   historyService = null;
   enableLogging = false;
-  logger = logger;
   historyClean = [];
   pagination = {};
   statisticsClean = getDefaultHistoryStatistics();
@@ -126,7 +128,7 @@ class HistoryCleanerService {
       }
       return newObj;
     } catch (e) {
-      logger.error(e, 'ERROR with convert incremental');
+      logger.error('Failed to convert to an incremental series', e.toString());
     }
   }
 
@@ -756,33 +758,53 @@ class HistoryCleanerService {
    * Set the initial state for the history cache
    * @returns {Promise<{historyArray: *[], pagination, statistics: {currentFailed: *, historyByDay: *[], usageOverTime: *[], totalPrinterCost, highestFilamentUsage: string, completed: number, failed: number, failedPercent: string, lowestFilamentUsage: string, printerLoad: string, totalFilamentUsage: string, totalSpoolCost, highestSpoolCost: string, completedPercent: string, longestPrintTime: string, printerMost: string, cancelledPercent: string, highestPrinterCost: string, shortestPrintTime: string, averageFilamentUsage: string, averagePrintTime: string, cancelled: number, mostPrintedFile: string, totalByDay: *[]}}>}
    */
-  async initCache(findOptions = undefined, paginationOptions = undefined) {
-    let returnData = false;
-    if (!!paginationOptions) {
-      returnData = true;
-    }
-
+  /**
+   * Read and clean a slice of history WITHOUT touching the shared cache.
+   *
+   * initCache used to do both jobs, assigning this.historyClean unconditionally
+   * even on the "just hand me a filtered slice" path. generatePrinterStatistics
+   * calls that path once per printer every ten minutes with a per-printer
+   * filter, so when it finished the process-wide cache held only the last
+   * printer's prints -- and routes/index.js renders /history and /filament
+   * straight out of it.
+   *
+   * @returns {Promise<{historyClean: *[], statisticsClean: Object, pagination: Object}>}
+   */
+  async queryHistory(findOptions = undefined, paginationOptions = undefined) {
     const { itemList, pagination } = await this.historyService.find(findOptions, paginationOptions);
 
     const historyEntities = itemList ?? [];
 
-    if (!historyEntities?.length) {
-      return itemList;
-    }
-
-    const historyArray = this.generateDataSummary(itemList);
-
-    this.historyClean = historyArray;
-    this.statisticsClean = this.generateStatistics(historyArray);
-    this.pagination = pagination;
-
-    if (returnData) {
+    if (!historyEntities.length) {
+      // Always the same shape, so callers can destructure without a guard.
       return {
-        historyClean: historyArray,
-        statisticsClean: this.generateStatistics(historyArray),
-        pagination,
+        historyClean: [],
+        statisticsClean: getDefaultHistoryStatistics(),
+        pagination: pagination ?? {},
       };
     }
+
+    const historyClean = this.generateDataSummary(historyEntities);
+
+    return {
+      historyClean,
+      statisticsClean: this.generateStatistics(historyClean),
+      pagination: pagination ?? {},
+    };
+  }
+
+  /**
+   * Set the initial state for the shared history cache.
+   * @returns {Promise<{historyClean: *[], statisticsClean: Object, pagination: Object}>}
+   */
+  async initCache(findOptions = undefined, paginationOptions = undefined) {
+    const result = await this.queryHistory(findOptions, paginationOptions);
+
+    this.historyClean = result.historyClean;
+    this.statisticsClean = result.statisticsClean;
+    this.pagination = result.pagination;
+
+    return result;
   }
 }
 

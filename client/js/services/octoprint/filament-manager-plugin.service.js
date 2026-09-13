@@ -1,8 +1,9 @@
 import OctoFarmClient from '../octofarm-client.service';
+import { isEmpty } from 'lodash';
 let filamentManagerSettings = {};
 
 export async function isFilamentManagerPluginSyncEnabled() {
-  if (_.isEmpty(filamentManagerSettings)) {
+  if (isEmpty(filamentManagerSettings)) {
     const {
       filament: { allowMultiSelect },
     } = await OctoFarmClient.get('settings/server/get');
