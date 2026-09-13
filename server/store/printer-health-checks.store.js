@@ -1,4 +1,4 @@
-const { getPrinterStoreCache } = require("../cache/printer-store.cache");
+const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const {
   printerChecks,
   apiChecksRequired,
@@ -6,10 +6,10 @@ const {
   websocketChecks,
   printerConnectionCheck,
   profileChecks,
-  webcamChecks
-} = require("../services/printer-health-checks.service");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+  webcamChecks,
+} = require('../services/printer-health-checks.service');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.STORE_HEALTH_CHECKS);
 
 let printerHealthChecks = [];
@@ -21,7 +21,7 @@ let printerHealthChecks = [];
  */
 const returnPrinterHealthChecks = (force = false) => {
   if (force) {
-    logger.debug("Running printer health check.", { force });
+    logger.debug('Running printer health check.', { force });
     updatePrinterHealthChecks().then();
   }
   return printerHealthChecks;
@@ -32,10 +32,10 @@ const updatePrinterHealthChecks = async () => {
   printerHealthChecks = [];
   for (const printer of farmPrinters) {
     if (
-      printer.printerState.colour.category !== "Offline" &&
-      printer.printerState.colour.category !== "Info"
+      printer.printerState.colour.category !== 'Offline' &&
+      printer.printerState.colour.category !== 'Info'
     ) {
-      logger.debug("Checking printer", { printer: printer.printerURL });
+      logger.debug('Checking printer', { printer: printer.printerURL });
       const currentURL = new URL(printer.printerURL);
 
       const printerCheck = {
@@ -48,9 +48,9 @@ const updatePrinterHealthChecks = async () => {
         websocketChecks: websocketChecks(currentURL.host),
         connectionChecks: printerConnectionCheck(printer.connectionOptions),
         profileChecks: profileChecks(printer.currentProfile),
-        webcamChecks: webcamChecks(printer.camURL, printer?.otherSettings?.webCamSettings)
+        webcamChecks: webcamChecks(printer.camURL, printer?.otherSettings?.webCamSettings),
       };
-      logger.debug("Printer checked", { printer: printer.printerURL });
+      logger.debug('Printer checked', { printer: printer.printerURL });
       checkAndUpdatePrinterFlag(printer._id, printerCheck);
 
       printerHealthChecks.push(printerCheck);
@@ -68,7 +68,7 @@ const checkAndUpdatePrinterFlag = (id, checks) => {
 
   if (!printerURL || !webSocketURL || !cameraURL || !match) {
     healthChecksPass = false;
-    healthCheckFailures.push("Printer Settings");
+    healthCheckFailures.push('Printer Settings');
   }
 
   const { userCheck, stateCheck, profileCheck, settingsCheck, systemCheck } =
@@ -76,40 +76,40 @@ const checkAndUpdatePrinterFlag = (id, checks) => {
 
   if (!userCheck || !stateCheck || !profileCheck || !settingsCheck || !systemCheck) {
     healthChecksPass = false;
-    healthCheckFailures.push("Required API");
+    healthCheckFailures.push('Required API');
   }
 
   const { totalPingPong } = checks.websocketChecks;
 
   if (totalPingPong > 5) {
     healthChecksPass = false;
-    healthCheckFailures.push("Websocket Connection");
+    healthCheckFailures.push('Websocket Connection');
   }
 
   const { baud, port, profile } = checks.connectionChecks;
 
   if (!baud || !port || !profile) {
     healthChecksPass = false;
-    healthCheckFailures.push("Printer Connection Defaults");
+    healthCheckFailures.push('Printer Connection Defaults');
   }
 
   const { camSetup, historySetup } = checks.webcamChecks;
 
   if (!camSetup) {
     healthChecksPass = false;
-    healthCheckFailures.push("Webcam Settings");
+    healthCheckFailures.push('Webcam Settings');
   }
 
   const { ffmpegPath, ffmpegVideoCodex, timelapseEnabled } = historySetup;
   if (!ffmpegPath || !ffmpegVideoCodex || !timelapseEnabled) {
     healthChecksPass = false;
-    healthCheckFailures.push("History Collection Settings");
+    healthCheckFailures.push('History Collection Settings');
   }
 
   const log_throttle = {};
   const log_timeout = {};
 
-  logger.debug("Results: ", {
+  logger.debug('Results: ', {
     printer: { printerURL, webSocketURL, cameraURL, match },
     api_required: { userCheck, stateCheck, profileCheck, settingsCheck, systemCheck },
     ping_pong: { totalPingPong },
@@ -117,16 +117,16 @@ const checkAndUpdatePrinterFlag = (id, checks) => {
     cam_setup: { camSetup },
     history_setup: { ffmpegPath, ffmpegVideoCodex, timelapseEnabled },
     log_throttle,
-    log_timeout
+    log_timeout,
   });
 
   getPrinterStoreCache().updatePrinterLiveValue(id, {
     healthChecksPass: healthChecksPass,
-    healthCheckFailures: healthCheckFailures
+    healthCheckFailures: healthCheckFailures,
   });
 };
 
 module.exports = {
   returnPrinterHealthChecks,
-  updatePrinterHealthChecks
+  updatePrinterHealthChecks,
 };

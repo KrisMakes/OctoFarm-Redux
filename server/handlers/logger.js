@@ -1,21 +1,21 @@
-const winston = require("winston");
-const { AppConstants } = require("../constants/app.constants");
-const { logRouteToFileMap } = require("../constants/logger.constants")
+const winston = require('winston');
+const { AppConstants } = require('../constants/app.constants');
+const { logRouteToFileMap } = require('../constants/logger.constants');
 
-const dtFormat = new Intl.DateTimeFormat("en-GB", {
-  timeStyle: "medium",
-  dateStyle: "short",
-  timeZone: "UTC"
+const dtFormat = new Intl.DateTimeFormat('en-GB', {
+  timeStyle: 'medium',
+  dateStyle: 'short',
+  timeZone: 'UTC',
 });
 
 const COLOURS = {
-  RED: "\033[0;31m",
-  YELLOW: "\033[1;33m",
-  ORANGE: "\033[0;33m",
-  BLUE: "\033[0;34m",
-  PURPLE: "\033[0;35m",
-  WHITE: "\033[1;37m",
-  CYAN: "\033[0;32m"
+  RED: '\033[0;31m',
+  YELLOW: '\033[1;33m',
+  ORANGE: '\033[0;33m',
+  BLUE: '\033[0;34m',
+  PURPLE: '\033[0;35m',
+  WHITE: '\033[1;37m',
+  CYAN: '\033[0;32m',
 };
 
 const COLOUR_MAP = {
@@ -24,7 +24,7 @@ const COLOUR_MAP = {
   debug: COLOURS.ORANGE,
   error: COLOURS.RED,
   http: COLOURS.PURPLE,
-  silly: COLOURS.CYAN
+  silly: COLOURS.CYAN,
 };
 
 const LEVELS = {
@@ -34,7 +34,7 @@ const LEVELS = {
   info: 3,
   verbose: 4,
   debug: 5,
-  silly: 6
+  silly: 6,
 };
 
 dateFormat = () => {
@@ -56,7 +56,7 @@ class LoggerService {
         const date = dateFormat();
         let metaData = undefined;
         if (!!info?.meta) {
-          if (typeof info.meta === "string" || typeof info.meta === "number") {
+          if (typeof info.meta === 'string' || typeof info.meta === 'number') {
             metaData = info.meta;
           } else {
             metaData = Object.assign({}, info.meta);
@@ -79,7 +79,7 @@ class LoggerService {
         const date = dateFormat();
         let metaData = undefined;
         if (!!info?.meta) {
-          if (typeof info.meta === "string" || typeof info.meta === "number") {
+          if (typeof info.meta === 'string' || typeof info.meta === 'number') {
             metaData = info.meta;
           } else {
             metaData = Object.assign({}, info.meta);
@@ -97,7 +97,7 @@ class LoggerService {
       transports: [
         new winston.transports.Console({
           level: logFilterLevel,
-          format: alignColorsAndTime
+          format: alignColorsAndTime,
         }),
         ...(enableFileLogs
           ? [
@@ -106,44 +106,44 @@ class LoggerService {
                 format: prettyPrintMyLogs,
                 filename: `../logs/${logRouteToFileMap[this.route]}.log`,
                 maxsize: 5242880,
-                maxFiles: 3
-              })
+                maxFiles: 3,
+              }),
             ]
-          : [])
-      ]
+          : []),
+      ],
     });
   }
 
   info(message, meta) {
-    this.logger.log("info", message, {
-      meta
+    this.logger.log('info', message, {
+      meta,
     });
   }
 
   warning(message, meta) {
-    this.logger.log("warn", message, {
-      meta
+    this.logger.log('warn', message, {
+      meta,
     });
   }
 
   http(message, meta) {
-    this.logger.log("http", message, {
-      meta
+    this.logger.log('http', message, {
+      meta,
     });
   }
 
   debug(message, meta) {
-    this.logger.log("debug", message, {
-      meta
+    this.logger.log('debug', message, {
+      meta,
     });
   }
 
   error(message, meta) {
-    this.logger.log("error", message, { meta });
+    this.logger.log('error', message, { meta });
   }
 
   silly(message, meta) {
-    this.logger.log("silly", message, { meta });
+    this.logger.log('silly', message, { meta });
   }
 }
 

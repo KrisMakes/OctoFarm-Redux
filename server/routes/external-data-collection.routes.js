@@ -1,12 +1,12 @@
-const express = require("express");
+const express = require('express');
 
 const router = express.Router();
 
-const { ensureAuthenticated } = require("../middleware/auth");
+const { ensureAuthenticated } = require('../middleware/auth');
 
-const RoomData = require("../models/RoomData.js");
+const RoomData = require('../models/RoomData.js');
 
-router.post("/roomData", ensureAuthenticated, async (req, res) => {
+router.post('/roomData', ensureAuthenticated, async (req, res) => {
   //REFACTOR needs to split open the body and validate it.
   const enviromentData = req.body;
   const databaseData = await new RoomData(enviromentData);

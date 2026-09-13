@@ -1,9 +1,9 @@
 let previewEl = null;
 
 function createPreview(src) {
-  previewEl = document.createElement("img");
+  previewEl = document.createElement('img');
   previewEl.src = src;
-  previewEl.className = "file-thumbnail-hover-preview";
+  previewEl.className = 'file-thumbnail-hover-preview';
   document.body.appendChild(previewEl);
 }
 
@@ -33,16 +33,16 @@ function removePreview() {
 }
 
 export function initFileThumbnailPreview() {
-  const fileBody = document.getElementById("fileBody");
+  const fileBody = document.getElementById('fileBody');
   if (!fileBody) {
     return;
   }
 
-  fileBody.addEventListener("mouseover", (event) => {
-    if (!fileBody.classList.contains("file-density-compact")) {
+  fileBody.addEventListener('mouseover', (event) => {
+    if (!fileBody.classList.contains('file-density-compact')) {
       return;
     }
-    const img = event.target.closest("[id^=\"fileThumbnail-\"] img");
+    const img = event.target.closest('[id^="fileThumbnail-"] img');
     if (!img || previewEl) {
       return;
     }
@@ -50,14 +50,14 @@ export function initFileThumbnailPreview() {
     positionPreview(event);
   });
 
-  fileBody.addEventListener("mousemove", (event) => {
+  fileBody.addEventListener('mousemove', (event) => {
     if (previewEl) {
       positionPreview(event);
     }
   });
 
-  fileBody.addEventListener("mouseout", (event) => {
-    const img = event.target.closest("[id^=\"fileThumbnail-\"] img");
+  fileBody.addEventListener('mouseout', (event) => {
+    const img = event.target.closest('[id^="fileThumbnail-"] img');
     if (img && (!event.relatedTarget || !img.contains(event.relatedTarget))) {
       removePreview();
     }

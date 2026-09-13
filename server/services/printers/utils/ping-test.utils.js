@@ -1,4 +1,4 @@
-const ping = require("node-http-ping");
+const ping = require('node-http-ping');
 
 const pingTestHost = (host) => {
   const url = new URL(host);
@@ -13,5 +13,5 @@ const pingTestHost = (host) => {
 };
 
 module.exports = {
-  pingTestHost
+  pingTestHost,
 };

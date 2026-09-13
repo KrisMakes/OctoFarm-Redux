@@ -1,4 +1,4 @@
-const PrinterStore = require("../store/printers.store");
+const PrinterStore = require('../store/printers.store');
 
 let printerStore = undefined;
 
@@ -12,5 +12,5 @@ function getPrinterStoreCache() {
 }
 
 module.exports = {
-  getPrinterStoreCache
+  getPrinterStoreCache,
 };

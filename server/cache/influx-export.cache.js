@@ -1,4 +1,4 @@
-const InfluxCleanerService = require("../services/influx-cleaner.service");
+const InfluxCleanerService = require('../services/influx-cleaner.service');
 
 let influxCache = undefined;
 
@@ -12,5 +12,5 @@ function getInfluxCleanerCache() {
 }
 
 module.exports = {
-  getInfluxCleanerCache
+  getInfluxCleanerCache,
 };

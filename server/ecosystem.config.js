@@ -1,8 +1,8 @@
 module.exports = {
   apps: [
     {
-      name: "OctoFarm",
-      script: "app.js",
+      name: 'OctoFarm',
+      script: 'app.js',
       listen_timeout: 10000,
       exp_backoff_restart_delay: 1500,
       restart_delay: 1000,
@@ -10,10 +10,10 @@ module.exports = {
       time: true,
       shutdown_with_message: true,
       update_env: true,
-      out_file: "../logs/pm2.out.log",
-      error_file: "../logs/pm2.error.log"
-    }
-  ]
+      out_file: '../logs/pm2.out.log',
+      error_file: '../logs/pm2.error.log',
+    },
+  ],
   // deploy: {
   //   production: {
   //     user: "SSH_USERNAME",

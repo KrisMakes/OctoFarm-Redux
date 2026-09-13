@@ -82,7 +82,7 @@ const INITIALISE_PRINTERS_TASK = async () => {
 
   setTimeout(() => {
     updatePrinterHealthChecks(true).catch((e) => {
-      logger.error("Initial printer health checks failed", e.toString());
+      logger.error('Initial printer health checks failed', e.toString());
     });
   }, 10000);
 };

@@ -5,7 +5,7 @@ function isValidHttpUrl(string) {
   } catch (e) {
     return false;
   }
-  return url.protocol === "http:" || url.protocol === "https:";
+  return url.protocol === 'http:' || url.protocol === 'https:';
 }
 
 function isValidWebsocketUrl(string) {
@@ -17,7 +17,7 @@ function isValidWebsocketUrl(string) {
     return false;
   }
 
-  return url.protocol === "ws:" || url.protocol === "wss:";
+  return url.protocol === 'ws:' || url.protocol === 'wss:';
 }
 
 function sanitizeURL(url) {
@@ -31,28 +31,28 @@ function parseOutIPAddress(string) {
 
     const t = string.match(r);
 
-    if(Array.isArray(t)){
-      return false
+    if (Array.isArray(t)) {
+      return false;
     }
 
     return t[0];
   }
-  return false
+  return false;
 }
 
 function convertHttpUrlToWebsocket(url) {
-  if (!url.includes("http")) {
-    url = "http://" + url;
+  if (!url.includes('http')) {
+    url = 'http://' + url;
   }
   const urlInstance = new URL(url);
   const protocol = urlInstance.protocol;
-  if (protocol === "https:") {
-    urlInstance.protocol = "wss:";
+  if (protocol === 'https:') {
+    urlInstance.protocol = 'wss:';
   } else {
-    urlInstance.protocol = "ws:";
+    urlInstance.protocol = 'ws:';
   }
 
-  return urlInstance.href.replace(/\/?$/, "");
+  return urlInstance.href.replace(/\/?$/, '');
 }
 
 module.exports = {
@@ -60,5 +60,5 @@ module.exports = {
   sanitizeURL,
   parseOutIPAddress,
   isValidHttpUrl,
-  isValidWebsocketUrl
+  isValidWebsocketUrl,
 };

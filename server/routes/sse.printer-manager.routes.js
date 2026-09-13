@@ -1,18 +1,18 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { ensureAuthenticated } = require("../middleware/auth");
-const { stringify } = require("flatted");
-const { getEventEmitterCache } = require("../cache/event-emitter.cache");
-const printerTicker = require("../services/printer-connection-log.service.js");
-const { ensureCurrentUserAndGroup } = require("../middleware/users.js");
+const { ensureAuthenticated } = require('../middleware/auth');
+const { stringify } = require('flatted');
+const { getEventEmitterCache } = require('../cache/event-emitter.cache');
+const printerTicker = require('../services/printer-connection-log.service.js');
+const { ensureCurrentUserAndGroup } = require('../middleware/users.js');
 
 const { PrinterTicker } = printerTicker;
 
-const { getPrinterStoreCache } = require("../cache/printer-store.cache");
-const { getPrinterManagerCache } = require("../cache/printer-manager.cache");
-const { returnLast100Actions } = require("../services/user-actions-log.service");
-const Logger = require("../handlers/logger.js");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const { getPrinterStoreCache } = require('../cache/printer-store.cache');
+const { getPrinterManagerCache } = require('../cache/printer-manager.cache');
+const { returnLast100Actions } = require('../services/user-actions-log.service');
+const Logger = require('../handlers/logger.js');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_SSE_OLD);
 
@@ -21,22 +21,22 @@ const clients = {}; // <- Keep a map of attached clients
 let interval = false;
 
 // Called once for each new client. Note, this response is left open!
-router.get("/get/", ensureAuthenticated, ensureCurrentUserAndGroup, function (req, res) {
+router.get('/get/', ensureAuthenticated, ensureCurrentUserAndGroup, function (req, res) {
   //req.socket.setTimeout(Number.MAX_VALUE);
   res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-store, must-revalidate",
-    Pragma: "no-cache",
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    Pragma: 'no-cache',
     Expires: 0,
-    Connection: "keep-alive"
+    Connection: 'keep-alive',
   });
-  res.write("\n");
+  res.write('\n');
   (function (clientId) {
     clients[clientId] = res; // <- Add this client to those we consider "attached"
-    req.on("close", function () {
+    req.on('close', function () {
       delete clients[clientId];
     }); // <- Remove this client when he disconnects
-    req.on("error", function () {
+    req.on('error', function () {
       delete clients[clientId];
     }); // <- Remove this client when he disconnects
   })(++clientId);
@@ -64,14 +64,14 @@ async function sendData() {
     printersInformation: printersInformation,
     printerControlList: printerControlList,
     currentTickerList: currentTickerList,
-    currentActionList: currentActionList
+    currentActionList: currentActionList,
   };
   const clientInformation = stringify(infoDrop);
   // `const id`, not the module-level clientId counter this used to reuse --
   // see the matching comment in sse.printer-monitoring.routes.js.
   for (const id of Object.keys(clients)) {
-    clients[id].write("retry:" + 10000 + "\n");
-    clients[id].write("data: " + clientInformation + "\n\n"); // <- Push a message to a single attached client
+    clients[id].write('retry:' + 10000 + '\n');
+    clients[id].write('data: ' + clientInformation + '\n\n'); // <- Push a message to a single attached client
   }
 }
 
@@ -80,7 +80,7 @@ if (interval === false) {
     // Nothing awaits this callback, so an unhandled throw in here would take the
     // whole server down rather than dropping a single tick.
     sendData().catch((e) => {
-      logger.error("Failed to send printer manager information to clients", e.toString());
+      logger.error('Failed to send printer manager information to clients', e.toString());
     });
   }, 500);
 }

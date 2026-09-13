@@ -1,19 +1,19 @@
-const { getPrinterStoreCache } = require("../cache/printer-store.cache");
-const request = require("request");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const { getPrinterStoreCache } = require('../cache/printer-store.cache');
+const request = require('request');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.MIDDLEWARE_OCTOPRINT_PROXY);
 
 module.exports = {
   async proxyOctoPrintClientRequests(req, res) {
-    const id = req.paramString("id");
+    const id = req.paramString('id');
     // Express 5 hands a wildcard parameter back as an array of path segments,
     // so rejoin it before sanitising to get the path this used to receive.
     const itemParam = req.params.item;
     const item = req.sanitizer.value(
-      Array.isArray(itemParam) ? itemParam.join("/") : itemParam,
-      "str"
+      Array.isArray(itemParam) ? itemParam.join('/') : itemParam,
+      'str'
     );
 
     const printer = getPrinterStoreCache().getPrinter(id);
@@ -25,18 +25,18 @@ module.exports = {
     let redirectedRequest;
 
     const redirectUrl = `${printerURL}/${item}`;
-    if (req.headers["content-type"] && req.headers["content-type"].match(/^multipart\/form-data/)) {
+    if (req.headers['content-type'] && req.headers['content-type'].match(/^multipart\/form-data/)) {
       // Forward the upload headers only. This used to Object.assign onto
       // req.headers, which both mutated the live request object and shipped the
       // browser's whole header set to the printer -- including the OctoFarm
       // session cookie, which has no business on a third-party device, plus a
       // Host and Content-Length belonging to a different request.
       const headers = {
-        "Content-Type": req.headers["content-type"],
-        "X-Api-Key": apikey
+        'Content-Type': req.headers['content-type'],
+        'X-Api-Key': apikey,
       };
-      if (req.headers["content-length"]) {
-        headers["Content-Length"] = req.headers["content-length"];
+      if (req.headers['content-length']) {
+        headers['Content-Length'] = req.headers['content-length'];
       }
 
       redirectedRequest = request({
@@ -47,7 +47,7 @@ module.exports = {
         json: !req.readable,
         qs: req.query,
         // Pass redirect back to the browser
-        followRedirect: true
+        followRedirect: true,
       });
     } else {
       redirectedRequest = request({
@@ -55,13 +55,13 @@ module.exports = {
         method: req.method,
         body: req.readable ? undefined : req.body,
         headers: {
-          "Content-Type": "application/json",
-          "X-Api-Key": apikey
+          'Content-Type': 'application/json',
+          'X-Api-Key': apikey,
         },
         json: !req.readable,
         qs: req.query,
         // Pass redirect back to the browser
-        followRedirect: true
+        followRedirect: true,
       });
     }
     if (req.readable) {
@@ -71,18 +71,18 @@ module.exports = {
       // Handles everything else
       redirectedRequest.pipe(res);
     }
-    redirectedRequest.on("error", function (e) {
+    redirectedRequest.on('error', function (e) {
       logger.error(`OctoPrint proxy request to ${redirectUrl} failed`, e.toString());
     });
     //client quit normally
-    redirectedRequest.on("end", function () {
-      logger.info("Pipe ended on octoprint proxy");
+    redirectedRequest.on('end', function () {
+      logger.info('Pipe ended on octoprint proxy');
       redirectedRequest.end();
     });
     //client quit unexpectedly
-    redirectedRequest.on("close", function () {
-      logger.warning("Pipe unexpectedly ended on octoprint proxy");
+    redirectedRequest.on('close', function () {
+      logger.warning('Pipe unexpectedly ended on octoprint proxy');
       redirectedRequest.end();
     });
-  }
+  },
 };

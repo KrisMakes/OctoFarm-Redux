@@ -1,6 +1,6 @@
-const os = require("os");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const os = require('os');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_CPU_PROFILE);
 
 //Create function to get CPU information
@@ -41,7 +41,7 @@ function getCPULoadAVG(avgTime = 1000, delay = 100) {
   return new Promise((resolve, reject) => {
     const n = ~~(avgTime / delay);
     if (n <= 1) {
-      reject("Error: interval to small");
+      reject('Error: interval to small');
     }
 
     let i = 0;
@@ -49,7 +49,7 @@ function getCPULoadAVG(avgTime = 1000, delay = 100) {
     const avg1 = cpuAverage();
 
     let interval = setInterval(() => {
-      logger.debug("CPU Interval: ", i);
+      logger.debug('CPU Interval: ', i);
 
       if (i >= n) {
         clearInterval(interval);
@@ -68,5 +68,5 @@ function getCPULoadAVG(avgTime = 1000, delay = 100) {
 }
 
 module.exports = {
-  getCPULoadAVG
+  getCPULoadAVG,
 };

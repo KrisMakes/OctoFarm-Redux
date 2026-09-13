@@ -1,8 +1,8 @@
-const DENSITY_CLASSES = ["file-density-cozy", "file-density-compact", "file-density-ultra"];
-const STORAGE_KEY = "octofarm_file_manager_density";
+const DENSITY_CLASSES = ['file-density-cozy', 'file-density-compact', 'file-density-ultra'];
+const STORAGE_KEY = 'octofarm_file_manager_density';
 
 function applyDensity(level) {
-  const fileBody = document.getElementById("fileBody");
+  const fileBody = document.getElementById('fileBody');
   if (!fileBody) {
     return;
   }
@@ -11,7 +11,7 @@ function applyDensity(level) {
 }
 
 export function initFileManagerDensity() {
-  const slider = document.getElementById("fileDensitySlider");
+  const slider = document.getElementById('fileDensitySlider');
   if (!slider) {
     return;
   }
@@ -24,7 +24,7 @@ export function initFileManagerDensity() {
   slider.value = savedLevel;
   applyDensity(savedLevel);
 
-  slider.addEventListener("input", () => {
+  slider.addEventListener('input', () => {
     const level = parseInt(slider.value, 10);
     applyDensity(level);
     try {

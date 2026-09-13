@@ -1,4 +1,4 @@
-const { SettingsClean } = require("../services/settings-cleaner.service.js");
+const { SettingsClean } = require('../services/settings-cleaner.service.js');
 
 module.exports = {
   async ensureAuthenticated(req, res, next) {
@@ -11,8 +11,8 @@ module.exports = {
       return next();
     }
 
-    req.flash("error_msg", "Please log in to view this resource");
-    res.redirect("/users/login");
+    req.flash('error_msg', 'Please log in to view this resource');
+    res.redirect('/users/login');
   },
   async ensureAdministrator(req, res, next) {
     const serverSettings = SettingsClean.returnSystemSettings();
@@ -21,12 +21,12 @@ module.exports = {
       return next();
     }
 
-    const currentUserGroup = req?.user?.group === "Administrator";
+    const currentUserGroup = req?.user?.group === 'Administrator';
 
     if (currentUserGroup) {
       return next();
     } else {
       res.sendStatus(401);
     }
-  }
+  },
 };

@@ -1,12 +1,12 @@
-"use strict";
+'use strict';
 
-const { findIndex } = require("lodash");
-const { DateTime } = require("luxon");
-const { getElectricityCosts, getMaintenanceCosts } = require("../utils/print-cost.util");
-const { HistoryClean } = require("./history-cleaner.service.js");
-const { floatOrZero } = require("../utils/number.util");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const { findIndex } = require('lodash');
+const { DateTime } = require('luxon');
+const { getElectricityCosts, getMaintenanceCosts } = require('../utils/print-cost.util');
+const { HistoryClean } = require('./history-cleaner.service.js');
+const { floatOrZero } = require('../utils/number.util');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_JOB_CLEANER);
 
 const cleanJobs = [];
@@ -14,11 +14,11 @@ const cleanJobs = [];
 class JobCleanerService {
   static getCompletionDate(printTimeLeftSeconds, completion) {
     if (completion === 100) {
-      return "No Active Job";
+      return 'No Active Job';
     }
 
     const printDoneDT = DateTime.now().plus({ seconds: printTimeLeftSeconds });
-    return printDoneDT.toFormat("ccc LLL dd yyyy: HH:mm");
+    return printDoneDT.toFormat('ccc LLL dd yyyy: HH:mm');
   }
 
   static getCleanJobAtIndex(p) {
@@ -38,9 +38,9 @@ class JobCleanerService {
   static generate(printerJob, selectedFilament, fileList, currentZ, costSettings, printerProgress) {
     const currentJob = {
       progress: 0,
-      fileName: "No File Selected",
-      fileDisplay: "No File Selected",
-      filePath: "No File Selected",
+      fileName: 'No File Selected',
+      fileDisplay: 'No File Selected',
+      filePath: 'No File Selected',
       expectedCompletionDate: null,
       expectedPrintTime: null,
       expectedFilamentCosts: null,
@@ -53,7 +53,7 @@ class JobCleanerService {
       printTimeRemaining: null,
       averagePrintTime: null,
       lastPrintTime: null,
-      thumbnail: null
+      thumbnail: null,
     };
 
     if (!!printerJob) {
@@ -117,7 +117,7 @@ class JobCleanerService {
         totalVolume,
         totalLength,
         totalWeight,
-        spoolCost
+        spoolCost,
       };
     }
 
@@ -133,11 +133,11 @@ class JobCleanerService {
         printerProgress.completion
       );
     }
-    logger.debug("Job information cleaned and ready for consumption", currentJob);
+    logger.debug('Job information cleaned and ready for consumption', currentJob);
     return currentJob;
   }
 }
 
 module.exports = {
-  JobClean: JobCleanerService
+  JobClean: JobCleanerService,
 };

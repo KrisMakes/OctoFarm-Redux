@@ -1,13 +1,13 @@
-const simpleGit = require("simple-git");
-const { resolve, join } = require("path");
-const { existsSync } = require("fs");
+const simpleGit = require('simple-git');
+const { resolve, join } = require('path');
+const { existsSync } = require('fs');
 
-const mainRepo = resolve(__dirname, "../../");
+const mainRepo = resolve(__dirname, '../../');
 const git = simpleGit(mainRepo);
 
 function getCurrentBranch() {
   if (!checkIfWereInAGitRepo()) {
-    return "Not a repository...";
+    return 'Not a repository...';
   }
   return git.branch();
 }
@@ -20,7 +20,7 @@ function makeSureBranchIsUpToDateWithRemote() {
 }
 
 function checkIfWereInAGitRepo() {
-  return existsSync(join(mainRepo, ".git"));
+  return existsSync(join(mainRepo, '.git'));
 }
 function returnCurrentGitStatus() {
   if (!checkIfWereInAGitRepo()) {
@@ -55,7 +55,7 @@ async function pullLatestRepository(force) {
     return false;
   }
   if (force) {
-    await git.reset("hard");
+    await git.reset('hard');
     return git.pull();
   } else {
     return git.pull();
@@ -70,5 +70,5 @@ module.exports = {
   pullLatestRepository,
   checkIfWereInAGitRepo,
   makeSureBranchIsUpToDateWithRemote,
-  getCurrentBranch
+  getCurrentBranch,
 };

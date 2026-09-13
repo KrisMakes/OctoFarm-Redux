@@ -1,30 +1,30 @@
-"use strict";
+'use strict';
 
-const fetch = require("../../utils/fetch.util");
-const Logger = require("../../handlers/logger.js");
-const { LOGGER_ROUTE_KEYS } = require("../../constants/logger.constants");
+const fetch = require('../../utils/fetch.util');
+const Logger = require('../../handlers/logger.js');
+const { LOGGER_ROUTE_KEYS } = require('../../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.OP_SERVICE_API);
 
-const ConnectionMonitorService = require("../connection-monitor.service");
-const { REQUEST_TYPE, REQUEST_KEYS } = require("../../constants/connection-monitor.constants");
-const { promiseTimeout } = require("../../utils/promise.utils");
+const ConnectionMonitorService = require('../connection-monitor.service');
+const { REQUEST_TYPE, REQUEST_KEYS } = require('../../constants/connection-monitor.constants');
+const { promiseTimeout } = require('../../utils/promise.utils');
 
 async function fetchApi(url, method, apikey, bodyData = undefined) {
   return fetch(url, {
     method,
     headers: {
-      "Content-Type": "application/json",
-      "X-Api-Key": apikey
+      'Content-Type': 'application/json',
+      'X-Api-Key': apikey,
     },
-    body: JSON.stringify(bodyData)
+    body: JSON.stringify(bodyData),
   }).catch((e) => {
-    logger.error("Failed to fetch!", e);
-    logger.error("Fetch data string", e.toString());
-    logger.debug("Fetch connection data", {
+    logger.error('Failed to fetch!', e);
+    logger.error('Fetch data string', e.toString());
+    logger.debug('Fetch connection data', {
       url,
       method,
       apikey,
-      bodyData
+      bodyData,
     });
     return e;
   });
@@ -53,11 +53,11 @@ async function fetchApiTimeout(url, method, apikey, fetchTimeout, bodyData = und
       REQUEST_KEYS.SUCCESS_RESPONSE
     );
   } catch (e) {
-    logger.http("Promise timeout threw an error!", {
+    logger.http('Promise timeout threw an error!', {
       error: e.toString(),
       url,
       method,
-      bodyData
+      bodyData,
     });
     ConnectionMonitorService.updateOrAddResponse(
       url,
@@ -98,7 +98,7 @@ class OctoprintApiService {
    */
   async post(route, data) {
     const url = new URL(route, this.printerURL).href;
-    return fetchApiTimeout(url, "POST", this.apikey, this.#currentTimeout, data);
+    return fetchApiTimeout(url, 'POST', this.apikey, this.#currentTimeout, data);
   }
 
   /**
@@ -108,7 +108,7 @@ class OctoprintApiService {
    */
   async delete(route) {
     const url = new URL(route, this.printerURL).href;
-    return fetchApiTimeout(url, "DELETE", this.apikey, this.#currentTimeout);
+    return fetchApiTimeout(url, 'DELETE', this.apikey, this.#currentTimeout);
   }
 
   /**
@@ -119,7 +119,7 @@ class OctoprintApiService {
    */
   async get(route, timeout = this.#currentTimeout) {
     const url = new URL(route, this.printerURL).href;
-    return fetchApiTimeout(url, "GET", this.apikey, timeout);
+    return fetchApiTimeout(url, 'GET', this.apikey, timeout);
   }
 
   /**
@@ -130,10 +130,10 @@ class OctoprintApiService {
    */
   patch(route, data) {
     const url = new URL(route, this.printerURL).href;
-    return fetchApiTimeout(url, "PATCH", this.apikey, this.#currentTimeout, data);
+    return fetchApiTimeout(url, 'PATCH', this.apikey, this.#currentTimeout, data);
   }
 }
 
 module.exports = {
-  OctoprintApiService
+  OctoprintApiService,
 };

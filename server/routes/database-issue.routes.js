@@ -1,15 +1,15 @@
-const express = require("express");
-const path = require("path");
-const { execSync } = require("child_process");
-const mongoose = require("mongoose");
-const Logger = require("../handlers/logger.js");
-const ServerSettingsDB = require("../models/ServerSettings");
-const isDocker = require("../utils/is-docker.util");
-const envUtils = require("../utils/env.utils");
-const { AppConstants } = require("../constants/app.constants");
-const { fetchMongoDBConnectionString } = require("../app-env");
-const { SystemCommands } = require("../services/server-commands.service.js");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const express = require('express');
+const path = require('path');
+const { execSync } = require('child_process');
+const mongoose = require('mongoose');
+const Logger = require('../handlers/logger.js');
+const ServerSettingsDB = require('../models/ServerSettings');
+const isDocker = require('../utils/is-docker.util');
+const envUtils = require('../utils/env.utils');
+const { AppConstants } = require('../constants/app.constants');
+const { fetchMongoDBConnectionString } = require('../app-env');
+const { SystemCommands } = require('../services/server-commands.service.js');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const router = express.Router();
 const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_DATABASE_ISSUE);
@@ -17,18 +17,18 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_DATABASE_ISSUE);
 function validateMongoURL(mongoURL) {
   const mongoString = mongoURL.toLowerCase();
   const hasMongoPrefix =
-    mongoString.toLowerCase().includes("mongodb://") ||
-    mongoString.toLowerCase().includes("mongodb+srv://");
+    mongoString.toLowerCase().includes('mongodb://') ||
+    mongoString.toLowerCase().includes('mongodb+srv://');
 
   return {
     hasMongoPrefix,
-    isValid: hasMongoPrefix
+    isValid: hasMongoPrefix,
   };
 }
 
-router.get("/", (req, res) =>
-  res.render("databaseIssue", {
-    page: "Database Warning",
+router.get('/', (req, res) =>
+  res.render('databaseIssue', {
+    page: 'Database Warning',
     octoFarmPageTitle:
       process.env[AppConstants.OCTOFARM_SITE_TITLE_KEY] || AppConstants.defaultOctoFarmPageTitle,
     isDocker: isDocker(),
@@ -38,31 +38,31 @@ router.get("/", (req, res) =>
     os: process.env.OS,
     npmPackageJson: process.env[AppConstants.VERSION_KEY],
     nodeVersion: process.version,
-    mongoURL: fetchMongoDBConnectionString()
+    mongoURL: fetchMongoDBConnectionString(),
   })
 );
 
-router.post("/test-connection", async (req, res) => {
-  const connectionURL = req.bodyString("connectionURL");
+router.post('/test-connection', async (req, res) => {
+  const connectionURL = req.bodyString('connectionURL');
 
   if (!connectionURL || !validateMongoURL(connectionURL)) {
     res.statusCode = 400;
     return res.send({
       connectionURL,
-      reason: "Not a valid connection string",
-      succeeded: false
+      reason: 'Not a valid connection string',
+      succeeded: false,
     });
   }
 
   let connSucceeded = false;
-  logger.info("Testing database with new URL");
+  logger.info('Testing database with new URL');
   await mongoose.disconnect();
   await mongoose
     .connect(connectionURL, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       useFindAndModify: false,
-      serverSelectionTimeoutMS: 2500
+      serverSelectionTimeoutMS: 2500,
     })
     .then((r) => {
       connSucceeded = !!r;
@@ -75,8 +75,8 @@ router.post("/test-connection", async (req, res) => {
     res.statusCode = 400;
     return res.send({
       connectionURL,
-      reason: "Could not connect",
-      succeeded: connSucceeded
+      reason: 'Could not connect',
+      succeeded: connSucceeded,
     });
   }
 
@@ -84,51 +84,51 @@ router.post("/test-connection", async (req, res) => {
     .then((r) => {
       return res.send({
         connectionURL,
-        succeeded: connSucceeded
+        succeeded: connSucceeded,
       });
     })
     .catch((e) => {
       connSucceeded = false;
-      if (e.message.includes("command find requires authentication")) {
+      if (e.message.includes('command find requires authentication')) {
         return res.send({
           connectionURL,
           reason:
-            "MongoDB connected just fine, but you should check your authentication (username/password)",
-          succeeded: connSucceeded
+            'MongoDB connected just fine, but you should check your authentication (username/password)',
+          succeeded: connSucceeded,
         });
       } else {
         return res.send({
           connectionURL,
           reason: e.message,
-          succeeded: connSucceeded
+          succeeded: connSucceeded,
         });
       }
     });
 });
 
-router.post("/save-connection-env", async (req, res) => {
+router.post('/save-connection-env', async (req, res) => {
   if (isDocker()) {
     res.statusCode = 500;
     return res.send({
       reason: `The OctoFarm docker container cannot change this setting. Change the ${AppConstants.MONGO_KEY} variable yourself.`,
-      succeeded: false
+      succeeded: false,
     });
   }
 
-  const connectionURL = req.bodyString("connectionURL");
+  const connectionURL = req.bodyString('connectionURL');
   // REFACTOR This needs to use the middleware
   if (!connectionURL || !validateMongoURL(connectionURL)) {
     res.statusCode = 400;
     return res.send({
       connectionURL,
-      reason: "Not a valid connection string",
-      succeeded: false
+      reason: 'Not a valid connection string',
+      succeeded: false,
     });
   }
 
   try {
     envUtils.writeVariableToEnvFile(
-      path.join(__dirname, "../../.env"),
+      path.join(__dirname, '../../.env'),
       AppConstants.MONGO_KEY,
       connectionURL
     );
@@ -136,7 +136,7 @@ router.post("/save-connection-env", async (req, res) => {
     res.statusCode = 500;
     return res.send({
       reason: e.message,
-      succeeded: false
+      succeeded: false,
     });
   }
 
@@ -145,17 +145,17 @@ router.post("/save-connection-env", async (req, res) => {
   if (envUtils.isNodemon()) {
     res.send({
       reason: `Succesfully saved ${AppConstants.MONGO_KEY} environment variable to .env file. Please restart OctoFarm manually!`,
-      succeeded: true
+      succeeded: true,
     });
   } else {
     res.send({
       reason: `Succesfully saved ${AppConstants.MONGO_KEY} environment variable to .env file. Restarting OctoFarm service, please start it again if that fails!`,
-      succeeded: true
+      succeeded: true,
     });
   }
 });
 
-router.post("/restart-octofarm", async (req, res) => {
+router.post('/restart-octofarm', async (req, res) => {
   let serviceRestarted = false;
   try {
     serviceRestarted = await SystemCommands.rebootOctoFarm();

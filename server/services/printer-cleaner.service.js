@@ -1,22 +1,22 @@
-"use strict";
-const { orderBy } = require("lodash");
+'use strict';
+const { orderBy } = require('lodash');
 
-const ErrorLogs = require("../models/ErrorLog.js");
-const TempHistory = require("../models/TempHistory.js");
-const PluginLogs = require("../models/PluginLogs.js");
-const UserActions = require("../models/userActionsLog");
-const { PrinterTicker } = require("./printer-connection-log.service.js");
-const { generateRandomName } = require("./printer-name-generator.service");
+const ErrorLogs = require('../models/ErrorLog.js');
+const TempHistory = require('../models/TempHistory.js');
+const PluginLogs = require('../models/PluginLogs.js');
+const UserActions = require('../models/userActionsLog');
+const { PrinterTicker } = require('./printer-connection-log.service.js');
+const { generateRandomName } = require('./printer-name-generator.service');
 const {
   tempTriggersDefaults,
   webCamSettings,
-  systemCommands
-} = require("./printers/constants/printer-defaults.constants");
+  systemCommands,
+} = require('./printers/constants/printer-defaults.constants');
 
 let printerConnectionLogs = [];
 class PrinterCleanerService {
   static returnPrinterLogs(sortIndex) {
-    if (typeof sortIndex !== "undefined") {
+    if (typeof sortIndex !== 'undefined') {
       return printerConnectionLogs[sortIndex];
     } else {
       return printerConnectionLogs;
@@ -24,7 +24,7 @@ class PrinterCleanerService {
   }
 
   static async generateConnectionLogs(farmPrinter) {
-    const printerErrorLogs = await ErrorLogs.find({ "errorLog.printerID": farmPrinter._id })
+    const printerErrorLogs = await ErrorLogs.find({ 'errorLog.printerID': farmPrinter._id })
       .sort({ _id: -1 })
       .limit(1000);
     const tempHistory = await TempHistory.find({ printer_id: farmPrinter._id })
@@ -32,20 +32,20 @@ class PrinterCleanerService {
       .limit(720);
     const pluginManagerLogs = await PluginLogs.find({
       printerID: farmPrinter._id,
-      pluginDisplay: { $ne: "OctoKlipper" }
+      pluginDisplay: { $ne: 'OctoKlipper' },
     })
       .sort({ _id: -1 })
       .limit(1000);
 
     const klipperLogs = await PluginLogs.find({
       printerID: farmPrinter._id,
-      pluginDisplay: "OctoKlipper"
+      pluginDisplay: 'OctoKlipper',
     })
       .sort({ _id: -1 })
       .limit(1000);
 
     const userActionLogs = await UserActions.find({
-      printerID: farmPrinter._id
+      printerID: farmPrinter._id,
     })
       .sort({ _id: -1 })
       .limit(1000);
@@ -66,7 +66,7 @@ class PrinterCleanerService {
           data: element.data,
           status: element?.status,
           fullPath: element?.fullPath,
-          action: element.action
+          action: element.action,
         };
         currentUserActionLogs.push(userActionLog);
       }
@@ -79,9 +79,9 @@ class PrinterCleanerService {
           date: element.errorLog.endDate,
           message: element.errorLog.reason,
           printer: farmPrinter.printerURL,
-          state: "Offline",
+          state: 'Offline',
           terminal: element?.errorLog?.terminal,
-          resendStats: element?.errorLog?.resendStats
+          resendStats: element?.errorLog?.resendStats,
         };
         currentErrorLogs.push(errorFormat);
       }
@@ -93,7 +93,7 @@ class PrinterCleanerService {
           date: issue.date,
           message: issue.message,
           printer: issue.printer,
-          state: issue.state
+          state: issue.state,
         };
         currentOctoFarmLogs.push(errorFormat);
       }
@@ -105,7 +105,7 @@ class PrinterCleanerService {
           message: element.message,
           printer: element.printer,
           pluginDisplay: element.pluginDisplay,
-          state: element.state
+          state: element.state,
         };
         currentPluginManagerLogs.push(octoFormat);
       }
@@ -118,13 +118,13 @@ class PrinterCleanerService {
           message: element.message,
           printer: element.printer,
           pluginDisplay: element.pluginDisplay,
-          state: element.state
+          state: element.state,
         };
         currentKlipperLogs.push(octoFormat);
       }
     }
 
-    if (typeof tempHistory !== "undefined") {
+    if (typeof tempHistory !== 'undefined') {
       // Build one series pair per tool. This used to run inside a loop over all
       // 720 records, reassigning currentTempLogs every iteration -- 719 wasted
       // rebuilds, and the surviving set came from the *last* (oldest) record, so
@@ -134,7 +134,7 @@ class PrinterCleanerService {
       const toolNames = new Set();
       for (const element of tempHistory) {
         for (const key of Object.keys(element.currentTemp)) {
-          if (key !== "time") {
+          if (key !== 'time') {
             toolNames.add(key);
           }
         }
@@ -144,8 +144,8 @@ class PrinterCleanerService {
       // .indexOf() for every tool of every one of the 720 records.
       const seriesByName = new Map();
       for (const toolName of toolNames) {
-        const target = { name: toolName + "-target", data: [] };
-        const actual = { name: toolName + "-actual", data: [] };
+        const target = { name: toolName + '-target', data: [] };
+        const actual = { name: toolName + '-actual', data: [] };
         seriesByName.set(target.name, target);
         seriesByName.set(actual.name, actual);
         currentTempLogs.push(target, actual);
@@ -154,20 +154,20 @@ class PrinterCleanerService {
       for (const record of tempHistory) {
         const hist = record.currentTemp;
         for (const key of Object.keys(hist)) {
-          if (key === "time") {
+          if (key === 'time') {
             continue;
           }
-          seriesByName.get(key + "-target").data.push({ x: hist.time, y: hist[key].target });
-          seriesByName.get(key + "-actual").data.push({ x: hist.time, y: hist[key].actual });
+          seriesByName.get(key + '-target').data.push({ x: hist.time, y: hist[key].target });
+          seriesByName.get(key + '-actual').data.push({ x: hist.time, y: hist[key].actual });
         }
       }
     }
 
-    currentErrorLogs = orderBy(currentErrorLogs, ["date"], ["desc"]);
-    currentOctoFarmLogs = orderBy(currentOctoFarmLogs, ["date"], ["desc"]);
-    currentPluginManagerLogs = orderBy(currentPluginManagerLogs, ["date"], ["desc"]);
-    currentKlipperLogs = orderBy(currentKlipperLogs, ["date"], ["desc"]);
-    currentUserActionLogs = orderBy(currentUserActionLogs, ["date"], ["desc"]);
+    currentErrorLogs = orderBy(currentErrorLogs, ['date'], ['desc']);
+    currentOctoFarmLogs = orderBy(currentOctoFarmLogs, ['date'], ['desc']);
+    currentPluginManagerLogs = orderBy(currentPluginManagerLogs, ['date'], ['desc']);
+    currentKlipperLogs = orderBy(currentKlipperLogs, ['date'], ['desc']);
+    currentUserActionLogs = orderBy(currentUserActionLogs, ['date'], ['desc']);
 
     return {
       currentErrorLogs,
@@ -175,7 +175,7 @@ class PrinterCleanerService {
       currentTempLogs,
       currentPluginManagerLogs,
       currentKlipperLogs,
-      currentUserActionLogs
+      currentUserActionLogs,
     };
   }
 
@@ -183,15 +183,15 @@ class PrinterCleanerService {
     const otherSettings = {
       temperatureTriggers: tempTriggersDefaults(),
       webCamSettings: webCamSettings(),
-      system: systemCommands()
+      system: systemCommands(),
     };
-    if (typeof temp !== "undefined") {
+    if (typeof temp !== 'undefined') {
       otherSettings.temperatureTriggers = temp;
     }
-    if (typeof webcam !== "undefined") {
+    if (typeof webcam !== 'undefined') {
       otherSettings.webCamSettings = webcam;
     }
-    if (typeof system !== "undefined") {
+    if (typeof system !== 'undefined') {
       otherSettings.system = system;
     }
 
@@ -199,28 +199,28 @@ class PrinterCleanerService {
   }
 
   static sortGCODE(settings) {
-    if (typeof settings !== "undefined") {
+    if (typeof settings !== 'undefined') {
       return settings.gcode;
     }
     return null;
   }
 
   static sortConnection(current) {
-    if (typeof current !== "undefined") {
+    if (typeof current !== 'undefined') {
       return {
         baudrate: current.baudrate,
         port: current.port,
-        printerProfile: current.printerProfile
+        printerProfile: current.printerProfile,
       };
     }
     return null;
   }
 
   static sortOptions(options) {
-    if (typeof options !== "undefined") {
+    if (typeof options !== 'undefined') {
       const connectionOptions = options;
-      if (!!connectionOptions?.ports && !connectionOptions.ports.includes("AUTO")) {
-        connectionOptions.ports.unshift("AUTO");
+      if (!!connectionOptions?.ports && !connectionOptions.ports.includes('AUTO')) {
+        connectionOptions.ports.unshift('AUTO');
       }
       if (!!connectionOptions?.baudrates && !connectionOptions.baudrates.includes(0)) {
         connectionOptions.baudrates.unshift(0);
@@ -262,46 +262,46 @@ class PrinterCleanerService {
   static getProgressColour(progress) {
     progress = parseInt(progress);
     if (progress === 0) {
-      return "dark";
+      return 'dark';
     }
     if (progress < 25) {
-      return "secondary";
+      return 'secondary';
     }
     if (progress >= 25 && progress <= 50) {
-      return "primary";
+      return 'primary';
     }
     if (progress > 50 && progress <= 75) {
-      return "info";
+      return 'info';
     }
     if (progress > 75 && progress < 100) {
-      return "warning";
+      return 'warning';
     }
     if (progress === 100) {
-      return "success";
+      return 'success';
     }
   }
 
   static checkTempRange(state, target, actual, heatingVariation, coolDown) {
-    if (state === "Active" || state === "Idle") {
+    if (state === 'Active' || state === 'Idle') {
       if (
         actual > target - parseInt(heatingVariation) &&
         actual < target + parseInt(heatingVariation)
       ) {
-        return "tempSuccess";
+        return 'tempSuccess';
       }
-      return "tempActive";
+      return 'tempActive';
     }
-    if (state === "Complete") {
+    if (state === 'Complete') {
       if (actual > parseInt(coolDown)) {
-        return "tempCooling";
+        return 'tempCooling';
       }
-      return "tempCool";
+      return 'tempCool';
     }
     // Offline
-    return "tempOffline";
+    return 'tempOffline';
   }
 }
 
 module.exports = {
-  PrinterClean: PrinterCleanerService
+  PrinterClean: PrinterCleanerService,
 };

@@ -1,4 +1,4 @@
-const tempHistoryModel = jest.createMockFromModule("../TempHistory");
+const tempHistoryModel = jest.createMockFromModule('../TempHistory');
 
 let tempHistory = [];
 
@@ -8,9 +8,9 @@ tempHistoryModel.find = () => {
       return {
         limit: () => {
           return tempHistory;
-        }
+        },
       };
-    }
+    },
   };
 };
 tempHistoryModel.create = async (log) => tempHistory.push(log);

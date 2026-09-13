@@ -1,7 +1,7 @@
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_EVENT_EMITER);
-const { eventListConstants, EVENT_ID_MAP } = require("../constants/event.constants");
+const { eventListConstants, EVENT_ID_MAP } = require('../constants/event.constants');
 
 // TODO should only register is one is setup in alerts
 
@@ -20,7 +20,7 @@ class EventEmitterService {
     const eventList = [];
     Object.keys(this.#listeners).forEach((event) => {
       if (event.includes(printerID)) {
-        const eventSplit = event.split("-");
+        const eventSplit = event.split('-');
         eventList.push(eventListConstants[EVENT_ID_MAP[eventSplit[1]]]);
       }
     });
@@ -28,7 +28,7 @@ class EventEmitterService {
   }
 
   on(event, fn) {
-    logger.warning("Adding new event listener", event);
+    logger.warning('Adding new event listener', event);
     return this.#addListener(event, fn);
   }
 
@@ -43,7 +43,7 @@ class EventEmitterService {
     return this;
   }
   off(event) {
-    logger.debug("Turning event listener off", event);
+    logger.debug('Turning event listener off', event);
     return this.#removeListener(event);
   }
 
@@ -60,7 +60,7 @@ class EventEmitterService {
     let fns = this.#listeners[event];
 
     if (!fns) return false;
-    logger.warning("Firing event listener", event);
+    logger.warning('Firing event listener', event);
 
     fns(...args);
 

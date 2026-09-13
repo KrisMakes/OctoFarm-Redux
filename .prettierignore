@@ -1,1 +1,6 @@
-server
+node_modules
+server/assets
+client/assets
+client/js/vendor
+package-lock.json
+CHANGELOG.md

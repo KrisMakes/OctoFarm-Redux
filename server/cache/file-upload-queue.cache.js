@@ -1,4 +1,4 @@
-const FileUploadQueue = require("../store/file-upload-queue.store");
+const FileUploadQueue = require('../store/file-upload-queue.store');
 
 let fileManagerQueueState = undefined;
 

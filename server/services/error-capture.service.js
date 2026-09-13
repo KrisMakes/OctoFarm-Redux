@@ -1,18 +1,18 @@
-const fs = require("fs");
-const ErrorLog = require("../models/ErrorLog.js");
-const Logger = require("../handlers/logger.js");
-const { getPrinterStoreCache } = require("../cache/printer-store.cache");
-const { sleep } = require("../utils/promise.utils");
-const { clonePayloadDataForHistory } = require("../utils/mapping.utils");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const fs = require('fs');
+const ErrorLog = require('../models/ErrorLog.js');
+const Logger = require('../handlers/logger.js');
+const { getPrinterStoreCache } = require('../cache/printer-store.cache');
+const { sleep } = require('../utils/promise.utils');
+const { clonePayloadDataForHistory } = require('../utils/mapping.utils');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_OP_ERROR_CAPTURE);
 
-const routeBase = "../images/historyCollection";
+const routeBase = '../images/historyCollection';
 const PATHS = {
   base: routeBase,
-  thumbnails: routeBase + "/thumbs",
-  snapshots: routeBase + "/snapshots",
-  timelapses: routeBase + "/timelapses"
+  thumbnails: routeBase + '/thumbs',
+  snapshots: routeBase + '/snapshots',
+  timelapses: routeBase + '/timelapses',
 };
 
 /**
@@ -72,8 +72,8 @@ class ErrorCaptureService {
         reason: this.#reason,
         endDate: this.#endDate,
         terminal: this.#terminal,
-        resendStats: this.#resendStats
-      }
+        resendStats: this.#resendStats,
+      },
     });
 
     await newErrorLog.save().catch((e) => {
@@ -81,11 +81,11 @@ class ErrorCaptureService {
     });
 
     return {
-      newErrorLog
+      newErrorLog,
     };
   }
 }
 
 module.exports = {
-  ErrorCaptureService
+  ErrorCaptureService,
 };

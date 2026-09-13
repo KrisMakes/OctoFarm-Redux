@@ -1,9 +1,9 @@
-const util = require("util");
-const exec = util.promisify(require("child_process").exec);
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
 
 async function returnListOfMissingPackages() {
   try {
-    const outdatedPackageJsonList = await exec("npm outdated --production --json");
+    const outdatedPackageJsonList = await exec('npm outdated --production --json');
     const outdatedPackageListParsed = JSON.parse(outdatedPackageJsonList.stdout);
     if (outdatedPackageListParsed) {
       const keys = Object.keys(outdatedPackageListParsed);
@@ -23,7 +23,7 @@ async function returnListOfMissingPackages() {
 
 async function installNpmDependency() {
   try {
-    await exec("npm ci");
+    await exec('npm ci');
   } catch (e) {
     throw `Error running installation command | ${e}`;
   }
@@ -31,5 +31,5 @@ async function installNpmDependency() {
 
 module.exports = {
   returnListOfMissingPackages,
-  installNpmDependency
+  installNpmDependency,
 };

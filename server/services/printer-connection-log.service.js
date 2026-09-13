@@ -17,7 +17,7 @@ class PrinterConnectionLogService {
       message: message,
       printerID: printerID,
       printer: printer,
-      state: state
+      state: state,
     };
     currentIssues.push(newIssue);
 
@@ -39,5 +39,5 @@ class PrinterConnectionLogService {
 }
 
 module.exports = {
-  PrinterTicker: PrinterConnectionLogService
+  PrinterTicker: PrinterConnectionLogService,
 };

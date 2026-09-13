@@ -14,12 +14,12 @@ const findCurrentUserForOctoFarmConnection = (userList) => {
   let selectedUser;
   for (const user of userList) {
     // First check if we have "octofarm" user...
-    if (user.toLowerCase() === "octofarm") {
+    if (user.toLowerCase() === 'octofarm') {
       selectedUser = user;
       break;
     }
     // Second check if we have an octofarm based user...
-    if (user.toLowerCase().includes("octofarm")) {
+    if (user.toLowerCase().includes('octofarm')) {
       selectedUser = user;
       break;
     }
@@ -33,5 +33,5 @@ const findCurrentUserForOctoFarmConnection = (userList) => {
 
 module.exports = {
   parseAllOctoPrintUsers,
-  findCurrentUserForOctoFarmConnection
+  findCurrentUserForOctoFarmConnection,
 };

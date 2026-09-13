@@ -4,17 +4,17 @@ function getRandomInt(min, max) {
 
 function randomString(len = 32) {
   const buf = [],
-    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
     charlen = chars.length;
 
   for (let i = 0; i < len; ++i) {
     buf.push(chars[getRandomInt(0, charlen - 1)]);
   }
 
-  return buf.join("");
+  return buf.join('');
 }
 
 module.exports = {
   randomString,
-  getRandomInt
+  getRandomInt,
 };

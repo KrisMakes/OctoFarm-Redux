@@ -310,10 +310,14 @@ class Manager {
     });
     fileButtons.fileManager.fileHouseKeepingByAge.addEventListener('click', () => {
       const escapeHtml = (str) =>
-        str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        str.replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+        );
       const folderList = printer.fileList.folderList;
-      const excludeFoldersHtml = folderList.length > 0
-        ? `
+      const excludeFoldersHtml =
+        folderList.length > 0
+          ? `
           <div class="form-group text-left">
             <label>Exclude folders (everything inside stays untouched)</label>
             <div id="houseKeepingExcludeFolders">
@@ -321,14 +325,18 @@ class Manager {
                 .map(
                   (folder, index) => `
                 <div class="custom-control custom-checkbox">
-                  <input type="checkbox" class="custom-control-input" id="hkExcludeFolder${index}" data-folder-path="${escapeHtml(folder.name)}">
-                  <label class="custom-control-label" for="hkExcludeFolder${index}">${escapeHtml(folder.name)}</label>
+                  <input type="checkbox" class="custom-control-input" id="hkExcludeFolder${index}" data-folder-path="${escapeHtml(
+                    folder.name
+                  )}">
+                  <label class="custom-control-label" for="hkExcludeFolder${index}">${escapeHtml(
+                    folder.name
+                  )}</label>
                 </div>`
                 )
                 .join('')}
             </div>
           </div>`
-        : '';
+          : '';
       bootbox.dialog({
         title: "Select files older than 'X' days...",
         message: `

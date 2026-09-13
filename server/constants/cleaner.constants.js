@@ -1,16 +1,16 @@
 const ALL_MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec"
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 /**
@@ -30,7 +30,7 @@ function getDefaultFileCleanStatistics() {
     biggestLength: 0,
     smallestLength: 0,
     averageFile: 0,
-    averageLength: 0
+    averageLength: 0,
   };
 }
 
@@ -50,7 +50,7 @@ function getDefaultDashboardStatisticsObject() {
     currentIAQ: null,
     currentTemperature: null,
     currentPressure: null,
-    currentHumidity: null
+    currentHumidity: null,
   };
 }
 
@@ -79,7 +79,7 @@ function getDefaultHistoryStatistics() {
     highestSpoolCost: 0,
     totalPrinterCost: 0,
     highestPrinterCost: 0,
-    currentFailed: 0
+    currentFailed: 0,
   };
 }
 
@@ -90,25 +90,25 @@ function getDefaultHistoryStatistics() {
 function getEmptyHeatmap() {
   return [
     {
-      name: "Completed",
-      data: []
+      name: 'Completed',
+      data: [],
     },
     {
-      name: "Active",
-      data: []
+      name: 'Active',
+      data: [],
     },
     {
-      name: "Idle",
-      data: []
+      name: 'Idle',
+      data: [],
     },
     {
-      name: "Offline",
-      data: []
+      name: 'Offline',
+      data: [],
     },
     {
-      name: "Disconnected",
-      data: []
-    }
+      name: 'Disconnected',
+      data: [],
+    },
   ];
 }
 
@@ -119,29 +119,29 @@ function getEmptyHeatmap() {
 function getEmptyToolTemperatureArray() {
   return [
     {
-      name: "Actual Tool",
-      data: []
+      name: 'Actual Tool',
+      data: [],
     },
     {
-      name: "Target Tool",
-      data: []
+      name: 'Target Tool',
+      data: [],
     },
     {
-      name: "Actual Bed",
-      data: []
+      name: 'Actual Bed',
+      data: [],
     },
     {
-      name: "Target Bed",
-      data: []
+      name: 'Target Bed',
+      data: [],
     },
     {
-      name: "Actual Chamber",
-      data: []
+      name: 'Actual Chamber',
+      data: [],
     },
     {
-      name: "Target Chamber",
-      data: []
-    }
+      name: 'Target Chamber',
+      data: [],
+    },
   ];
 }
 
@@ -156,8 +156,8 @@ function getEmptyOperationsObject() {
       idle: 0,
       disconnected: 0,
       farmProgress: 0,
-      farmProgressColour: "danger"
-    }
+      farmProgressColour: 'danger',
+    },
   };
 }
 
@@ -170,5 +170,5 @@ module.exports = {
   getEmptyOperationsObject,
   DEFAULT_SPOOL_DENSITY,
   DEFAULT_SPOOL_RATIO,
-  ALL_MONTHS
+  ALL_MONTHS,
 };

@@ -2,9 +2,9 @@ const {
   OP_WS_MSG,
   OP_WS_PLUGIN_KEYS,
   OP_WS_MSG_KEYS,
-  EVENT_TYPES
-} = require("../octoprint/constants/octoprint-websocket.constants");
-const { byteCount } = require("../../utils/benchmark.util");
+  EVENT_TYPES,
+} = require('../octoprint/constants/octoprint-websocket.constants');
+const { byteCount } = require('../../utils/benchmark.util');
 const {
   captureTemperatureData,
   captureJobData,
@@ -15,8 +15,8 @@ const {
   setWebsocketAlive,
   captureResendsData,
   capturePrinterProgress,
-  captureCurrentZ
-} = require("./utils/octoprint-websocket-helpers.utils");
+  captureCurrentZ,
+} = require('./utils/octoprint-websocket-helpers.utils');
 const {
   captureClientAuthed,
   captureClientClosed,
@@ -50,21 +50,21 @@ const {
   captureUserLoggedIn,
   captureUserLoggedOut,
   captureZChange,
-  capturePrintFailed
-} = require("./utils/octoprint-event.utils");
+  capturePrintFailed,
+} = require('./utils/octoprint-event.utils');
 const {
   captureKlipperPluginData,
   capturePluginManagerData,
   captureThrottlePluginData,
   captureResourceMonitorData,
   captureDisplayLayerProgress,
-  captureUpdatingData
-} = require("./utils/octoprint-plugin.utils");
+  captureUpdatingData,
+} = require('./utils/octoprint-plugin.utils');
 
-const Logger = require("../../handlers/logger");
-const { mapStateToCategory } = require("../printers/utils/printer-state.utils");
-const { getPrinterStoreCache } = require("../../cache/printer-store.cache");
-const { LOGGER_ROUTE_KEYS } = require("../../constants/logger.constants");
+const Logger = require('../../handlers/logger');
+const { mapStateToCategory } = require('../printers/utils/printer-state.utils');
+const { getPrinterStoreCache } = require('../../cache/printer-store.cache');
+const { LOGGER_ROUTE_KEYS } = require('../../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.OP_SERVICE_WEBSOCKET_MESSAGES);
 
 const loggedMissingPlugins = {};
@@ -78,7 +78,7 @@ class OctoprintWebsocketMessageService {
 
     return {
       header,
-      data: packet
+      data: packet,
     };
   };
 
@@ -89,7 +89,7 @@ class OctoprintWebsocketMessageService {
 
     return {
       header,
-      data: message.plugin.data
+      data: message.plugin.data,
     };
   };
 
@@ -126,7 +126,7 @@ class OctoprintWebsocketMessageService {
         OP_EM.handlePluginData(printerID, data);
         break;
       default:
-        logger.debug("No case matched... ignoring data", data);
+        logger.debug('No case matched... ignoring data', data);
     }
   }
 
@@ -136,9 +136,9 @@ class OctoprintWebsocketMessageService {
     captureConnectedData(printerID, data);
   }
   static handleReAuthData(printerID, data) {
-    logger.warning("Re-auth required for socket!", data);
+    logger.warning('Re-auth required for socket!', data);
     if (!!data?.reauthRequired) {
-      logger.info("Re-authenticating web socket");
+      logger.info('Re-authenticating web socket');
       const printer = getPrinterStoreCache().getPrinter(printerID);
       printer.reConnectWebsocket();
     }
@@ -171,9 +171,9 @@ class OctoprintWebsocketMessageService {
     removeMultiUserFlag(printerID);
     // force update state here after connection established.
     const currentState = {
-      state: "Disconnected",
-      stateColour: mapStateToCategory("Disconnected"),
-      stateDescription: "Websocket Connected but in Tentative state until receiving data"
+      state: 'Disconnected',
+      stateColour: mapStateToCategory('Disconnected'),
+      stateDescription: 'Websocket Connected but in Tentative state until receiving data',
     };
 
     getPrinterStoreCache().updatePrinterState(printerID, currentState);
@@ -341,8 +341,8 @@ class OctoprintWebsocketMessageService {
       default:
         if (!loggedMissingPlugins[header]) {
           loggedMissingPlugins[header] = true;
-          logger.warning("Unknown plugin detected!", { header, type });
-          logger.warning("Unknown data!", data);
+          logger.warning('Unknown plugin detected!', { header, type });
+          logger.warning('Unknown data!', data);
           logger.info(
             "This plugin is currently un-supported, please open a discussion if you'd like it supporting in OctoFarm!"
           );

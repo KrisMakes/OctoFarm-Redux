@@ -1,31 +1,31 @@
-const { randomString } = require("../utils/random.util");
+const { randomString } = require('../utils/random.util');
 
-const MONGO_KEY = "MONGO";
-const OCTOFARM_PORT_KEY = "OCTOFARM_PORT";
-const NON_NPM_MODE_KEY = "NON_NPM_MODE";
-const OCTOFARM_SITE_TITLE_KEY = "OCTOFARM_SITE_TITLE";
-const LOG_LEVEL = "LOG_LEVEL";
-const NODE_ENV_KEY = "NODE_ENV";
-const SUPER_SECRET_KEY = "SUPER_SECRET_KEY";
+const MONGO_KEY = 'MONGO';
+const OCTOFARM_PORT_KEY = 'OCTOFARM_PORT';
+const NON_NPM_MODE_KEY = 'NON_NPM_MODE';
+const OCTOFARM_SITE_TITLE_KEY = 'OCTOFARM_SITE_TITLE';
+const LOG_LEVEL = 'LOG_LEVEL';
+const NODE_ENV_KEY = 'NODE_ENV';
+const SUPER_SECRET_KEY = 'SUPER_SECRET_KEY';
 
-const VERSION_KEY = "npm_package_version";
+const VERSION_KEY = 'npm_package_version';
 
-const defaultMongoStringUnauthenticated = "mongodb://127.0.0.1:27017/octofarm";
+const defaultMongoStringUnauthenticated = 'mongodb://127.0.0.1:27017/octofarm';
 const defaultOctoFarmPort = 4000;
-const defaultOctoFarmPageTitle = "OctoFarm";
-const defaultProductionEnv = "production";
-const defaultTestEnv = "test";
-const knownEnvNames = ["development", "production", "test"];
-const knownLogLevels = ["info", "debug", "silly"];
-const defaultLogLevel = "info";
-const currentReleaseBranch = "master";
-const releaseBranches = ["master", "development"];
+const defaultOctoFarmPageTitle = 'OctoFarm';
+const defaultProductionEnv = 'production';
+const defaultTestEnv = 'test';
+const knownEnvNames = ['development', 'production', 'test'];
+const knownLogLevels = ['info', 'debug', 'silly'];
+const defaultLogLevel = 'info';
+const currentReleaseBranch = 'master';
+const releaseBranches = ['master', 'development'];
 const defaultSuperSecretKey = randomString(20);
 
 // Make sure the client is up to date with this
 const jsonStringify = false;
 
-const apiRoute = "/api";
+const apiRoute = '/api';
 
 class AppConstants {
   static get jsonStringify() {
@@ -106,5 +106,5 @@ class AppConstants {
 }
 
 module.exports = {
-  AppConstants
+  AppConstants,
 };

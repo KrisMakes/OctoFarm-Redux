@@ -1,27 +1,27 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const RoomDataSchema = new mongoose.Schema(
   {
     date: {
       type: Date,
-      required: true
+      required: true,
     },
     temperature: {
       type: Number,
-      required: false
+      required: false,
     },
     pressure: {
       type: Number,
-      required: false
+      required: false,
     },
     humidity: {
       type: Number,
-      required: false
+      required: false,
     },
     iaq: {
       type: Number,
-      required: false
-    }
+      required: false,
+    },
   },
   // See PluginLogs: the capped options never applied. TTL index instead.
   {}
@@ -31,6 +31,6 @@ const RoomDataSchema = new mongoose.Schema(
 const THIRTY_DAYS_IN_SECONDS = 30 * 24 * 60 * 60;
 RoomDataSchema.index({ date: 1 }, { expireAfterSeconds: THIRTY_DAYS_IN_SECONDS });
 
-const RoomData = mongoose.model("RoomData", RoomDataSchema);
+const RoomData = mongoose.model('RoomData', RoomDataSchema);
 
 module.exports = RoomData;

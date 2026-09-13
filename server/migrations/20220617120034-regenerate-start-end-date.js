@@ -2,7 +2,7 @@ const doesDateEqualEpoch = function (date) {
   if (!date) {
     return true;
   }
-  return new Date(date) < new Date("1980-01-01T00:00:00.000+00:00");
+  return new Date(date) < new Date('1980-01-01T00:00:00.000+00:00');
 };
 
 const generateStartDate = function (endDate, printTime) {
@@ -11,7 +11,7 @@ const generateStartDate = function (endDate, printTime) {
 };
 
 const isObject = function (id) {
-  return typeof id === "object";
+  return typeof id === 'object';
 };
 
 module.exports = {
@@ -21,7 +21,7 @@ module.exports = {
       // Safety first
       await session.withTransaction(async () => {
         // Do the migration
-        const dbCollection = db.collection("histories");
+        const dbCollection = db.collection('histories');
 
         await dbCollection.find({}).forEach(function (data) {
           if (isObject(data._id) && doesDateEqualEpoch(data?.printHistory?.startDate)) {
@@ -29,11 +29,11 @@ module.exports = {
               { _id: data._id },
               {
                 $set: {
-                  "printHistory.startDate": generateStartDate(
+                  'printHistory.startDate': generateStartDate(
                     data._id.getTimestamp(),
                     data?.printHistory?.printTime ? data.printHistory.printTime : 0
-                  )
-                }
+                  ),
+                },
               }
             );
           }
@@ -42,8 +42,8 @@ module.exports = {
               { _id: data._id },
               {
                 $set: {
-                  "printHistory.endDate": data._id.getTimestamp()
-                }
+                  'printHistory.endDate': data._id.getTimestamp(),
+                },
               }
             );
           }
@@ -52,5 +52,5 @@ module.exports = {
     } finally {
       await session.endSession();
     }
-  }
+  },
 };

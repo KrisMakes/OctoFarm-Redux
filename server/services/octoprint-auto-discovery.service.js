@@ -1,24 +1,24 @@
-const ssdp = require("node-upnp-ssdp");
-const fetch = require("../utils/fetch.util");
-const parseString = require("xml2js").parseString;
-const Logger = require("../handlers/logger.js");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const ssdp = require('node-upnp-ssdp');
+const fetch = require('../utils/fetch.util');
+const parseString = require('xml2js').parseString;
+const Logger = require('../handlers/logger.js');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_AUTO_DISCOVERY);
 let discoveredDevices = [];
 
-ssdp.on("DeviceFound", (res) => {
-  logger.info("Device found!", res.location);
+ssdp.on('DeviceFound', (res) => {
+  logger.info('Device found!', res.location);
   if (res.location) {
     fetch(res.location, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "Content-Type": "application/json"
-      }
+        'Content-Type': 'application/json',
+      },
     })
       .then((response) => response.text())
       .then((data) => {
-        if (data === "status=ok") {
+        if (data === 'status=ok') {
           return;
         }
         parseString(data, function (err, result) {
@@ -26,37 +26,37 @@ ssdp.on("DeviceFound", (res) => {
             logger.error(err);
             return;
           }
-          logger.info("Attempting to grab device information!", res.location);
+          logger.info('Attempting to grab device information!', res.location);
           try {
             if (
-              typeof result.root.device !== "undefined" &&
-              typeof result.root.device[0].presentationURL !== "undefined"
+              typeof result.root.device !== 'undefined' &&
+              typeof result.root.device[0].presentationURL !== 'undefined'
             ) {
               //Check if it's OctoPrint...
               if (
-                typeof result.root.device[0].friendlyName[0] !== "undefined" &&
-                result.root.device[0].friendlyName[0].includes("OctoPrint")
+                typeof result.root.device[0].friendlyName[0] !== 'undefined' &&
+                result.root.device[0].friendlyName[0].includes('OctoPrint')
               ) {
                 let url = result.root.device[0].presentationURL[0];
                 url = url.substring(0, url.length - 1);
                 let name = result.root.device[0].friendlyName[0];
 
-                if (!name.includes("on")) {
-                  name = name.match(/(?:"[^"]*"|^[^"]*$)/)[0].replace(/"/g, "");
+                if (!name.includes('on')) {
+                  name = name.match(/(?:"[^"]*"|^[^"]*$)/)[0].replace(/"/g, '');
                 } else {
-                  name = "Not Named";
+                  name = 'Not Named';
                 }
-                logger.info("Captured device", res.location);
+                logger.info('Captured device', res.location);
                 discoveredDevices.push({
                   name: name,
-                  url: url
+                  url: url,
                 });
               }
             }
           } catch (e) {
             // Logged `err` here, which is the parseString callback's argument and is
             // always null by this point -- the real exception was discarded.
-            logger.error("Failed to read discovered device information", e.toString());
+            logger.error('Failed to read discovered device information', e.toString());
           }
         });
       })
@@ -67,7 +67,7 @@ ssdp.on("DeviceFound", (res) => {
 });
 
 let searchForDevicesOnNetwork = async function () {
-  logger.info("Running automatic scan...");
+  logger.info('Running automatic scan...');
   discoveredDevices = [];
   ssdp.mSearch();
   function x() {
@@ -82,5 +82,5 @@ let searchForDevicesOnNetwork = async function () {
 };
 
 module.exports = {
-  searchForDevicesOnNetwork
+  searchForDevicesOnNetwork,
 };

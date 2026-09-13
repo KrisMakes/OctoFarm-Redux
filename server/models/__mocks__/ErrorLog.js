@@ -1,4 +1,4 @@
-const errorLogsModel = jest.createMockFromModule("../ErrorLog");
+const errorLogsModel = jest.createMockFromModule('../ErrorLog');
 
 let logs = [];
 

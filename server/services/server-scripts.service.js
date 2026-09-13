@@ -1,22 +1,22 @@
-const Logger = require("../handlers/logger.js");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const Logger = require('../handlers/logger.js');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_SERVER_SCRIPTS);
-const util = require("util");
-const exec = util.promisify(require("child_process").exec);
-const wol = require("wake_on_lan");
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
+const wol = require('wake_on_lan');
 
 class Script {
   static async fire(scriptLocation, message) {
-    logger.info("Script: ", scriptLocation);
-    logger.info("Message: ", message);
+    logger.info('Script: ', scriptLocation);
+    logger.info('Message: ', message);
     try {
       const { stdout, stderr } = await exec(Script.escapeShellArg(`${scriptLocation} ${message}`));
-      if (!!stdout) logger.info("stdout:", stdout);
-      if (!!stderr) logger.error("stderr:", stderr);
+      if (!!stdout) logger.info('stdout:', stdout);
+      if (!!stderr) logger.error('stderr:', stderr);
 
-      return scriptLocation + ": " + stdout;
+      return scriptLocation + ': ' + stdout;
     } catch (err) {
-      logger.error("Error firing script!", err.message);
+      logger.error('Error firing script!', err.message);
       return err;
     }
   }
@@ -26,7 +26,7 @@ class Script {
       address: wolSettings.ip,
       num_packets: wolSettings.count,
       interval: wolSettings.interval,
-      port: wolSettings.port
+      port: wolSettings.port,
     };
     const mac = wolSettings.MAC;
 
@@ -34,7 +34,7 @@ class Script {
       if (error) {
         logger.error("Couldn't fire wake packet", error.message);
       } else {
-        logger.info("Successfully fired wake packet: ", mac, opts);
+        logger.info('Successfully fired wake packet: ', mac, opts);
       }
     });
   }

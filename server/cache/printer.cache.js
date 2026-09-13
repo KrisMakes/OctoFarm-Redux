@@ -1,4 +1,4 @@
-const { PrinterClean } = require("../services/printer-cleaner.service");
+const { PrinterClean } = require('../services/printer-cleaner.service');
 
 let printerCleanState = new PrinterClean();
 
@@ -32,5 +32,5 @@ module.exports = {
   returnPrinterControlList,
   returnFilamentList,
   returnCurrentOperations,
-  returnDashboardStatistics
+  returnDashboardStatistics,
 };

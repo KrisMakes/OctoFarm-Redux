@@ -1,8 +1,8 @@
-const { DateTime } = require("luxon");
+const { DateTime } = require('luxon');
 
 function toTimeFormat(printTime) {
   if (!printTime) {
-    return "?";
+    return '?';
   }
 
   printTime = printTime * 1000;
@@ -14,16 +14,16 @@ function toTimeFormat(printTime) {
 
 function getCompletionDate(printTimeLeftSeconds, completion) {
   if (completion === 100) {
-    return "No Active Job";
+    return 'No Active Job';
   }
 
   const printDoneDT = DateTime.now().plus({ seconds: printTimeLeftSeconds });
-  return printDoneDT.toFormat("ccc LLL dd yyyy: HH:mm");
+  return printDoneDT.toFormat('ccc LLL dd yyyy: HH:mm');
 }
 
 function getDayName() {
-  return new Intl.DateTimeFormat(["en"], {
-    weekday: "long" // ?? what should I put here
+  return new Intl.DateTimeFormat(['en'], {
+    weekday: 'long', // ?? what should I put here
   }).format(new Date());
 }
 
@@ -50,7 +50,7 @@ function durationToDates(printDuration) {
 
   return {
     startDate,
-    endDate
+    endDate,
   };
 }
 
@@ -58,5 +58,5 @@ module.exports = {
   toTimeFormat,
   durationToDates,
   getCompletionDate,
-  getDayName
+  getDayName,
 };

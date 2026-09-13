@@ -1,4 +1,4 @@
-const PrinterManagerService = require("../services/printer-manager.service");
+const PrinterManagerService = require('../services/printer-manager.service');
 
 let printerManagerState = undefined;
 

@@ -1,8 +1,8 @@
-const User = require("../models/User.js");
-const ClientSettings = require("../models/ClientSettings.js");
-const { SettingsClean } = require("../services/settings-cleaner.service")
-const bcrypt = require("bcryptjs");
-const { findIndex } = require("lodash");
+const User = require('../models/User.js');
+const ClientSettings = require('../models/ClientSettings.js');
+const { SettingsClean } = require('../services/settings-cleaner.service');
+const bcrypt = require('bcryptjs');
+const { findIndex } = require('lodash');
 
 let currentUsers;
 
@@ -21,7 +21,7 @@ async function fetchFirstAdministrator() {
 async function checkLastAdministrator() {
   const currentUserList = await fetchUsers();
   const userIndex = findIndex(currentUserList, function (o) {
-    return o.group === "Administrator";
+    return o.group === 'Administrator';
   });
 
   return userIndex === -1;
@@ -37,34 +37,34 @@ async function createUser({
   username = undefined,
   group = undefined,
   password = undefined,
-  password2 = undefined
+  password2 = undefined,
 }) {
   const errors = [];
   let createdNewUser = false;
   // Check required fields
   if (!name || !username || !password || !password2) {
-    errors.push({ msg: "Please fill in all fields..." });
+    errors.push({ msg: 'Please fill in all fields...' });
   }
 
   // Check passwords match
   if (password !== password2) {
-    errors.push({ msg: "Passwords do not match..." });
+    errors.push({ msg: 'Passwords do not match...' });
   }
 
   // Password at least 6 characters
   if (password.length < 6) {
-    errors.push({ msg: "Password should be at least 6 characters..." });
+    errors.push({ msg: 'Password should be at least 6 characters...' });
   }
 
   // Group must be Administrator or User
-  if (!["Administrator", "User"].includes(group)) {
-    errors.push({ msg: "Group is not recognised!" });
+  if (!['Administrator', 'User'].includes(group)) {
+    errors.push({ msg: 'Group is not recognised!' });
   }
 
   if (errors.length > 0) {
     return {
       createdNewUser,
-      errors
+      errors,
     };
   }
 
@@ -76,7 +76,7 @@ async function createUser({
       username,
       password,
       group,
-      clientSettings: userSettings._id
+      clientSettings: userSettings._id,
     });
     newUser.password = await new Promise((resolve, reject) => {
       bcrypt.hash(newUser.password, 10, function (err, hash) {
@@ -88,7 +88,7 @@ async function createUser({
     createdNewUser = newUser;
   } catch (e) {
     createdNewUser = false;
-    errors.push({ msg: "Failed to save new user: " + e });
+    errors.push({ msg: 'Failed to save new user: ' + e });
     ClientSettings.findByIdAndDelete(userSettings._id);
   }
   if (errors.length === 0) {
@@ -96,13 +96,13 @@ async function createUser({
       await userSettings.save();
       await SettingsClean.start();
     } catch (e) {
-      errors.push({ msg: "Failed to save new user settings: " + e });
+      errors.push({ msg: 'Failed to save new user settings: ' + e });
     }
   }
   await fetchUsers(true);
   return {
     createdNewUser,
-    errors
+    errors,
   };
 }
 
@@ -111,17 +111,17 @@ async function deleteUser(id) {
   const errors = [];
 
   if (await checkLastExistingUser()) {
-    errors.push({ msg: "Cannot delete your last user!" });
+    errors.push({ msg: 'Cannot delete your last user!' });
   }
 
   if (await checkLastAdministrator()) {
-    errors.push({ msg: "Cannot delete your last Administrator!" });
+    errors.push({ msg: 'Cannot delete your last Administrator!' });
   }
 
   if (errors.length > 0) {
     return {
       userDeleted,
-      errors
+      errors,
     };
   }
 
@@ -135,28 +135,28 @@ async function deleteUser(id) {
 
   return {
     userDeleted,
-    errors
+    errors,
   };
 }
 
 async function resetPassword(id, { password = undefined, password2 = undefined }) {
   const errors = [];
   if (!id) {
-    errors.push({ msg: "No id provided!" });
+    errors.push({ msg: 'No id provided!' });
   }
 
   if (!password || !password2) {
-    errors.push({ msg: "Please fill in all fields..." });
+    errors.push({ msg: 'Please fill in all fields...' });
   }
 
   // Check passwords match
   if (password !== password2) {
-    errors.push({ msg: "Passwords do not match..." });
+    errors.push({ msg: 'Passwords do not match...' });
   }
 
   // Password at least 6 characters
   if (password.length < 6) {
-    errors.push({ msg: "Password should be at least 6 characters..." });
+    errors.push({ msg: 'Password should be at least 6 characters...' });
   }
 
   let user = false;
@@ -164,7 +164,7 @@ async function resetPassword(id, { password = undefined, password2 = undefined }
   if (errors.length > 0) {
     return {
       user,
-      errors
+      errors,
     };
   }
   try {
@@ -177,12 +177,12 @@ async function resetPassword(id, { password = undefined, password2 = undefined }
     });
     await user.save();
   } catch (e) {
-    errors.push({ msg: "Error saving user information: " + e });
+    errors.push({ msg: 'Error saving user information: ' + e });
   }
 
   return {
     user,
-    errors
+    errors,
   };
 }
 
@@ -191,7 +191,7 @@ async function editUser(id, { name = undefined, username = undefined, group = un
   let createdNewUser = false;
   // Check required fields
   if (!name || !username || !group) {
-    errors.push({ msg: "Please fill in all fields..." });
+    errors.push({ msg: 'Please fill in all fields...' });
   }
 
   if (await checkLastAdministrator()) {
@@ -199,14 +199,14 @@ async function editUser(id, { name = undefined, username = undefined, group = un
   }
 
   // Group must be Administrator or User
-  if (!["Administrator", "User"].includes(group)) {
-    errors.push({ msg: "Group is not recognised!" });
+  if (!['Administrator', 'User'].includes(group)) {
+    errors.push({ msg: 'Group is not recognised!' });
   }
 
   if (errors.length > 0) {
     return {
       createdNewUser,
-      errors
+      errors,
     };
   }
   let user;
@@ -218,12 +218,12 @@ async function editUser(id, { name = undefined, username = undefined, group = un
     await user.save();
     await fetchUsers(true);
   } catch (e) {
-    errors.push({ msg: "Error saving user information: " + e });
+    errors.push({ msg: 'Error saving user information: ' + e });
   }
 
   return {
     user,
-    errors
+    errors,
   };
 }
 
@@ -233,5 +233,5 @@ module.exports = {
   deleteUser,
   resetPassword,
   editUser,
-  fetchFirstAdministrator
+  fetchFirstAdministrator,
 };

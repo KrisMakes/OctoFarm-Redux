@@ -1,13 +1,13 @@
-const { getPrinterStoreCache } = require("../../../cache/printer-store.cache");
-const { OP_WS_MSG_KEYS } = require("../constants/octoprint-websocket.constants");
-const { PrinterClean } = require("../../printer-cleaner.service");
-const { JobClean } = require("../../job-cleaner.service");
-const TempHistoryDB = require("../../../models/TempHistory");
-const { mapStateToCategory } = require("../../printers/utils/printer-state.utils");
-const { eventListConstants } = require("../../../constants/event.constants");
+const { getPrinterStoreCache } = require('../../../cache/printer-store.cache');
+const { OP_WS_MSG_KEYS } = require('../constants/octoprint-websocket.constants');
+const { PrinterClean } = require('../../printer-cleaner.service');
+const { JobClean } = require('../../job-cleaner.service');
+const TempHistoryDB = require('../../../models/TempHistory');
+const { mapStateToCategory } = require('../../printers/utils/printer-state.utils');
+const { eventListConstants } = require('../../../constants/event.constants');
 
-const Logger = require("../../../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../../../constants/logger.constants");
+const Logger = require('../../../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../../../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.OP_UTIL_WEBSOCKET_HELPER);
 
 // printer-cleaner.service.js reads the newest 720 temp rows and presents them as
@@ -31,7 +31,7 @@ const captureTemperatureData = (id, data) => {
     const temps = data;
     //Make sure we have at least a tool!
     getPrinterStoreCache().updatePrinterLiveValue(id, {
-      tools: PrinterClean.sortTemps(temps)
+      tools: PrinterClean.sortTemps(temps),
     });
 
     // Sample against a real clock rather than counting messages. The old counter
@@ -49,7 +49,7 @@ const captureTemperatureData = (id, data) => {
       tempTimers[id] = now;
       const datebaseTemp = {
         currentTemp: temps[0],
-        printer_id: id
+        printer_id: id,
       };
       const newTemp = new TempHistoryDB(datebaseTemp);
       newTemp.save().catch((e) => {
@@ -69,10 +69,10 @@ const deleteTemperatureData = async (id) => {
 const coolDownEvent = (id, temps) => {
   const { printerState } = getPrinterStoreCache().getPrinterState(id);
 
-  if (printerState.colour.category === "Active") {
+  if (printerState.colour.category === 'Active') {
     getPrinterStoreCache().addPrinterEvent(id, eventListConstants.COOL_DOWN.id);
   }
-  if (printerState.colour.category === "Complete") {
+  if (printerState.colour.category === 'Complete') {
     if (!temps[0]?.tool0 || !temps[0]?.bed) {
       return;
     }
@@ -89,7 +89,7 @@ const coolDownEvent = (id, temps) => {
 const captureJobData = (id, data) => {
   if (!!data) {
     getPrinterStoreCache().updatePrinterLiveValue(id, {
-      job: data
+      job: data,
     });
     getPrinterStoreCache().updatePrinterLiveValue(id, {
       currentJob: JobClean.generate(
@@ -99,7 +99,7 @@ const captureJobData = (id, data) => {
         getPrinterStoreCache().getCurrentZ(id),
         getPrinterStoreCache().getCostSettings(id),
         getPrinterStoreCache().getPrinterProgress(id)
-      )
+      ),
     });
   }
 };
@@ -107,30 +107,30 @@ const captureJobData = (id, data) => {
 const capturePrinterState = (id, data, job, progress) => {
   if (!!data) {
     const { text } = data;
-    let returnState = "";
-    let returnStateDescription = "";
+    let returnState = '';
+    let returnStateDescription = '';
 
-    if (text === "Offline" || text.includes("Closed")) {
-      returnState = "Disconnected";
+    if (text === 'Offline' || text.includes('Closed')) {
+      returnState = 'Disconnected';
       returnStateDescription = "Your printer isn't connected to OctoPrint";
-    } else if (text.includes("Error") || text.includes("error")) {
-      returnState = "Error!";
+    } else if (text.includes('Error') || text.includes('error')) {
+      returnState = 'Error!';
       returnStateDescription = text;
     } else {
       returnState = text;
-      returnStateDescription = "Current status from OctoPrint";
+      returnStateDescription = 'Current status from OctoPrint';
 
       // OctoPrint keeps the last completion after the file is unselected, so require a loaded file.
       if (progress?.completion === 100 && !!job?.file?.name) {
-        returnState = "Complete";
-        returnStateDescription = "Your current print is Completed!";
+        returnState = 'Complete';
+        returnStateDescription = 'Your current print is Completed!';
       }
     }
 
     const currentState = {
       state: returnState,
       stateColour: mapStateToCategory(returnState),
-      stateDescription: returnStateDescription
+      stateDescription: returnStateDescription,
     };
 
     getPrinterStoreCache().updatePrinterState(id, currentState);
@@ -149,20 +149,20 @@ const captureConnectedData = (id, data) => {
 const captureResendsData = (id, data) => {
   if (!!data) {
     getPrinterStoreCache().updatePrinterLiveValue(id, {
-      resends: data
+      resends: data,
     });
   }
 };
 
 const capturePrinterProgress = (id, data) => {
   // Patch completion, could be print time genius... Need to try without.
-  if (data?.printTimeLeftOrigin === "genius") {
+  if (data?.printTimeLeftOrigin === 'genius') {
     data.completion = (100 * data.printTime) / (data.printTime + data.printTimeLeft);
   }
 
   if (!!data) {
     getPrinterStoreCache().updatePrinterLiveValue(id, {
-      progress: data
+      progress: data,
     });
   }
 };
@@ -170,7 +170,7 @@ const capturePrinterProgress = (id, data) => {
 const captureCurrentZ = (id, data) => {
   if (!!data) {
     getPrinterStoreCache().updatePrinterLiveValue(id, {
-      currentZ: data
+      currentZ: data,
     });
   }
 };
@@ -181,19 +181,19 @@ const checkForMultipleUsers = (id) => {
     const multiUserIssue = getPrinterStoreCache().getMultiUserIssueState(id);
     if (!multiUserIssue) {
       getPrinterStoreCache().updatePrinterLiveValue(id, {
-        multiUserIssue: true
+        multiUserIssue: true,
       });
       const currentState = {
-        state: "Offline",
-        stateColour: mapStateToCategory("Offline"),
-        stateDescription: "Multiple users detected... couldn't authenticate the websocket!"
+        state: 'Offline',
+        stateColour: mapStateToCategory('Offline'),
+        stateDescription: "Multiple users detected... couldn't authenticate the websocket!",
       };
 
       getPrinterStoreCache().updatePrinterState(id, currentState);
 
       const currentWebsocketState = {
-        webSocket: "danger",
-        webSocketDescription: "Websocket is Offline!"
+        webSocket: 'danger',
+        webSocketDescription: 'Websocket is Offline!',
       };
       getPrinterStoreCache().updateWebsocketState(id, currentWebsocketState);
     }
@@ -209,14 +209,14 @@ const parseAndUpdateVersionData = (id, version) => {
 
 const removeMultiUserFlag = (id) => {
   getPrinterStoreCache().updatePrinterLiveValue(id, {
-    multiUserIssue: false
+    multiUserIssue: false,
   });
 };
 
 const setWebsocketAlive = (id) => {
   const currentWebsocketState = {
-    webSocket: "success",
-    webSocketDescription: "Online and receiving data!"
+    webSocket: 'success',
+    webSocketDescription: 'Online and receiving data!',
   };
   getPrinterStoreCache().updateWebsocketState(id, currentWebsocketState);
 };
@@ -232,5 +232,5 @@ module.exports = {
   captureResendsData,
   capturePrinterProgress,
   captureCurrentZ,
-  deleteTemperatureData
+  deleteTemperatureData,
 };

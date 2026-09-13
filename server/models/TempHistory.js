@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 // Retention: printer-cleaner.service.js only ever reads the newest 720 records
 // per printer, which the ~5s write interval makes roughly an hour of history.
@@ -11,12 +11,12 @@ const TempHistorySchema = new mongoose.Schema(
   {
     currentTemp: {
       type: Object,
-      required: true
+      required: true,
     },
     printer_id: {
       type: String,
-      required: true
-    }
+      required: true,
+    },
   },
   // This used to declare { capped: true, size: 10000, max: 1000000 }, which
   // never took effect: Mongoose applies capped options only when it creates the
@@ -28,6 +28,6 @@ const TempHistorySchema = new mongoose.Schema(
 
 TempHistorySchema.index({ createdAt: 1 }, { expireAfterSeconds: THIRTY_DAYS_IN_SECONDS });
 
-const TempHistory = mongoose.model("TempHistory", TempHistorySchema);
+const TempHistory = mongoose.model('TempHistory', TempHistorySchema);
 
 module.exports = TempHistory;

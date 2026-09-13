@@ -1,7 +1,7 @@
-const Logger = require("../handlers/logger.js");
-const { AppConstants } = require("../constants/app.constants");
-const { getGithubReleasesPromise } = require("./github-client.service");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const Logger = require('../handlers/logger.js');
+const { AppConstants } = require('../constants/app.constants');
+const { getGithubReleasesPromise } = require('./github-client.service');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_SERVER_UPDATE);
 let lastSuccessfulReleaseCheckMoment = null;
@@ -32,9 +32,9 @@ async function syncLatestOctoFarmRelease(includePrereleases = false) {
   await getGithubReleasesPromise()
     .then((githubReleases) => {
       airGapped = !githubReleases;
-      if (githubReleases?.message?.includes("API rate")) {
+      if (githubReleases?.message?.includes('API rate')) {
         logger.error(
-          "Latest release check failed due to API rate limiting... Please input your github token in .env"
+          'Latest release check failed due to API rate limiting... Please input your github token in .env'
         );
         lastReleaseCheckFailed = true;
         return Promise.resolve(null);
@@ -64,11 +64,11 @@ async function syncLatestOctoFarmRelease(includePrereleases = false) {
             lastReleaseCheckFailed = false;
             notificationReady = false;
           } else {
-            logger.debug("Latest release check failed because latestRelease not set");
+            logger.debug('Latest release check failed because latestRelease not set');
             lastReleaseCheckFailed = true;
           }
         } else {
-          logger.debug("Latest release check failed because releases from gitty empty");
+          logger.debug('Latest release check failed because releases from gitty empty');
           lastReleaseCheckFailed = true;
         }
       }
@@ -91,7 +91,7 @@ function getLastReleaseSyncState() {
     lastReleaseCheckFailed,
     loadedWithPrereleases,
     airGapped,
-    ...(lastReleaseCheckFailed && { lastReleaseCheckError })
+    ...(lastReleaseCheckFailed && { lastReleaseCheckError }),
   };
 }
 
@@ -108,17 +108,17 @@ function getUpdateNotificationIfAny() {
       update_available: true,
       installed_release_found: installedReleaseFound,
       message:
-        "You can update OctoFarm to the latest version available: " +
+        'You can update OctoFarm to the latest version available: ' +
         latestReleaseCheckState.latestReleaseKnown.tag_name,
       current_version: packageVersion,
-      ...latestReleaseCheckState
+      ...latestReleaseCheckState,
     };
   } else {
     return {
       update_available: false,
       installed_release_found: installedReleaseFound,
       air_gapped: airGapped,
-      current_version: packageVersion
+      current_version: packageVersion,
     };
   }
 }
@@ -175,5 +175,5 @@ module.exports = {
   syncLatestOctoFarmRelease,
   getUpdateNotificationIfAny,
   getLastReleaseSyncState,
-  checkReleaseAndLogUpdate
+  checkReleaseAndLogUpdate,
 };

@@ -98,7 +98,7 @@ class PrinterManagerService {
   async startPrinterEnableQueue() {
     this.#printerEnableTimeout = setTimeout(() => {
       this.handlePrinterEnableQueue().catch((e) => {
-        logger.error("Printer enable queue failed", e.toString());
+        logger.error('Printer enable queue failed', e.toString());
       });
     }, this.#printerEnableTimer);
   }

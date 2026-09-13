@@ -1,4 +1,4 @@
-const EventEmitterService = require("../services/event-emitter.service");
+const EventEmitterService = require('../services/event-emitter.service');
 
 let eventEmitterState = undefined;
 

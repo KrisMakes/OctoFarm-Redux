@@ -1,6 +1,6 @@
 const averageMeanOfArray = (array, decimals = undefined) => {
   const average = array.reduce((a, b) => a + b, 0) / array.length;
-  if (typeof decimals !== "undefined") {
+  if (typeof decimals !== 'undefined') {
     return safeToFixed(average);
   }
   return average;
@@ -11,5 +11,5 @@ const safeToFixed = (number, decimals) => {
 };
 
 module.exports = {
-  averageMeanOfArray
+  averageMeanOfArray,
 };

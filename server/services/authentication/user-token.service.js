@@ -1,13 +1,13 @@
 function randomString(len) {
   const buf = [],
-    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
     charlen = chars.length;
 
   for (let i = 0; i < len; ++i) {
     buf.push(chars[getRandomInt(0, charlen - 1)]);
   }
 
-  return buf.join("");
+  return buf.join('');
 }
 
 function getRandomInt(min, max) {
@@ -52,7 +52,7 @@ class UserTokenService {
    * @throws {Error} If the printer is not correctly provided.
    */
   static async create(token, userId) {
-    if (!token) throw new Error("Missing token to save");
+    if (!token) throw new Error('Missing token to save');
 
     return (this.tokens[token] = userId);
   }
@@ -80,5 +80,5 @@ class UserTokenService {
 }
 
 module.exports = {
-  UserTokenService
+  UserTokenService,
 };

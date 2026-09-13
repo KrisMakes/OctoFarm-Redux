@@ -1,9 +1,9 @@
-const { exec } = require("child_process");
-const { isPm2 } = require("../utils/env.utils.js");
-const { isNodemon } = require("../utils/env.utils.js");
-const { lookpath } = require("lookpath");
+const { exec } = require('child_process');
+const { isPm2 } = require('../utils/env.utils.js');
+const { isNodemon } = require('../utils/env.utils.js');
+const { lookpath } = require('lookpath');
 
-const { returnListOfMissingPackages, installNpmDependency } = require("../utils/npm.utils.js");
+const { returnListOfMissingPackages, installNpmDependency } = require('../utils/npm.utils.js');
 const {
   returnCurrentGitStatus,
   isBranchUpToDate,
@@ -11,11 +11,11 @@ const {
   getListOfModifiedFiles,
   pullLatestRepository,
   checkIfWereInAGitRepo,
-  makeSureBranchIsUpToDateWithRemote
-} = require("../utils/git.utils.js");
+  makeSureBranchIsUpToDateWithRemote,
+} = require('../utils/git.utils.js');
 
-const Logger = require("../handlers/logger.js");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const Logger = require('../handlers/logger.js');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_SYSTEM_CONTROL);
 
@@ -26,37 +26,37 @@ class SystemCommands {
     // If we're on pm2, then restart buddy!
     if (isPm2()) {
       try {
-        let doesFunctionExist = await lookpath("pm2");
+        let doesFunctionExist = await lookpath('pm2');
 
         if (doesFunctionExist) {
           setTimeout(() => {
-            exec("pm2 restart OctoFarm").catch((e) => {
-              logger.error("pm2 restart command failed", e.toString());
+            exec('pm2 restart OctoFarm').catch((e) => {
+              logger.error('pm2 restart command failed', e.toString());
             });
           }, 5000);
 
           checkForNamedService = true;
         }
       } catch (e) {
-        throw "Error with pm2 restart command: " + e;
+        throw 'Error with pm2 restart command: ' + e;
       }
     }
 
     if (isNodemon()) {
       try {
-        let doesFunctionExist = await lookpath("touch");
+        let doesFunctionExist = await lookpath('touch');
 
         if (doesFunctionExist) {
           setTimeout(() => {
-            exec("touch ./app.js").catch((e) => {
-              logger.error("nodemon restart command failed", e.toString());
+            exec('touch ./app.js').catch((e) => {
+              logger.error('nodemon restart command failed', e.toString());
             });
           }, 5000);
 
           checkForNamedService = true;
         }
       } catch (e) {
-        throw "Error with nodemon restart command: " + e;
+        throw 'Error with nodemon restart command: ' + e;
       }
     }
 
@@ -68,8 +68,8 @@ class SystemCommands {
     // Check to see if current dir contains a git folder... hard fail otherwise.
     let isThisAGitRepo = checkIfWereInAGitRepo();
     if (!isThisAGitRepo) {
-      clientResponse.statusTypeForUser = "warning";
-      clientResponse.message = "Not a git repository, user intervention required!";
+      clientResponse.statusTypeForUser = 'warning';
+      clientResponse.message = 'Not a git repository, user intervention required!';
       return clientResponse;
     }
 
@@ -83,8 +83,8 @@ class SystemCommands {
       const gitBranchUpToDate = isBranchUpToDate(gitCurrentStatus);
       if (gitBranchUpToDate) {
         clientResponse.haveWeSuccessfullyUpdatedOctoFarm = false;
-        clientResponse.message = "OctoFarm is already up to date! Your good to go!";
-        clientResponse.statusTypeForUser = "success";
+        clientResponse.message = 'OctoFarm is already up to date! Your good to go!';
+        clientResponse.statusTypeForUser = 'success';
         return clientResponse;
       }
 
@@ -94,7 +94,7 @@ class SystemCommands {
       const modifiedFilesList = getListOfModifiedFiles(gitCurrentStatus);
       if (modifiedFilesList.length > 0) {
         const gitBranchInFront = isBranchInfront(gitCurrentStatus);
-        clientResponse.statusTypeForUser = "warning";
+        clientResponse.statusTypeForUser = 'warning';
         if (gitBranchInFront) {
           //If the branch is not front of current branch, then we need to relay the developer message.
           clientResponse.message =
@@ -110,8 +110,8 @@ class SystemCommands {
             "<b class='text-danger'>Cancel:</b> This option will cancel the update process keeping your local changes. No update will run and manual intervention by the user is required. <br><br>";
           modifiedFilesList.forEach((line) => {
             clientResponse.message += `<div class="alert alert-secondary m-1 p-2" role="alert"><i class="fas fa-file"></i> ${line.replace(
-              "modified: ",
-              ""
+              'modified: ',
+              ''
             )} </div>`;
           });
           return clientResponse;
@@ -127,8 +127,8 @@ class SystemCommands {
 
     // Everything went well, enjoy the tasty updates!
     clientResponse.haveWeSuccessfullyUpdatedOctoFarm = true;
-    clientResponse.statusTypeForUser = "success";
-    clientResponse.message = "Update command has run successfully, OctoFarm will restart.";
+    clientResponse.statusTypeForUser = 'success';
+    clientResponse.message = 'Update command has run successfully, OctoFarm will restart.';
     // Local changes
     return clientResponse;
   }

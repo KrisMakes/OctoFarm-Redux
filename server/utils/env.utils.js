@@ -1,25 +1,25 @@
-const path = require("path");
-const fs = require("fs");
-const Logger = require("../handlers/logger.js");
-const dotenv = require("dotenv");
-const isDocker = require("./is-docker.util");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const path = require('path');
+const fs = require('fs');
+const Logger = require('../handlers/logger.js');
+const dotenv = require('dotenv');
+const isDocker = require('./is-docker.util');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.UTILS_ENV_LOGGER, false);
 
 function isPm2() {
   return (
-    "PM2_HOME" in process.env || "PM2_JSON_PROCESSING" in process.env || "PM2_CLI" in process.env
+    'PM2_HOME' in process.env || 'PM2_JSON_PROCESSING' in process.env || 'PM2_CLI' in process.env
   );
 }
 
 function isNodemon() {
   return (
-    "npm_lifecycle_script" in process.env && process.env.npm_lifecycle_script.includes("nodemon")
+    'npm_lifecycle_script' in process.env && process.env.npm_lifecycle_script.includes('nodemon')
   );
 }
 
 function isNode() {
-  return "NODE" in process.env;
+  return 'NODE' in process.env;
 }
 
 /**
@@ -27,11 +27,11 @@ function isNode() {
  * Copied from https://github.com/bevry/envfile
  */
 function stringifyDotEnv(obj) {
-  let result = "";
+  let result = '';
   for (const [key, value] of Object.entries(obj)) {
     if (key) {
       const line = `${key}=${String(value)}`;
-      result += line + "\n";
+      result += line + '\n';
     }
   }
   return result;
@@ -43,12 +43,12 @@ function stringifyDotEnv(obj) {
  */
 function writeVariableToEnvFile(absoluteEnvPath, variableKey, jsonObject) {
   if (isDocker()) {
-    logger.error("Tried to persist setting to .env in docker mode. Avoided that.");
+    logger.error('Tried to persist setting to .env in docker mode. Avoided that.');
     return;
   }
-  const latestDotEnvConfig = dotenv.config({ path: "../.env" });
-  if (latestDotEnvConfig?.error?.code === "ENOENT") {
-    logger.warning("Creating .env file for you as it was not found.");
+  const latestDotEnvConfig = dotenv.config({ path: '../.env' });
+  if (latestDotEnvConfig?.error?.code === 'ENOENT') {
+    logger.warning('Creating .env file for you as it was not found.');
   } else if (!!latestDotEnvConfig.error) {
     logger.error(JSON.stringify(latestDotEnvConfig.error));
     throw new Error(
@@ -58,7 +58,7 @@ function writeVariableToEnvFile(absoluteEnvPath, variableKey, jsonObject) {
 
   const newDotEnv = {
     ...latestDotEnvConfig.parsed,
-    [variableKey]: jsonObject
+    [variableKey]: jsonObject,
   };
 
   const dotEnvResult = stringifyDotEnv(newDotEnv);
@@ -67,43 +67,43 @@ function writeVariableToEnvFile(absoluteEnvPath, variableKey, jsonObject) {
 
 function verifyPackageJsonRequirements(rootPath) {
   const dirConts = fs.readdirSync(rootPath);
-  const hasPackageJson = dirConts.includes("package.json");
+  const hasPackageJson = dirConts.includes('package.json');
   if (!hasPackageJson) {
     logger.error(`FAILURE. Could not find 'package.json' in root folder ${rootPath}`);
     return false;
   } else {
     logger.debug("✓ found 'package.json'");
-    const packageName = require("../package.json").name;
+    const packageName = require('../package.json').name;
     if (!packageName) {
       logger.error("X Could not find 'name' property in package.json file. Aborting OctoFarm.");
       return false;
-    } else if (packageName.toLowerCase() !== "octofarm-server") {
+    } else if (packageName.toLowerCase() !== 'octofarm-server') {
       logger.error(
         `X property 'name' in package.json file didnt equal 'octofarm' (found: ${packageName.toLowerCase()}). Aborting OctoFarm.`
       );
       return false;
     }
   }
-  logger.debug("✓ Correctly validated octofarm package.json file!");
+  logger.debug('✓ Correctly validated octofarm package.json file!');
   return true;
 }
 
 function ensureBackgroundImageExists(rootPath) {
   // Explicit relative folder
-  const targetBgDir = "../images";
-  const targetBgPath = path.join(targetBgDir, "bg.jpg");
+  const targetBgDir = '../images';
+  const targetBgPath = path.join(targetBgDir, 'bg.jpg');
   if (!fs.existsSync(targetBgDir)) {
     fs.mkdirSync(targetBgDir);
   }
   const bgFileExists = fs.existsSync(targetBgPath);
   if (!bgFileExists) {
-    const defaultBgPath = path.resolve(__dirname, "bg_default.jpg");
+    const defaultBgPath = path.resolve(__dirname, 'bg_default.jpg');
     if (!fs.existsSync(defaultBgPath)) {
-      logger.error("cant find default bg file...", defaultBgPath);
-    } else if (!fs.existsSync("images")) {
-      logger.error("cant find target folder...", path.join(rootPath, targetBgDir));
+      logger.error('cant find default bg file...', defaultBgPath);
+    } else if (!fs.existsSync('images')) {
+      logger.error('cant find target folder...', path.join(rootPath, targetBgDir));
     } else {
-      logger.info("everything good", defaultBgPath, targetBgPath);
+      logger.info('everything good', defaultBgPath, targetBgPath);
     }
 
     // This is the reason why we dont copy under PKG
@@ -124,5 +124,5 @@ module.exports = {
   isNode,
   writeVariableToEnvFile,
   verifyPackageJsonRequirements,
-  ensureBackgroundImageExists
+  ensureBackgroundImageExists,
 };

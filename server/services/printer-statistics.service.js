@@ -1,17 +1,17 @@
-const { getHistoryCache } = require("../cache/history.cache");
-const { getPrinterStoreCache } = require("../cache/printer-store.cache");
-const _ = require("lodash");
-const { checkNested, checkNestedIndex, sumValuesGroupByDate } = require("../utils/array.util");
-const RoomData = require("../models/RoomData");
+const { getHistoryCache } = require('../cache/history.cache');
+const { getPrinterStoreCache } = require('../cache/printer-store.cache');
+const _ = require('lodash');
+const { checkNested, checkNestedIndex, sumValuesGroupByDate } = require('../utils/array.util');
+const RoomData = require('../models/RoomData');
 const {
   getDefaultDashboardStatisticsObject,
-  getEmptyToolTemperatureArray
-} = require("../constants/cleaner.constants");
-const { getCurrentOperations } = require("./current-operations.service");
-const { getHeatMap, heatMapping } = require("./farm-information.service");
-const { PrinterClean } = require("./printer-cleaner.service");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+  getEmptyToolTemperatureArray,
+} = require('../constants/cleaner.constants');
+const { getCurrentOperations } = require('./current-operations.service');
+const { getHeatMap, heatMapping } = require('./farm-information.service');
+const { PrinterClean } = require('./printer-cleaner.service');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_PRINTER_STATISTICS);
 
@@ -32,11 +32,11 @@ const generatePrinterStatistics = async (id) => {
   const printer = getPrinterStoreCache().getPrinterInformation(id);
 
   const { historyClean } = await getHistoryCache().initCache(
-    { "printHistory.printerName": printer.printerName },
+    { 'printHistory.printerName': printer.printerName },
     {
       page: 1,
       limit: 1000,
-      sort: { _id: -1 }
+      sort: { _id: -1 },
     }
   );
 
@@ -87,7 +87,7 @@ const generatePrinterStatistics = async (id) => {
     historyByDay: [],
     historyByDayIncremental: [],
     octoPrintSystemInfo: printer.octoPrintSystemInfo,
-    printerFirmware: printer.printerFirmware
+    printerFirmware: printer.printerFirmware,
   };
   //Generate utilisation chart
   const totalTime = printer.currentActive + printer.currentIdle + printer.currentOffline;
@@ -113,15 +113,15 @@ const generatePrinterStatistics = async (id) => {
           );
         }
 
-        if (typeof h.resend !== "undefined") {
+        if (typeof h.resend !== 'undefined') {
           printerStatistics.printerResendRatioTotal.push(h.resend.ratio);
         }
 
-        if (h.state.includes("success")) {
+        if (h.state.includes('success')) {
           printerStatistics.printSuccessTotal.push(1);
-        } else if (h.state.includes("warning")) {
+        } else if (h.state.includes('warning')) {
           printerStatistics.printCancelTotal.push(1);
-        } else if (h.state.includes("danger")) {
+        } else if (h.state.includes('danger')) {
           printerStatistics.printErrorTotal.push(1);
         }
 
@@ -132,23 +132,23 @@ const generatePrinterStatistics = async (id) => {
         if (dateParse.getTime() > sevenDaysAgo.getTime()) {
           historyWeekly.push(h);
         }
-        let successEntry = checkNested("Success", printerStatistics.historyByDay);
+        let successEntry = checkNested('Success', printerStatistics.historyByDay);
         //
-        if (typeof successEntry !== "undefined") {
+        if (typeof successEntry !== 'undefined') {
           let checkNestedIndexHistoryRates = null;
-          if (h.state.includes("success")) {
+          if (h.state.includes('success')) {
             checkNestedIndexHistoryRates = checkNestedIndex(
-              "Success",
+              'Success',
               printerStatistics.historyByDay
             );
-          } else if (h.state.includes("warning")) {
+          } else if (h.state.includes('warning')) {
             checkNestedIndexHistoryRates = checkNestedIndex(
-              "Cancelled",
+              'Cancelled',
               printerStatistics.historyByDay
             );
-          } else if (h.state.includes("danger")) {
+          } else if (h.state.includes('danger')) {
             checkNestedIndexHistoryRates = checkNestedIndex(
-              "Failed",
+              'Failed',
               printerStatistics.historyByDay
             );
           } else {
@@ -159,23 +159,23 @@ const generatePrinterStatistics = async (id) => {
           if (dateParse.getTime() > ninetyDaysAgo.getTime()) {
             printerStatistics.historyByDay[checkNestedIndexHistoryRates].data.push({
               x: dateParse,
-              y: 1
+              y: 1,
             });
           }
         } else {
           let successKey = {
-            name: "Success",
-            data: []
+            name: 'Success',
+            data: [],
           };
           let cancellKey = {
-            name: "Cancelled",
-            data: []
+            name: 'Cancelled',
+            data: [],
           };
           let failedKey = {
-            name: "Failed",
-            data: []
+            name: 'Failed',
+            data: [],
           };
-          if (typeof printerStatistics.historyByDay[0] === "undefined") {
+          if (typeof printerStatistics.historyByDay[0] === 'undefined') {
             printerStatistics.historyByDay.push(successKey);
             printerStatistics.historyByDay.push(cancellKey);
             printerStatistics.historyByDay.push(failedKey);
@@ -191,15 +191,15 @@ const generatePrinterStatistics = async (id) => {
     printerStatistics.filamentUsedLengthDay.push(d.totalLength);
     printerStatistics.printerCostDay.push(parseFloat(d.totalCost));
     printerStatistics.filamentCostDay.push(d.spoolCost);
-    if (typeof d.resend !== "undefined") {
+    if (typeof d.resend !== 'undefined') {
       printerStatistics.printerResendRatioDaily.push(d.resend.ratio);
     }
 
-    if (d.state.includes("success")) {
+    if (d.state.includes('success')) {
       printerStatistics.printSuccessDay.push(1);
-    } else if (d.state.includes("warning")) {
+    } else if (d.state.includes('warning')) {
       printerStatistics.printCancelDay.push(1);
-    } else if (d.state.includes("danger")) {
+    } else if (d.state.includes('danger')) {
       printerStatistics.printErrorDay.push(1);
     }
   });
@@ -209,28 +209,28 @@ const generatePrinterStatistics = async (id) => {
     printerStatistics.filamentUsedLengthWeek.push(w.totalLength);
     printerStatistics.printerCostWeek.push(parseFloat(w.totalCost));
     printerStatistics.filamentCostWeek.push(w.spoolCost);
-    if (typeof w.resend !== "undefined") {
+    if (typeof w.resend !== 'undefined') {
       printerStatistics.printerResendRatioWeekly.push(w.resend.ratio);
     }
 
-    if (w.state.includes("success")) {
+    if (w.state.includes('success')) {
       printerStatistics.printerSuccessWeek.push(1);
-    } else if (w.state.includes("warning")) {
+    } else if (w.state.includes('warning')) {
       printerStatistics.printerCancelWeek.push(1);
-    } else if (w.state.includes("danger")) {
+    } else if (w.state.includes('danger')) {
       printerStatistics.printerErrorWeek.push(1);
     }
   });
   // Reduce all the values and update the variable.
   Object.keys(printerStatistics).forEach(function (key) {
     if (Array.isArray(printerStatistics[key])) {
-      if (key === "overallPrintTimeAcuracy") {
+      if (key === 'overallPrintTimeAcuracy') {
         const total = printerStatistics[key].reduce((a, b) => a + b, 0);
         printerStatistics[key] = total / historyClean?.length ? historyClean.length : 1;
       } else if (
-        key !== "historyByDay" &&
-        key !== "historyByDayIncremental" &&
-        key !== "printerUtilisation"
+        key !== 'historyByDay' &&
+        key !== 'historyByDayIncremental' &&
+        key !== 'printerUtilisation'
       ) {
         printerStatistics[key] = printerStatistics[key].reduce((a, b) => a + b, 0);
       }
@@ -255,9 +255,9 @@ const generateDashboardStatistics = async () => {
         currentOperations.count.complete,
         currentOperations.count.idle,
         currentOperations.count.disconnected,
-        currentOperations.count.offline
-      ]
-    }
+        currentOperations.count.offline,
+      ],
+    },
   ];
   const farmTotal =
     currentOperations.count.active +
@@ -296,8 +296,8 @@ const generateDashboardStatistics = async () => {
   const arrayGlobalChamberTempTarget = [];
   const printersInformation = getPrinterStoreCache().listPrintersInformation();
   for (const printer of printersInformation) {
-    if (typeof printer !== "undefined") {
-      if (typeof printer.currentJob !== "undefined") {
+    if (typeof printer !== 'undefined') {
+      if (typeof printer.currentJob !== 'undefined') {
         if (printer.currentJob.expectedPrintTime !== null) {
           arrayEstimated.push(printer.currentJob.expectedPrintTime);
         }
@@ -311,19 +311,19 @@ const generateDashboardStatistics = async () => {
       arrayIdle.push(printer.currentIdle);
       arrayActive.push(printer.currentActive);
       arrayOffline.push(printer.currentOffline);
-      if (typeof printer.printerState !== "undefined") {
+      if (typeof printer.printerState !== 'undefined') {
         const status = printer.printerState.colour.category;
         let colour = printer.printerState.colour.name;
-        if (printer.printerState.colour.category === "Offline") {
-          colour = "offline";
+        if (printer.printerState.colour.category === 'Offline') {
+          colour = 'offline';
         }
         heatStatus.push(
           `<div title="${printer.printerName}: ${status}" class="bg-${colour} heatMap"></div>`
         );
         let tools = null;
         if (
-          printer.printerState.colour.category === "Active" ||
-          printer.printerState.colour.category === "Complete"
+          printer.printerState.colour.category === 'Active' ||
+          printer.printerState.colour.category === 'Complete'
         ) {
           tools = printer.tools;
         } else {
@@ -331,15 +331,15 @@ const generateDashboardStatistics = async () => {
           tools.push({
             bed: {
               actual: 0,
-              target: 0
+              target: 0,
             },
             tool0: {
               actual: 0,
-              target: 0
-            }
+              target: 0,
+            },
           });
         }
-        if (typeof tools !== "undefined" && tools !== null) {
+        if (typeof tools !== 'undefined' && tools !== null) {
           const rightString = [`${printer.printerName}: `];
           const leftString = [`${printer.printerName}: `];
           const arrayToolActual = [];
@@ -348,10 +348,10 @@ const generateDashboardStatistics = async () => {
           const arrayOtherTarget = [];
           const keys = Object.keys(tools[0]);
           for (let k = 0; k < keys.length; k++) {
-            if (typeof printer.currentProfile !== "undefined" && printer.currentProfile !== null) {
-              if (printer.currentProfile.heatedChamber && keys[k] === "chamber") {
-                let actual = "";
-                let target = "";
+            if (typeof printer.currentProfile !== 'undefined' && printer.currentProfile !== null) {
+              if (printer.currentProfile.heatedChamber && keys[k] === 'chamber') {
+                let actual = '';
+                let target = '';
                 if (
                   !!printer.tools &&
                   printer.tools[0][keys[k]].actual !== null &&
@@ -376,9 +376,9 @@ const generateDashboardStatistics = async () => {
                 }
                 rightString[2] = `${actual}, ${target}`;
               }
-              if (!!printer.tools && printer.currentProfile.heatedBed && keys[k] === "bed") {
-                let actual = "";
-                let target = "";
+              if (!!printer.tools && printer.currentProfile.heatedBed && keys[k] === 'bed') {
+                let actual = '';
+                let target = '';
                 if (
                   !!printer.tools &&
                   printer.tools[0][keys[k]].actual !== null &&
@@ -403,10 +403,10 @@ const generateDashboardStatistics = async () => {
                 }
                 rightString[1] = `${actual}, ${target}`;
               }
-              if (keys[k].includes("tool")) {
-                const toolNumber = keys[k].replace("tool", "");
-                let actual = "";
-                let target = "";
+              if (keys[k].includes('tool')) {
+                const toolNumber = keys[k].replace('tool', '');
+                let actual = '';
+                let target = '';
                 if (
                   !!printer.tools &&
                   printer.tools[0][keys[k]].actual !== null &&
@@ -432,8 +432,8 @@ const generateDashboardStatistics = async () => {
                 leftString[parseInt(toolNumber) + 1] = `${actual}, ${target}`;
               }
             } else {
-              leftString[1] = "Offline";
-              rightString[1] = "Offline";
+              leftString[1] = 'Offline';
+              rightString[1] = 'Offline';
             }
           }
           const totalToolActual = arrayToolActual.reduce((a, b) => a + b, 0);
@@ -465,7 +465,7 @@ const generateDashboardStatistics = async () => {
           heatTemps.push(actualString);
         }
         let progress = 0;
-        if (typeof printer.currentJob !== "undefined" && printer.currentJob.progress !== null) {
+        if (typeof printer.currentJob !== 'undefined' && printer.currentJob.progress !== null) {
           progress = printer.currentJob.progress.toFixed(0);
         }
         heatProgress.push(
@@ -495,27 +495,27 @@ const generateDashboardStatistics = async () => {
     totalGlobalToolTempActual + totalGlobalBedTempActual + totalGlobalChamberTempActual;
   currentHistoryTemp[0].data.push({
     x: timeStamp,
-    y: totalGlobalToolTempActual
+    y: totalGlobalToolTempActual,
   });
   currentHistoryTemp[1].data.push({
     x: timeStamp,
-    y: totalGlobalToolTempTarget
+    y: totalGlobalToolTempTarget,
   });
   currentHistoryTemp[2].data.push({
     x: timeStamp,
-    y: totalGlobalBedTempActual
+    y: totalGlobalBedTempActual,
   });
   currentHistoryTemp[3].data.push({
     x: timeStamp,
-    y: totalGlobalBedTempTarget
+    y: totalGlobalBedTempTarget,
   });
   currentHistoryTemp[4].data.push({
     x: timeStamp,
-    y: totalGlobalChamberTempActual
+    y: totalGlobalChamberTempActual,
   });
   currentHistoryTemp[5].data.push({
     x: timeStamp,
-    y: totalGlobalChamberTempTarget
+    y: totalGlobalChamberTempTarget,
   });
   if (currentHistoryTemp[0].data.length > 720) {
     currentHistoryTemp[0].data.shift();
@@ -547,7 +547,7 @@ const generateDashboardStatistics = async () => {
     cumulativePercentRemaining,
     averagePercent,
     averagePercentRemaining,
-    totalFarmTemp: totalGlobalTemp
+    totalFarmTemp: totalGlobalTemp,
   };
 
   const activeHours = arrayActive.reduce((a, b) => a + b, 0);
@@ -568,13 +568,13 @@ const generateDashboardStatistics = async () => {
     activeHoursPercent: activePercent,
     failedHoursPercent: failedPercent,
     idleHoursPercent: idlePercent,
-    offlineHoursPercent: offlinePercent
+    offlineHoursPercent: offlinePercent,
   };
   dashboardStatistics.printerHeatMaps = {
     heatStatus,
     heatProgress,
     heatTemps,
-    heatUtilisation
+    heatUtilisation,
   };
   dashboardStatistics.utilisationGraph = getHeatMap();
 
@@ -584,87 +584,87 @@ const generateDashboardStatistics = async () => {
   // to complete after the enclosing function has already returned.
   const posts = await RoomData.find({}).sort({ _id: -1 }).limit(500);
   {
-      const currentEnviromentalData = [
-        {
-          name: "Temperature",
-          data: []
-        },
-        {
-          name: "Humidity",
-          data: []
-        },
-        {
-          name: "Pressure",
-          data: []
-        },
-        {
-          name: "IAQ",
-          data: []
-        }
-      ];
+    const currentEnviromentalData = [
+      {
+        name: 'Temperature',
+        data: [],
+      },
+      {
+        name: 'Humidity',
+        data: [],
+      },
+      {
+        name: 'Pressure',
+        data: [],
+      },
+      {
+        name: 'IAQ',
+        data: [],
+      },
+    ];
 
-      const enviromentalData = posts;
-      if (!!enviromentalData) {
-        for (let i = 0; i < enviromentalData.length; i++) {
-          if (
-            typeof enviromentalData[i].temperature !== "undefined" &&
-            enviromentalData[i].temperature !== null
-          ) {
-            currentEnviromentalData[0].data.push({
-              x: enviromentalData[i].date,
-              y: enviromentalData[i].temperature.toFixed(2)
-            });
-            dashboardStatistics.currentTemperature = enviromentalData[0].temperature.toFixed(2);
-          } else {
-            currentEnviromentalData[0].data.push({
-              x: enviromentalData[i].date,
-              y: null
-            });
-          }
-          if (
-            typeof enviromentalData[i].humidity !== "undefined" &&
-            enviromentalData[i].humidity !== null
-          ) {
-            currentEnviromentalData[1].data.push({
-              x: enviromentalData[i].date,
-              y: enviromentalData[i].humidity.toFixed(0)
-            });
-            dashboardStatistics.currentHumidity = enviromentalData[0].humidity;
-          } else {
-            currentEnviromentalData[1].data.push({
-              x: enviromentalData[i].date,
-              y: null
-            });
-          }
-          if (
-            typeof enviromentalData[i].pressure !== "undefined" &&
-            enviromentalData[i].pressure !== null
-          ) {
-            currentEnviromentalData[2].data.push({
-              x: enviromentalData[i].date,
-              y: enviromentalData[i].pressure.toFixed(0)
-            });
-            dashboardStatistics.currentPressure = enviromentalData[0].pressure.toFixed(0);
-          } else {
-            currentEnviromentalData[2].data.push({
-              x: enviromentalData[i].date,
-              y: null
-            });
-          }
-          if (typeof enviromentalData[i].iaq !== "undefined" && enviromentalData[i].iaq !== null) {
-            currentEnviromentalData[3].data.push({
-              x: enviromentalData[i].date,
-              y: enviromentalData[i].iaq.toFixed(0)
-            });
-            dashboardStatistics.currentIAQ = enviromentalData[0].iaq.toFixed(0);
-          } else {
-            currentEnviromentalData[3].data.push({
-              x: enviromentalData[i].date,
-              y: null
-            });
-          }
+    const enviromentalData = posts;
+    if (!!enviromentalData) {
+      for (let i = 0; i < enviromentalData.length; i++) {
+        if (
+          typeof enviromentalData[i].temperature !== 'undefined' &&
+          enviromentalData[i].temperature !== null
+        ) {
+          currentEnviromentalData[0].data.push({
+            x: enviromentalData[i].date,
+            y: enviromentalData[i].temperature.toFixed(2),
+          });
+          dashboardStatistics.currentTemperature = enviromentalData[0].temperature.toFixed(2);
+        } else {
+          currentEnviromentalData[0].data.push({
+            x: enviromentalData[i].date,
+            y: null,
+          });
+        }
+        if (
+          typeof enviromentalData[i].humidity !== 'undefined' &&
+          enviromentalData[i].humidity !== null
+        ) {
+          currentEnviromentalData[1].data.push({
+            x: enviromentalData[i].date,
+            y: enviromentalData[i].humidity.toFixed(0),
+          });
+          dashboardStatistics.currentHumidity = enviromentalData[0].humidity;
+        } else {
+          currentEnviromentalData[1].data.push({
+            x: enviromentalData[i].date,
+            y: null,
+          });
+        }
+        if (
+          typeof enviromentalData[i].pressure !== 'undefined' &&
+          enviromentalData[i].pressure !== null
+        ) {
+          currentEnviromentalData[2].data.push({
+            x: enviromentalData[i].date,
+            y: enviromentalData[i].pressure.toFixed(0),
+          });
+          dashboardStatistics.currentPressure = enviromentalData[0].pressure.toFixed(0);
+        } else {
+          currentEnviromentalData[2].data.push({
+            x: enviromentalData[i].date,
+            y: null,
+          });
+        }
+        if (typeof enviromentalData[i].iaq !== 'undefined' && enviromentalData[i].iaq !== null) {
+          currentEnviromentalData[3].data.push({
+            x: enviromentalData[i].date,
+            y: enviromentalData[i].iaq.toFixed(0),
+          });
+          dashboardStatistics.currentIAQ = enviromentalData[0].iaq.toFixed(0);
+        } else {
+          currentEnviromentalData[3].data.push({
+            x: enviromentalData[i].date,
+            y: null,
+          });
         }
       }
+    }
     dashboardStatistics.enviromentalData = currentEnviromentalData;
   }
 };
@@ -695,5 +695,5 @@ module.exports = {
   generatePrinterHeatMap,
   getDashboardStatistics,
   getCurrentOperations,
-  getCurrentHistoryTemp
+  getCurrentHistoryTemp,
 };

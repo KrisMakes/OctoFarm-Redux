@@ -1,13 +1,13 @@
 const ITERIES = {
-  PROGRESS: "progress",
-  TIME_REMAIN: "timeRemaining",
-  FILE_NAME: "fileName",
-  SORT_INDEX: "sortIndex"
+  PROGRESS: 'progress',
+  TIME_REMAIN: 'timeRemaining',
+  FILE_NAME: 'fileName',
+  SORT_INDEX: 'sortIndex',
 };
 
 const ORDERS = {
-  ASCENDING: "asc",
-  DESCENDING: "desc"
+  ASCENDING: 'asc',
+  DESCENDING: 'desc',
 };
 
 let currentIterie = ITERIES.PROGRESS;
@@ -16,7 +16,7 @@ let currentOrder = ORDERS.DESCENDING;
 function returnCurrentOrdering() {
   return {
     currentIterie,
-    currentOrder
+    currentOrder,
   };
 }
 
@@ -26,5 +26,5 @@ function updateOrdering({ iterie, order }) {
 }
 module.exports = {
   returnCurrentOrdering,
-  updateOrdering
+  updateOrdering,
 };

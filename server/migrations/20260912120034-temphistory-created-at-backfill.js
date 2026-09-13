@@ -8,7 +8,9 @@ module.exports = {
     // standalone here.
     await db
       .collection('temphistories')
-      .updateMany({ createdAt: { $exists: false } }, [{ $set: { createdAt: { $toDate: '$_id' } } }]);
+      .updateMany({ createdAt: { $exists: false } }, [
+        { $set: { createdAt: { $toDate: '$_id' } } },
+      ]);
   },
 
   async down(db) {

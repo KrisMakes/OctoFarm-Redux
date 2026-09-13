@@ -1,11 +1,11 @@
-const FarmStatisticsService = require("./farm-statistics.service");
-const { getDayName } = require("../utils/time.util");
-const { getEmptyHeatmap } = require("../constants/cleaner.constants");
-const Logger = require("../handlers/logger");
+const FarmStatisticsService = require('./farm-statistics.service');
+const { getDayName } = require('../utils/time.util');
+const { getEmptyHeatmap } = require('../constants/cleaner.constants');
+const Logger = require('../handlers/logger');
 const arrayTotal = [];
 let heatMap = getEmptyHeatmap();
 let farmStats = null;
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_FARM_INFORMATION);
 /**
  *
@@ -22,28 +22,28 @@ const heatMapping = async (complete, active, offline, idle, disconnected) => {
     const CompleteCount = {
       x: today,
       y: 0,
-      figure: 0
+      figure: 0,
     };
     const ActiveCount = {
       x: today,
       y: 0,
-      figure: 0
+      figure: 0,
     };
 
     const IdleCount = {
       x: today,
       y: 0,
-      figure: 0
+      figure: 0,
     };
     const OfflineCount = {
       x: today,
       y: 0,
-      figure: 0
+      figure: 0,
     };
     const DisconnectedCount = {
       x: today,
       y: 0,
-      figure: 0
+      figure: 0,
     };
 
     if (heatMap[0].data.length === 0) {
@@ -61,7 +61,7 @@ const heatMapping = async (complete, active, offline, idle, disconnected) => {
         const lastInArray = heatMap[i].data.length - 1;
         // If x = today add that fucker up!
         if (heatMap[i].data[lastInArray].x === today) {
-          if (heatMap[i].name === "Completed") {
+          if (heatMap[i].name === 'Completed') {
             heatMap[i].data[lastInArray].y = (
               (heatMap[i].data[lastInArray].figure / currentTotal) *
               100
@@ -73,7 +73,7 @@ const heatMapping = async (complete, active, offline, idle, disconnected) => {
             heatMap[i].data[lastInArray].figure = heatMap[i].data[lastInArray].figure + complete;
             arrayTotal[0] = heatMap[i].data[lastInArray].figure;
           }
-          if (heatMap[i].name === "Active") {
+          if (heatMap[i].name === 'Active') {
             heatMap[i].data[lastInArray].y = (
               (heatMap[i].data[lastInArray].figure / currentTotal) *
               100
@@ -85,7 +85,7 @@ const heatMapping = async (complete, active, offline, idle, disconnected) => {
             heatMap[i].data[lastInArray].figure = heatMap[i].data[lastInArray].figure + active;
             arrayTotal[1] = heatMap[i].data[lastInArray].figure;
           }
-          if (heatMap[i].name === "Offline") {
+          if (heatMap[i].name === 'Offline') {
             heatMap[i].data[lastInArray].y = (
               (heatMap[i].data[lastInArray].figure / currentTotal) *
               100
@@ -97,7 +97,7 @@ const heatMapping = async (complete, active, offline, idle, disconnected) => {
             heatMap[i].data[lastInArray].figure = heatMap[i].data[lastInArray].figure + offline;
             arrayTotal[2] = heatMap[i].data[lastInArray].figure;
           }
-          if (heatMap[i].name === "Idle") {
+          if (heatMap[i].name === 'Idle') {
             heatMap[i].data[lastInArray].y = (
               (heatMap[i].data[lastInArray].figure / currentTotal) *
               100
@@ -108,7 +108,7 @@ const heatMapping = async (complete, active, offline, idle, disconnected) => {
             heatMap[i].data[lastInArray].figure = heatMap[i].data[lastInArray].figure + idle;
             arrayTotal[3] = heatMap[i].data[lastInArray].figure;
           }
-          if (heatMap[i].name === "Disconnected") {
+          if (heatMap[i].name === 'Disconnected') {
             heatMap[i].data[lastInArray].y = (
               (heatMap[i].data[lastInArray].figure / currentTotal) *
               100
@@ -144,10 +144,10 @@ const heatMapping = async (complete, active, offline, idle, disconnected) => {
     }
 
     farmStats[0].heatMap = heatMap;
-    farmStats[0].markModified("heatMap");
+    farmStats[0].markModified('heatMap');
     farmStats[0].save().catch((e) => logger.error(e));
   } catch (e) {
-    logger.error("HEAT MAP ISSUE", e.message);
+    logger.error('HEAT MAP ISSUE', e.message);
   }
 };
 
@@ -156,15 +156,15 @@ const initFarmInformation = async () => {
   if (!farmStats || farmStats.length < 1) {
     const farmStart = new Date();
     farmStats[0] = await FarmStatisticsService.create(farmStart, heatMap);
-  } else if (typeof farmStats[0].heatMap === "undefined") {
+  } else if (typeof farmStats[0].heatMap === 'undefined') {
     farmStats[0].heatMap = heatMap;
-    farmStats[0].markModified("heatMap");
+    farmStats[0].markModified('heatMap');
     await farmStats[0].save();
   } else {
     heatMap = farmStats[0].heatMap;
   }
 
-  return "Farm information inititialised...";
+  return 'Farm information inititialised...';
 };
 
 const getHeatMap = () => {
@@ -179,5 +179,5 @@ module.exports = {
   heatMapping,
   initFarmInformation,
   getHeatMap,
-  getFarmStats
+  getFarmStats,
 };

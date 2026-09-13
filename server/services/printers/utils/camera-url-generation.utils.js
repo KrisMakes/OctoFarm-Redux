@@ -1,4 +1,4 @@
-const { SettingsClean } = require("../../settings-cleaner.service");
+const { SettingsClean } = require('../../settings-cleaner.service');
 
 const generateOctoFarmCameraURL = (printer, live) => {
   const { camURL, _id } = printer;
@@ -8,16 +8,16 @@ const generateOctoFarmCameraURL = (printer, live) => {
   }
 
   if (camURL.length === 0) {
-    return "";
+    return '';
   }
 
   if (!_id) {
-    return "";
+    return '';
   }
 
   return `/camera/${_id}`;
 };
 
 module.exports = {
-  generateOctoFarmCameraURL
+  generateOctoFarmCameraURL,
 };

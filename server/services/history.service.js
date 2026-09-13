@@ -1,9 +1,9 @@
-const historyModel = require("../models/History");
+const historyModel = require('../models/History');
 const {
   myCustomLabels,
   defaultPaginationOptions,
-  defaultInputFilters
-} = require("../constants/history-sort.constants");
+  defaultInputFilters,
+} = require('../constants/history-sort.constants');
 
 /**
  * Finds the history rows in the database.
@@ -33,11 +33,11 @@ function getFileFromHistoricJob(history) {
     path: historyJobFile?.path || history.filePath,
     size: historyJobFile?.size || null,
     averagePrintTime: historyJob?.averagePrintTime || null,
-    lastPrintTime: historyJob?.lastPrintTime || null
+    lastPrintTime: historyJob?.lastPrintTime || null,
   };
 }
 
 module.exports = {
   find,
-  getFileFromHistoricJob
+  getFileFromHistoricJob,
 };

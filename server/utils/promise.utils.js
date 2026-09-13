@@ -3,7 +3,7 @@ const promiseTimeout = function (ms, promise) {
   let timeout = new Promise((_resolve, reject) => {
     let id = setTimeout(() => {
       clearTimeout(id);
-      reject(new Error("Timed out in " + ms + "ms."));
+      reject(new Error('Timed out in ' + ms + 'ms.'));
     }, ms);
   });
   // Returns a race between our timeout and the passed in promise
@@ -16,5 +16,5 @@ const sleep = (ms) => {
 
 module.exports = {
   promiseTimeout,
-  sleep
+  sleep,
 };

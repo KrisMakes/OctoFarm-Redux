@@ -1,12 +1,12 @@
-const printerModel = require("../../models/Printer");
-const Logger = require("../../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../../constants/logger.constants");
+const printerModel = require('../../models/Printer');
+const Logger = require('../../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_PRINTER_DATABASE);
 
 class PrinterDatabaseService {
   #id;
   #options = {
-    returnOriginal: false
+    returnOriginal: false,
   };
   constructor(id) {
     this.#id = id;
@@ -16,7 +16,7 @@ class PrinterDatabaseService {
     return printerModel
       .findById(this.#id)
       .then((res) => {
-        logger.debug("Successfully grabbed printer from database");
+        logger.debug('Successfully grabbed printer from database');
         return res;
       })
       .catch((err) => {
@@ -29,7 +29,7 @@ class PrinterDatabaseService {
     return printerModel
       .findOneAndUpdate({ _id: this.#id }, update, this.#options)
       .then(() => {
-        logger.debug("Successfully saved record! key list", Object.keys(update));
+        logger.debug('Successfully saved record! key list', Object.keys(update));
       })
       .catch((err) => {
         logger.error(err);
@@ -40,7 +40,7 @@ class PrinterDatabaseService {
     return printerModel
       .findOneAndDelete({ _id: this.#id })
       .then(() => {
-        logger.warning("Successfully deleted printer from database", this.#id);
+        logger.warning('Successfully deleted printer from database', this.#id);
       })
       .catch((err) => {
         logger.error(err);
@@ -51,11 +51,11 @@ class PrinterDatabaseService {
     return printerModel
       .findOneAndUpdate({ _id: id }, { $push: { [pushKey]: obj } }, { new: true })
       .then((res) => {
-        logger.debug("Successfully updated printer database! Key Push: " + pushKey, obj);
+        logger.debug('Successfully updated printer database! Key Push: ' + pushKey, obj);
         return res;
       })
       .catch((e) => {
-        logger.error("Failed to update printer database!! Key Push: " + pushKey, e);
+        logger.error('Failed to update printer database!! Key Push: ' + pushKey, e);
         return e;
       });
   };

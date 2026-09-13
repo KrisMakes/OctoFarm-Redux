@@ -1,37 +1,37 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const userActionSchema = new mongoose.Schema({
   printerID: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Printer",
-    required: true
+    ref: 'Printer',
+    required: true,
   },
   action: {
     type: String,
-    required: true
+    required: true,
   },
   data: {
     type: Object,
-    required: false
+    required: false,
   },
   date: {
     type: Date,
-    required: true
+    required: true,
   },
   currentUser: {
     type: String,
-    required: true
+    required: true,
   },
   status: {
     type: String,
-    required: false
+    required: false,
   },
   fullPath: {
     type: String,
-    required: false
-  }
+    required: false,
+  },
 });
 
-const UserAction = mongoose.model("UserAction", userActionSchema);
+const UserAction = mongoose.model('UserAction', userActionSchema);
 
 module.exports = UserAction;

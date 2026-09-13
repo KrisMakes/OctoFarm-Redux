@@ -583,7 +583,7 @@ class HistoryCaptureService {
       try {
         await this.downDateWeight();
       } catch (e) {
-        logger.error("Unable to downdate weight on success", e.toString())
+        logger.error('Unable to downdate weight on success', e.toString());
       }
     }
 
@@ -600,33 +600,32 @@ class HistoryCaptureService {
             logger.error('Unable to update history filament record: ', e.toString());
           });
       } catch (e) {
-        logger.error("Unable to grab thumbnail on failure", e.toString())
+        logger.error('Unable to grab thumbnail on failure', e.toString());
       }
     }
 
-
     if (serverSettingsCache.history.snapshot.onComplete) {
       try {
-      this.#snapshot = await this.snapshotCheck();
-      await History.findByIdAndUpdate(this.#historyRecordID, {
-        $set: { 'printHistory.snapshot': this.#snapshot },
-      })
-        .then(async () => {
-          await getHistoryCache().initCache();
+        this.#snapshot = await this.snapshotCheck();
+        await History.findByIdAndUpdate(this.#historyRecordID, {
+          $set: { 'printHistory.snapshot': this.#snapshot },
         })
-        .catch((e) => {
-          logger.error('Unable to update history filament record: ', e.toString());
-        });
+          .then(async () => {
+            await getHistoryCache().initCache();
+          })
+          .catch((e) => {
+            logger.error('Unable to update history filament record: ', e.toString());
+          });
       } catch (e) {
-        logger.error("Unable to grab snapshot on failure", e.toString())
+        logger.error('Unable to grab snapshot on failure', e.toString());
       }
     }
 
     if (serverSettingsCache.history.timelapse.onComplete) {
       try {
-      await this.timelapseCheck();
+        await this.timelapseCheck();
       } catch (e) {
-        logger.error("Unable to grab timelapse on failure", e.toString())
+        logger.error('Unable to grab timelapse on failure', e.toString());
       }
     }
   }
@@ -636,51 +635,51 @@ class HistoryCaptureService {
 
     if (serverSettingsCache.filament.downDateFailed) {
       try {
-      // No point even trying to down date failed without these...
-      if (!this.#job?.estimatedPrintTime && !this.#job?.lastPrintTime) {
-        logger.error(
-          'Unable to downdate failed jobs spool, no estimatedPrintTime or lastPrintTime',
-          this.#job
-        );
-        return;
-      }
-      // Capture failed amount
-      await this.downDateWeight();
+        // No point even trying to down date failed without these...
+        if (!this.#job?.estimatedPrintTime && !this.#job?.lastPrintTime) {
+          logger.error(
+            'Unable to downdate failed jobs spool, no estimatedPrintTime or lastPrintTime',
+            this.#job
+          );
+          return;
+        }
+        // Capture failed amount
+        await this.downDateWeight();
       } catch (e) {
-        logger.error("Unable to downdate weight on failure", e.toString())
+        logger.error('Unable to downdate weight on failure', e.toString());
       }
     }
 
     if (serverSettingsCache.history.thumbnails.onFailure) {
       try {
-      this.#thumbnail = await this.thumbnailCheck();
-      await History.findByIdAndUpdate(this.#historyRecordID, {
-        $set: { 'printHistory.thumbnail': this.#thumbnail },
-      })
-        .then(async () => {
-          await getHistoryCache().initCache();
+        this.#thumbnail = await this.thumbnailCheck();
+        await History.findByIdAndUpdate(this.#historyRecordID, {
+          $set: { 'printHistory.thumbnail': this.#thumbnail },
         })
-        .catch((e) => {
-          logger.error('Unable to update history filament record: ', e.toString());
-        });
+          .then(async () => {
+            await getHistoryCache().initCache();
+          })
+          .catch((e) => {
+            logger.error('Unable to update history filament record: ', e.toString());
+          });
       } catch (e) {
-        logger.error("Unable to grab thumbnail on failure", e.toString())
+        logger.error('Unable to grab thumbnail on failure', e.toString());
       }
     }
     if (serverSettingsCache.history.snapshot.onFailure) {
       try {
-      this.#snapshot = await this.snapshotCheck();
-      await History.findByIdAndUpdate(this.#historyRecordID, {
-        $set: { 'printHistory.snapshot': this.#snapshot },
-      })
-        .then(async () => {
-          await getHistoryCache().initCache();
+        this.#snapshot = await this.snapshotCheck();
+        await History.findByIdAndUpdate(this.#historyRecordID, {
+          $set: { 'printHistory.snapshot': this.#snapshot },
         })
-        .catch((e) => {
-          logger.error('Unable to update history filament record: ', e.toString());
-        });
+          .then(async () => {
+            await getHistoryCache().initCache();
+          })
+          .catch((e) => {
+            logger.error('Unable to update history filament record: ', e.toString());
+          });
       } catch (e) {
-        logger.error("Unable to grab snapshot on failure", e.toString())
+        logger.error('Unable to grab snapshot on failure', e.toString());
       }
     }
 
@@ -688,7 +687,7 @@ class HistoryCaptureService {
       try {
         await this.timelapseCheck();
       } catch (e) {
-        logger.error("Unable to grab timelapse on failure", e.toString())
+        logger.error('Unable to grab timelapse on failure', e.toString());
       }
     }
   }

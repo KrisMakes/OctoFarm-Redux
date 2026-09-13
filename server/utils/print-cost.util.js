@@ -1,4 +1,4 @@
-const noCostSettingsMessage = "No cost settings to calculate from";
+const noCostSettingsMessage = 'No cost settings to calculate from';
 
 /**
  * Calculate the cost of printing
@@ -45,5 +45,5 @@ function getElectricityCosts(printTime, costSettings) {
 module.exports = {
   noCostSettingsMessage,
   getMaintenanceCosts,
-  getElectricityCosts
+  getElectricityCosts,
 };

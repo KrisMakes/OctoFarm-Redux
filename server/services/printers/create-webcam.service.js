@@ -1,4 +1,4 @@
-const { CATEGORIES } = require("../printers/constants/printer-categories.constants");
+const { CATEGORIES } = require('../printers/constants/printer-categories.constants');
 
 class GlobalWebcamPrinter {
   camURL = undefined;
@@ -7,7 +7,7 @@ class GlobalWebcamPrinter {
   constructor(camURL, category) {
     this.camURL = camURL;
     if (category !== CATEGORIES.WEBCAM) {
-      throw new Error("Category is not accepted!");
+      throw new Error('Category is not accepted!');
     }
     this.category = category;
   }

@@ -1,8 +1,8 @@
-const UserAction = require("../models/userActionsLog");
-const Logger = require("../handlers/logger");
-const { getPrinterStoreCache } = require("../cache/printer-store.cache");
-const { cloneObject, convertStatusToColour } = require("../utils/mapping.utils");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const UserAction = require('../models/userActionsLog');
+const Logger = require('../handlers/logger');
+const { getPrinterStoreCache } = require('../cache/printer-store.cache');
+const { cloneObject, convertStatusToColour } = require('../utils/mapping.utils');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_USER_ACTIONS);
 
 const last100Actions = [];
@@ -26,7 +26,7 @@ const updateUserActionLog = (
     currentUser,
     date: today,
     fullPath,
-    status: convertStatusToColour(status)
+    status: convertStatusToColour(status),
   };
 
   const newUserAction = new UserAction(formatAction);
@@ -34,10 +34,10 @@ const updateUserActionLog = (
   newUserAction
     .save()
     .then((res) => {
-      logger.info("Logged new user action", res);
+      logger.info('Logged new user action', res);
     })
     .catch((e) => {
-      logger.error("Failed to log new user action", e.toString());
+      logger.error('Failed to log new user action', e.toString());
     });
 
   updateUserActionTicker(formatAction);
@@ -62,7 +62,7 @@ const updateUserActionTicker = (action) => {
 const returnLast100Actions = () => {
   if (last100Actions.length === 0) {
     getLast100ActionsFromDatabase().catch((e) => {
-      logger.error("Error returning last 100 actions", e.toString());
+      logger.error('Error returning last 100 actions', e.toString());
     });
   }
   return last100Actions;
@@ -73,11 +73,11 @@ const getLast100ActionsFromDatabase = async () => {
     .sort({ _id: -1 })
     .limit(100)
     .then((res) => {
-      logger.debug("Successfully grabbed last 100 records from user actions database", res);
+      logger.debug('Successfully grabbed last 100 records from user actions database', res);
       return res;
     })
     .catch((e) => {
-      logger.error("Failed to grab last 100 records from user actions database", e);
+      logger.error('Failed to grab last 100 records from user actions database', e);
       return [];
     });
   for (const action of last100Database) {
@@ -88,5 +88,5 @@ const getLast100ActionsFromDatabase = async () => {
 
 module.exports = {
   updateUserActionLog,
-  returnLast100Actions
+  returnLast100Actions,
 };

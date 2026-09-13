@@ -1,13 +1,13 @@
-const { createWriteStream, createReadStream } = require("fs");
-const { join } = require("path");
-const archiver = require("archiver");
-const Logger = require("../handlers/logger.js");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const { createWriteStream, createReadStream } = require('fs');
+const { join } = require('path');
+const archiver = require('archiver');
+const Logger = require('../handlers/logger.js');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.UTILS_ZIP);
 
-const { getLogsPath } = require("../utils/system-paths.utils.js");
+const { getLogsPath } = require('../utils/system-paths.utils.js');
 
-const { checkIfFileFileExistsAndDeleteIfSo } = require("../utils/file.utils.js");
+const { checkIfFileFileExistsAndDeleteIfSo } = require('../utils/file.utils.js');
 
 async function createZipFile(fileName, filePaths) {
   // create a file to stream archive data to.
@@ -17,16 +17,16 @@ async function createZipFile(fileName, filePaths) {
   await checkIfFileFileExistsAndDeleteIfSo(currentZipFile);
 
   const output = createWriteStream(currentZipFile);
-  const archive = archiver("zip", {
-    zlib: { level: 9 } // Sets the compression level.
+  const archive = archiver('zip', {
+    zlib: { level: 9 }, // Sets the compression level.
   });
 
   // Listeners
-  archive.on("warning", function (e) {
-    logger.warning("Warning generated from zip function | ", e);
+  archive.on('warning', function (e) {
+    logger.warning('Warning generated from zip function | ', e);
   });
 
-  archive.on("error", function (e) {
+  archive.on('error', function (e) {
     throw e;
   });
 

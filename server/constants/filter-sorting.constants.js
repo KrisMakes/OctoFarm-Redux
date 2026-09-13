@@ -1,7 +1,7 @@
-const defaultFilterBy = "All Printers";
-const defaultSortBy = "index";
+const defaultFilterBy = 'All Printers';
+const defaultSortBy = 'index';
 
 module.exports = {
   defaultFilterBy,
-  defaultSortBy
+  defaultSortBy,
 };

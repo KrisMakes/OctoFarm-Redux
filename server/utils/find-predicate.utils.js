@@ -1,6 +1,6 @@
-const { findIndex } = require("lodash");
-const { parseOutIPAddress } = require("./url.utils");
-const { AppConstants } = require("../constants/app.constants");
+const { findIndex } = require('lodash');
+const { parseOutIPAddress } = require('./url.utils');
+const { AppConstants } = require('../constants/app.constants');
 
 const findFileIndex = (fileList, fullPath) => {
   return findIndex(fileList.files, function (o) {
@@ -16,10 +16,10 @@ const matchRemoteAddressToOctoFarm = (networkIpAddresses, remoteAddress) => {
     return parseOutIPAddress(remoteAddress);
   }
 
-  return "Unknown IP";
+  return 'Unknown IP';
 };
 
 module.exports = {
   findFileIndex,
-  matchRemoteAddressToOctoFarm
+  matchRemoteAddressToOctoFarm,
 };

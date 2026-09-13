@@ -1,30 +1,30 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const CustomGcodeSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true
+    required: true,
   },
   description: {
     type: String,
-    required: false
+    required: false,
   },
   gcode: {
     type: Array,
-    required: true
+    required: true,
   },
   buttonColour: {
     type: String,
-    required: false
+    required: false,
   },
   printerIds: [
     {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Printer"
-    }
-  ]
+      ref: 'Printer',
+    },
+  ],
 });
 
-const CustomGcode = mongoose.model("CustomGcode", CustomGcodeSchema);
+const CustomGcode = mongoose.model('CustomGcode', CustomGcodeSchema);
 
 module.exports = CustomGcode;

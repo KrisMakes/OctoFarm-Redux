@@ -1,5 +1,5 @@
-const { SettingsClean } = require("../services/settings-cleaner.service.js");
-const { fetchFirstAdministrator } = require("../services/users.service");
+const { SettingsClean } = require('../services/settings-cleaner.service.js');
+const { fetchFirstAdministrator } = require('../services/users.service');
 
 module.exports = {
   async ensureCurrentUserAndGroup(req, res, next) {
@@ -15,8 +15,8 @@ module.exports = {
         _id: firstAdministrator._id,
         name: firstAdministrator.name,
         username: firstAdministrator.username,
-        group: "Administrator",
-        clientSettings: clientSettings
+        group: 'Administrator',
+        clientSettings: clientSettings,
       };
     } else {
       if (req?.user) {
@@ -25,5 +25,5 @@ module.exports = {
     }
 
     next();
-  }
+  },
 };

@@ -1,25 +1,25 @@
-const { returnConnectionLogs } = require("./connection-monitor.service");
-const { SettingsClean } = require("./settings-cleaner.service");
-const { isValidWebsocketUrl, isValidHttpUrl } = require("../utils/url.utils");
+const { returnConnectionLogs } = require('./connection-monitor.service');
+const { SettingsClean } = require('./settings-cleaner.service');
+const { isValidWebsocketUrl, isValidHttpUrl } = require('../utils/url.utils');
 
 const printerChecks = (printer) => {
   const { printerURL, webSocketURL, camURL } = printer;
 
   let doTheyMatch = false;
 
-  if (printerURL.includes("https://")) {
-    doTheyMatch = webSocketURL.includes("wss://");
+  if (printerURL.includes('https://')) {
+    doTheyMatch = webSocketURL.includes('wss://');
   }
 
-  if (printerURL.includes("http://")) {
-    doTheyMatch = webSocketURL.includes("ws://");
+  if (printerURL.includes('http://')) {
+    doTheyMatch = webSocketURL.includes('ws://');
   }
 
   return {
     printerURL: isValidHttpUrl(printerURL),
     webSocketURL: isValidWebsocketUrl(webSocketURL),
-    cameraURL: camURL === "" ? true : isValidHttpUrl(camURL),
-    match: doTheyMatch
+    cameraURL: camURL === '' ? true : isValidHttpUrl(camURL),
+    match: doTheyMatch,
   };
 };
 
@@ -28,12 +28,12 @@ const apiChecksRequired = (checks) => {
     return false;
   }
   return {
-    versionCheck: checks.version.status === "success", //Required
-    userCheck: checks.users.status === "success", //Required
-    stateCheck: checks.profile.status === "success", //Required
-    profileCheck: checks.profile.status === "success", //Required
-    settingsCheck: checks.settings.status === "success", //Required
-    systemCheck: checks.system.status === "success" //Required
+    versionCheck: checks.version.status === 'success', //Required
+    userCheck: checks.users.status === 'success', //Required
+    stateCheck: checks.profile.status === 'success', //Required
+    profileCheck: checks.profile.status === 'success', //Required
+    settingsCheck: checks.settings.status === 'success', //Required
+    systemCheck: checks.system.status === 'success', //Required
   };
 };
 
@@ -42,10 +42,10 @@ const apiChecksOptional = (checks) => {
     return false;
   }
   return {
-    filesCheck: checks.files.status === "success",
-    octoPrintSystemInfo: checks.systemInfo.status === "success",
-    octoPrintUpdatesCheck: checks.updates.status === "success",
-    octoPrintPluginsCheck: checks.plugins.status === "success"
+    filesCheck: checks.files.status === 'success',
+    octoPrintSystemInfo: checks.systemInfo.status === 'success',
+    octoPrintUpdatesCheck: checks.updates.status === 'success',
+    octoPrintPluginsCheck: checks.plugins.status === 'success',
   };
 };
 
@@ -56,7 +56,7 @@ const websocketChecks = (printerURL) => {
 
   if (connectionLogs?.connections) {
     for (const log of connectionLogs.connections) {
-      if (log.url.includes("/sockjs/websocket")) {
+      if (log.url.includes('/sockjs/websocket')) {
         logs = log.log;
       }
     }
@@ -69,7 +69,7 @@ const printerConnectionCheck = (connectionOptions) => {
   const connectionDefaults = {
     baud: false,
     port: false,
-    profile: false
+    profile: false,
   };
 
   if (connectionOptions?.baudratePreference) {
@@ -77,11 +77,11 @@ const printerConnectionCheck = (connectionOptions) => {
   }
 
   if (connectionOptions?.portPreference) {
-    connectionDefaults.port = typeof connectionOptions.portPreference === "string";
+    connectionDefaults.port = typeof connectionOptions.portPreference === 'string';
   }
 
   if (connectionOptions?.printerProfilePreference) {
-    connectionDefaults.profile = typeof connectionOptions.printerProfilePreference === "string";
+    connectionDefaults.profile = typeof connectionOptions.printerProfilePreference === 'string';
   }
 
   return connectionDefaults;
@@ -97,15 +97,15 @@ const webcamChecks = (cameraURL, camSettings) => {
     historySetup: {
       ffmpegPath: true,
       ffmpegVideoCodex: true,
-      timelapseEnabled: true
-    }
+      timelapseEnabled: true,
+    },
   };
 
   if (!camSettings) {
     return results;
   }
 
-  if (cameraURL === "" || cameraURL === null) {
+  if (cameraURL === '' || cameraURL === null) {
     //Blank URL, make sure cam settings are off!
     results.camSetup = !camSettings.webcamEnabled;
   } else {
@@ -119,10 +119,10 @@ const webcamChecks = (cameraURL, camSettings) => {
     history.timelapse.onComplete ||
     history.timelapse.onFailure
   ) {
-    if (typeof camSettings.ffmpegPath !== "string") {
+    if (typeof camSettings.ffmpegPath !== 'string') {
       results.historySetup.ffmpegPath = false;
     }
-    if (camSettings.ffmpegVideoCodec !== "libx264") {
+    if (camSettings.ffmpegVideoCodec !== 'libx264') {
       results.historySetup.ffmpegVideoCodex = false;
     }
     if (!camSettings.timelapseEnabled) {
@@ -140,5 +140,5 @@ module.exports = {
   printerConnectionCheck,
   profileChecks,
   webcamChecks,
-  printerChecks
+  printerChecks,
 };

@@ -1,32 +1,32 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { ensureAuthenticated } = require("../middleware/auth");
-const { stringify } = require("flatted");
-const _ = require("lodash");
-const Logger = require("../handlers/logger.js");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const { ensureAuthenticated } = require('../middleware/auth');
+const { stringify } = require('flatted');
+const _ = require('lodash');
+const Logger = require('../handlers/logger.js');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_SSE_OLD);
 let clientId = 0;
 const clients = {}; // <- Keep a map of attached clients
 let interval = false;
 
-const { SettingsClean } = require("../services/settings-cleaner.service.js");
-const { getSorting, getFilter } = require("../services/front-end-sorting.service.js");
-const { getInfluxCleanerCache } = require("../cache/influx-export.cache");
+const { SettingsClean } = require('../services/settings-cleaner.service.js');
+const { getSorting, getFilter } = require('../services/front-end-sorting.service.js');
+const { getInfluxCleanerCache } = require('../cache/influx-export.cache');
 // User Modal
-const { ensureCurrentUserAndGroup } = require("../middleware/users.js");
-const { getPrinterStoreCache } = require("../cache/printer-store.cache");
-const { getPrinterManagerCache } = require("../cache/printer-manager.cache");
+const { ensureCurrentUserAndGroup } = require('../middleware/users.js');
+const { getPrinterStoreCache } = require('../cache/printer-store.cache');
+const { getPrinterManagerCache } = require('../cache/printer-manager.cache');
 
 const sortMe = function (printers) {
   const sortBy = getSorting();
-  if (sortBy === "time") {
-    return _.orderBy(printers, ["currentJob.printTimeRemaining"], "desc");
-  } else if (sortBy === "percent") {
-    return _.orderBy(printers, ["currentJob.progress"], "desc");
-  } else if (sortBy === "index") {
-    return _.orderBy(printers, ["sortIndex"], "asc");
+  if (sortBy === 'time') {
+    return _.orderBy(printers, ['currentJob.printTimeRemaining'], 'desc');
+  } else if (sortBy === 'percent') {
+    return _.orderBy(printers, ['currentJob.progress'], 'desc');
+  } else if (sortBy === 'index') {
+    return _.orderBy(printers, ['sortIndex'], 'asc');
   } else {
     return printers;
   }
@@ -34,37 +34,37 @@ const sortMe = function (printers) {
 const filterMe = function (printers) {
   let filterBy = getFilter();
   let currentGroups = getPrinterManagerCache().returnGroupList();
-  if (filterBy === "All Printers") {
+  if (filterBy === 'All Printers') {
     return printers;
-  } else if (filterBy === "State: Active") {
+  } else if (filterBy === 'State: Active') {
     let i = 0,
       len = printers.length;
     while (i < len) {
-      printers[i].display = printers[i].printerState.colour.category === "Active";
+      printers[i].display = printers[i].printerState.colour.category === 'Active';
       i++;
     }
     return printers;
-  } else if (filterBy === "State: Idle") {
+  } else if (filterBy === 'State: Idle') {
     let i = 0,
       len = printers.length;
     while (i < len) {
-      printers[i].display = printers[i].printerState.colour.category === "Idle";
+      printers[i].display = printers[i].printerState.colour.category === 'Idle';
       i++;
     }
     return printers;
-  } else if (filterBy === "State: Disconnected") {
+  } else if (filterBy === 'State: Disconnected') {
     let i = 0,
       len = printers.length;
     while (i < len) {
-      printers[i].display = printers[i].printerState.colour.category === "Disconnected";
+      printers[i].display = printers[i].printerState.colour.category === 'Disconnected';
       i++;
     }
     return printers;
-  } else if (filterBy === "State: Complete") {
+  } else if (filterBy === 'State: Complete') {
     let i = 0,
       len = printers.length;
     while (i < len) {
-      printers[i].display = printers[i].printerState.colour.category === "Complete";
+      printers[i].display = printers[i].printerState.colour.category === 'Complete';
       i++;
     }
     return printers;
@@ -80,7 +80,7 @@ const filterMe = function (printers) {
       let i = 0,
         len = printers.length;
       while (i < len) {
-        printers[i].display = printers[i].group === current.replace("Group: ", "");
+        printers[i].display = printers[i].group === current.replace('Group: ', '');
         i++;
       }
       return printers;
@@ -94,7 +94,7 @@ async function sendData() {
   try {
     getInfluxCleanerCache().cleanAndWritePrintersInformationForInflux();
   } catch (e) {
-    logger.error("Unable to clean and write information to influx database!", e.toString());
+    logger.error('Unable to clean and write information to influx database!', e.toString());
   }
 
   // The influx export above is its own consumer and has to keep running whether
@@ -118,7 +118,7 @@ async function sendData() {
     let clientSettings = SettingsClean.returnClientSettings(
       clients[id]?.req?.user?.clientSettings?._id || null
     );
-    if (typeof clientSettings === "undefined") {
+    if (typeof clientSettings === 'undefined') {
       await SettingsClean.start();
       clientSettings = SettingsClean.returnClientSettings(
         clients[id]?.req?.user?.clientSettings?._id || null
@@ -131,28 +131,28 @@ async function sendData() {
     const infoDrop = {
       printersInformation: printersInformation,
       printerControlList: printerControlList,
-      clientSettings: clientSettings
+      clientSettings: clientSettings,
     };
-    clients[id].res.write("data: " + stringify(infoDrop) + "\n\n");
+    clients[id].res.write('data: ' + stringify(infoDrop) + '\n\n');
   }
 }
 
 // Called once for each new client. Note, this response is left open!
-router.get("/get/", ensureAuthenticated, ensureCurrentUserAndGroup, async function (req, res) {
+router.get('/get/', ensureAuthenticated, ensureCurrentUserAndGroup, async function (req, res) {
   res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-store, must-revalidate",
-    Pragma: "no-cache",
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    Pragma: 'no-cache',
     Expires: 0,
-    Connection: "keep-alive"
+    Connection: 'keep-alive',
   });
-  res.write("\n");
+  res.write('\n');
   (function (clientId) {
     clients[clientId] = { req, res }; // <- Add this client to those we consider "attached"
-    req.on("close", function () {
+    req.on('close', function () {
       delete clients[clientId];
     }); // <- Remove this client when he disconnects
-    req.on("error", function () {
+    req.on('error', function () {
       delete clients[clientId];
     }); // <- Remove this client when he errors out
   })(++clientId);
@@ -165,7 +165,7 @@ if (interval === false) {
     // unhandledRejection handler, so an unhandled throw in here would take the
     // whole server down rather than dropping a single tick.
     sendData().catch((e) => {
-      logger.error("Failed to send monitoring information to clients", e.toString());
+      logger.error('Failed to send monitoring information to clients', e.toString());
     });
   }, 1000);
 }

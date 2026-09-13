@@ -1,12 +1,12 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const request = require("request");
-const { ensureAuthenticated } = require("../middleware/auth");
-const { getPrinterStoreCache } = require("../cache/printer-store.cache");
-const { validateParamsMiddleware } = require("../middleware/validators");
-const M_VALID = require("../constants/validate-mongo.constants");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const request = require('request');
+const { ensureAuthenticated } = require('../middleware/auth');
+const { getPrinterStoreCache } = require('../cache/printer-store.cache');
+const { validateParamsMiddleware } = require('../middleware/validators');
+const M_VALID = require('../constants/validate-mongo.constants');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_CAMERA_PROXY);
 
@@ -18,51 +18,46 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_CAMERA_PROXY);
 // printer -- mjpg-streamer sends none, which is what stopped Safari loading the
 // cameras directly. Same origin also means the stall watchdog can sample the
 // canvas without it being tainted.
-router.get(
-  "/:id",
-  ensureAuthenticated,
-  validateParamsMiddleware(M_VALID.MONGO_ID),
-  (req, res) => {
-    const id = req.paramString("id");
-    // getPrinter returns undefined for an id that is no longer in the store --
-    // destructuring it directly turned a deleted printer into a 500.
-    const printer = getPrinterStoreCache().getPrinter(id);
+router.get('/:id', ensureAuthenticated, validateParamsMiddleware(M_VALID.MONGO_ID), (req, res) => {
+  const id = req.paramString('id');
+  // getPrinter returns undefined for an id that is no longer in the store --
+  // destructuring it directly turned a deleted printer into a 500.
+  const printer = getPrinterStoreCache().getPrinter(id);
 
-    if (!printer?.camURL) {
-      return res.sendStatus(404);
-    }
-    const { camURL } = printer;
-
-    logger.debug(`Proxying camera stream for ${id} from ${camURL}`);
-
-    // This is an inactivity timeout, not just a connect timeout, so it has to be
-    // longer than the gap between frames of the slowest camera worth supporting.
-    const upstream = request({ url: camURL, timeout: 30000 });
-
-    // Tear the upstream connection down when the browser navigates away or
-    // swaps the image, or mjpg-streamer runs out of its handful of client slots.
-    let clientGone = false;
-    req.on("close", () => {
-      clientGone = true;
-      upstream.destroy();
-    });
-
-    upstream.on("error", (e) => {
-      // Destroying the stream above makes it emit an abort. A viewer closing a
-      // camera is the normal path out of here, not a failure worth logging.
-      if (clientGone) {
-        return;
-      }
-      logger.warning(`Camera stream ended for ${id}`, e.toString());
-      if (res.headersSent) {
-        res.end();
-      } else {
-        res.sendStatus(502);
-      }
-    });
-
-    upstream.pipe(res);
+  if (!printer?.camURL) {
+    return res.sendStatus(404);
   }
-);
+  const { camURL } = printer;
+
+  logger.debug(`Proxying camera stream for ${id} from ${camURL}`);
+
+  // This is an inactivity timeout, not just a connect timeout, so it has to be
+  // longer than the gap between frames of the slowest camera worth supporting.
+  const upstream = request({ url: camURL, timeout: 30000 });
+
+  // Tear the upstream connection down when the browser navigates away or
+  // swaps the image, or mjpg-streamer runs out of its handful of client slots.
+  let clientGone = false;
+  req.on('close', () => {
+    clientGone = true;
+    upstream.destroy();
+  });
+
+  upstream.on('error', (e) => {
+    // Destroying the stream above makes it emit an abort. A viewer closing a
+    // camera is the normal path out of here, not a failure worth logging.
+    if (clientGone) {
+      return;
+    }
+    logger.warning(`Camera stream ended for ${id}`, e.toString());
+    if (res.headersSent) {
+      res.end();
+    } else {
+      res.sendStatus(502);
+    }
+  });
+
+  upstream.pipe(res);
+});
 
 module.exports = router;

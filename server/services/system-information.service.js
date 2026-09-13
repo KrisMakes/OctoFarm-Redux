@@ -1,37 +1,37 @@
-const { time, fsSize } = require("systeminformation");
-const os = require("os");
-const process = require("process");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const { time, fsSize } = require('systeminformation');
+const os = require('os');
+const process = require('process');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_SYSTEM_INFORMATION);
-const { farmPiStatus } = require("./farmpi-detection.service");
-const { getCPULoadAVG } = require("./cpu-profiling.service");
+const { farmPiStatus } = require('./farmpi-detection.service');
+const { getCPULoadAVG } = require('./cpu-profiling.service');
 
 const diskVeryFullWarning =
-  "Warning your disk is getting full... Please clean up some space or move to a larger hard drive.";
+  'Warning your disk is getting full... Please clean up some space or move to a larger hard drive.';
 const diskAlmostFullWarning =
-  "Warning your disk is over 95% full... Please clean up some space or move to a larger hard drive.";
+  'Warning your disk is over 95% full... Please clean up some space or move to a larger hard drive.';
 const diskRisk =
   "Danger! Your disk is over 99% full... OctoFarms operations could be effected if you don't clean up some space or move to a larger hard drive.";
 const memoryUsageHistory = [];
 const cpuUsageHistory = [];
 
 let systemInformationService = {
-  distro: "",
-  architecture: "",
+  distro: '',
+  architecture: '',
   totalMemory: 0,
   uptime: 0,
   osUptime: 0,
   cpuLoadHistory: [],
   memoryLoadHistory: [],
-  networkIpAddresses: []
+  networkIpAddresses: [],
 };
 
 class SystemRunner {
   static returnInfo(profile = false) {
     if (profile) {
       SystemRunner.updateSystemInformation().then((res) => {
-        logger.debug("System successfully profiled", res);
+        logger.debug('System successfully profiled', res);
       });
     }
     return systemInformationService;
@@ -39,10 +39,10 @@ class SystemRunner {
 
   static async profileCPUUsagePercent() {
     const CPUPercent = await getCPULoadAVG(1000, 100);
-    logger.debug("Current CPU Usage", { CPUPercent });
+    logger.debug('Current CPU Usage', { CPUPercent });
     cpuUsageHistory.push({
       x: new Date(),
-      y: CPUPercent
+      y: CPUPercent,
     });
     if (cpuUsageHistory.length >= 300) {
       cpuUsageHistory.shift();
@@ -58,10 +58,10 @@ class SystemRunner {
       if (!isNaN(memoryPercent)) {
         memoryRounded = memoryPercent.toFixed(0);
       }
-      logger.debug("Current Memory Usage", { memoryRounded });
+      logger.debug('Current Memory Usage', { memoryRounded });
       memoryUsageHistory.push({
         x: new Date(),
-        y: memoryRounded
+        y: memoryRounded,
       });
       if (memoryUsageHistory.length >= 300) {
         memoryUsageHistory.shift();
@@ -114,18 +114,18 @@ class SystemRunner {
 
     if (disk.use >= 99) {
       return {
-        status: "danger",
-        message: diskRisk
+        status: 'danger',
+        message: diskRisk,
       };
     } else if (disk.use >= 95) {
       return {
-        status: "warning",
-        message: diskAlmostFullWarning
+        status: 'warning',
+        message: diskAlmostFullWarning,
       };
     } else if (disk.use >= 90) {
       return {
-        status: "warning",
-        message: diskVeryFullWarning
+        status: 'warning',
+        message: diskVeryFullWarning,
       };
     }
     return {};
@@ -137,7 +137,7 @@ class SystemRunner {
     for (const name of Object.keys(nets)) {
       for (const net of nets[name]) {
         // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
-        if (net.family === "IPv4" && !net.internal) {
+        if (net.family === 'IPv4' && !net.internal) {
           results.push(net.address);
         }
       }
@@ -167,12 +167,12 @@ class SystemRunner {
         warnings,
         osInfo: {
           arch: process.arch,
-          distro: `${os.type()} ${os.release()} (${os.platform()})`
+          distro: `${os.type()} ${os.release()} (${os.platform()})`,
         },
         systemDisk,
         currentProcess: systemInformationService.currentProcess,
         benchmarkTimes: benchResults,
-        networkIpAddresses: this.getIpAddressList()
+        networkIpAddresses: this.getIpAddressList(),
       };
 
       if (farmPiStatus()) {
@@ -181,7 +181,7 @@ class SystemRunner {
 
       return systemInformationService;
     } catch (e) {
-      logger.error("Some system information has failed to generate:", e.message);
+      logger.error('Some system information has failed to generate:', e.message);
 
       return false;
     }
@@ -189,5 +189,5 @@ class SystemRunner {
 }
 
 module.exports = {
-  SystemRunner
+  SystemRunner,
 };

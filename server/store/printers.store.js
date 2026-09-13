@@ -1071,7 +1071,7 @@ class PrinterStore {
   }
 
   listCommonFilesOnAllPrinters(ids) {
-    const normalisePath = (path) => path.replace(/ /g, "_");
+    const normalisePath = (path) => path.replace(/ /g, '_');
 
     // One normalised path set per printer, built once. The previous version scanned
     // the accumulated list with findIndex for every file of every printer -- and
@@ -1358,7 +1358,8 @@ class PrinterStore {
       if (spoolID !== '0') {
         const spool = await Filament.findById(spoolID);
         farmPrinters[printerIndex].selectedFilament[tool] = JSON.parse(JSON.stringify(spool));
-        farmPrinters[printerIndex].selectedFilament[tool].spools.profile = await attachProfileToSpool(spool.spools.profile);
+        farmPrinters[printerIndex].selectedFilament[tool].spools.profile =
+          await attachProfileToSpool(spool.spools.profile);
       } else {
         farmPrinters[printerIndex].selectedFilament[tool] = null;
       }

@@ -1,13 +1,13 @@
-const { getPrinterStoreCache } = require("../cache/printer-store.cache");
-const { returnCurrentOrdering } = require("./current-operations-order.service");
-const { getEmptyOperationsObject } = require("../constants/cleaner.constants");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const { getPrinterStoreCache } = require('../cache/printer-store.cache');
+const { returnCurrentOrdering } = require('./current-operations-order.service');
+const { getEmptyOperationsObject } = require('../constants/cleaner.constants');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_CURRENT_OPERATIONS);
-const _ = require("lodash");
-const { notifySubscribers } = require("../services/server-side-events.service");
-const { MESSAGE_TYPES } = require("../constants/sse.constants");
+const _ = require('lodash');
+const { notifySubscribers } = require('../services/server-side-events.service');
+const { MESSAGE_TYPES } = require('../constants/sse.constants');
 
 const currentOperations = getEmptyOperationsObject();
 
@@ -33,25 +33,25 @@ const sortCurrentOperations = async (printerList) => {
   try {
     for (let i = 0; i < farmPrinters.length; i++) {
       const printer = farmPrinters[i];
-      if (typeof printer !== "undefined") {
+      if (typeof printer !== 'undefined') {
         const name = printer.printerName;
 
-        if (typeof printer.printerState !== "undefined") {
-          if (printer.printerState.colour.category === "Idle") {
+        if (typeof printer.printerState !== 'undefined') {
+          if (printer.printerState.colour.category === 'Idle') {
             idle.push(printer._id);
           }
-          if (printer.printerState.colour.category === "Offline") {
+          if (printer.printerState.colour.category === 'Offline') {
             offline.push(printer._id);
           }
-          if (printer.printerState.colour.category === "Disconnected") {
+          if (printer.printerState.colour.category === 'Disconnected') {
             disconnected.push(printer._id);
           }
         }
 
-        if (typeof printer.printerState !== "undefined" && printer.currentJob != null) {
+        if (typeof printer.printerState !== 'undefined' && printer.currentJob != null) {
           let id = printer._id;
           id = id.toString();
-          if (printer.printerState.colour.category === "Complete") {
+          if (printer.printerState.colour.category === 'Complete') {
             complete.push(printer._id);
             progress.push(printer.currentJob.progress);
             operations.push({
@@ -59,15 +59,15 @@ const sortCurrentOperations = async (printerList) => {
               sortIndex: printer.sortIndex,
               name,
               progress: Math.floor(printer.currentJob.progress),
-              progressColour: "success",
+              progressColour: 'success',
               timeRemaining: printer.currentJob.printTimeRemaining,
-              fileName: printer.currentJob.fileDisplay
+              fileName: printer.currentJob.fileDisplay,
             });
           }
 
           if (
-            printer.printerState.colour.category === "Active" &&
-            typeof printer.currentJob !== "undefined"
+            printer.printerState.colour.category === 'Active' &&
+            typeof printer.currentJob !== 'undefined'
           ) {
             active.push(printer._id);
             progress.push(printer.currentJob.progress);
@@ -76,9 +76,9 @@ const sortCurrentOperations = async (printerList) => {
               sortIndex: printer.sortIndex,
               name,
               progress: Math.floor(printer.currentJob.progress),
-              progressColour: "warning",
+              progressColour: 'warning',
               timeRemaining: printer.currentJob.printTimeRemaining,
-              fileName: printer.currentJob.fileDisplay
+              fileName: printer.currentJob.fileDisplay,
             });
           }
         }
@@ -93,9 +93,9 @@ const sortCurrentOperations = async (printerList) => {
       currentOperations.count.farmProgress = 0;
     }
     if (currentOperations.count.farmProgress === 100) {
-      currentOperations.count.farmProgressColour = "success";
+      currentOperations.count.farmProgressColour = 'success';
     } else {
-      currentOperations.count.farmProgressColour = "warning";
+      currentOperations.count.farmProgressColour = 'warning';
     }
 
     currentOperations.count.printerCount = farmPrinters.length;
@@ -109,7 +109,7 @@ const sortCurrentOperations = async (printerList) => {
     const iterie = [currentIterie];
     const order = [currentOrder];
     currentOperations.operations = _.orderBy(operations, iterie, order);
-    notifySubscribers("currentOperations", MESSAGE_TYPES.CURRENT_OPERATIONS, currentOperations);
+    notifySubscribers('currentOperations', MESSAGE_TYPES.CURRENT_OPERATIONS, currentOperations);
   } catch (err) {
     logger.error(`Current Operations issue: ${err}`);
   }
@@ -117,5 +117,5 @@ const sortCurrentOperations = async (printerList) => {
 
 module.exports = {
   getCurrentOperations,
-  sortCurrentOperations
+  sortCurrentOperations,
 };

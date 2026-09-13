@@ -67,5 +67,5 @@ const OP_ISSUE = {
 };
 
 module.exports = {
-  OP_ISSUE
+  OP_ISSUE,
 };

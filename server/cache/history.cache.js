@@ -1,4 +1,4 @@
-const { HistoryClean } = require("../services/history-cleaner.service");
+const { HistoryClean } = require('../services/history-cleaner.service');
 
 let historyCleanState = new HistoryClean();
 
@@ -11,11 +11,11 @@ async function initHistoryCache() {
     await historyCleanState.initCache();
   } else {
     // Will never occur.
-    throw new Error("Cant init unconstructed historyCache.");
+    throw new Error('Cant init unconstructed historyCache.');
   }
 }
 
 module.exports = {
   getHistoryCache,
-  initHistoryCache
+  initHistoryCache,
 };

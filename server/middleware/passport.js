@@ -1,10 +1,10 @@
-const LocalStrategy = require("passport-local").Strategy;
-const bcrypt = require("bcryptjs");
-const RememberMeStrategy = require("passport-remember-me").Strategy;
-const User = require("../models/User.js");
-const { UserTokenService } = require("../services/authentication/user-token.service");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
-const Logger = require("../handlers/logger");
+const LocalStrategy = require('passport-local').Strategy;
+const bcrypt = require('bcryptjs');
+const RememberMeStrategy = require('passport-remember-me').Strategy;
+const User = require('../models/User.js');
+const { UserTokenService } = require('../services/authentication/user-token.service');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
+const Logger = require('../handlers/logger');
 const logger = new Logger(LOGGER_ROUTE_KEYS.MIDDLEWARE_PASSPORT);
 
 module.exports = function (passport) {
@@ -22,13 +22,13 @@ module.exports = function (passport) {
   );
 
   passport.use(
-    new LocalStrategy({ usernameField: "username" }, (username, password, done) => {
+    new LocalStrategy({ usernameField: 'username' }, (username, password, done) => {
       // Match User in db
       User.findOne({ username })
         .then((user) => {
           if (!user) {
             return done(null, false, {
-              message: "That username is not registered"
+              message: 'That username is not registered',
             });
           }
           // Match password
@@ -37,7 +37,7 @@ module.exports = function (passport) {
             if (isMatch) {
               return done(null, user);
             }
-            return done(null, false, { message: "Password incorrect" });
+            return done(null, false, { message: 'Password incorrect' });
           });
         })
         .catch((err) => logger.error(err));

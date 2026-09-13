@@ -1,4 +1,4 @@
-const rateLimit = require("express-rate-limit");
+const rateLimit = require('express-rate-limit');
 
 //Something seriously wrong if they're requesting 10000 in a minute...
 const octofarmGlobalLimits = rateLimit({
@@ -9,9 +9,9 @@ const octofarmGlobalLimits = rateLimit({
   handler: function (req, res /*next*/) {
     return res.status(429).json({
       error:
-        "You have exceeded the 10000 requests in 5 second limit! What in the hell we're you doing?"
+        "You have exceeded the 10000 requests in 5 second limit! What in the hell we're you doing?",
     });
-  }
+  },
 });
 
 // Just to protect printer actions further, don't let multiple calls break things.
@@ -22,9 +22,9 @@ const printerActionLimits = rateLimit({
   legacyHeaders: false,
   handler: function (req, res /*next*/) {
     return res.status(429).json({
-      error: "You have exceeded the 1000 requests in 1 minute limit! Please try again in 1 minute."
+      error: 'You have exceeded the 1000 requests in 1 minute limit! Please try again in 1 minute.',
     });
-  }
+  },
 });
 
 // The global limiter is 10000 requests per 5 seconds, which is no obstacle at all
@@ -38,9 +38,9 @@ const authenticationLimits = rateLimit({
   skipSuccessfulRequests: true,
   handler: function (req, res /*next*/) {
     return res.status(429).json({
-      error: "Too many authentication attempts. Please try again in 15 minutes."
+      error: 'Too many authentication attempts. Please try again in 15 minutes.',
     });
-  }
+  },
 });
 
 //TODO rest of the endpoints
@@ -48,5 +48,5 @@ const authenticationLimits = rateLimit({
 module.exports = {
   octofarmGlobalLimits,
   printerActionLimits,
-  authenticationLimits
+  authenticationLimits,
 };

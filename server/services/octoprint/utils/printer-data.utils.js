@@ -1,4 +1,4 @@
-const { each } = require("lodash");
+const { each } = require('lodash');
 /**
  * Function to convert octoprints camera data to usable stream
  * @param currentURL
@@ -7,15 +7,15 @@ const { each } = require("lodash");
  * @returns {string}
  */
 const acquireWebCamData = (currentURL, printerURL, streamURL) => {
-  if (typeof currentURL === "undefined" || typeof streamURL === "undefined" || !printerURL) {
-    throw new Error("Missing required keys!");
+  if (typeof currentURL === 'undefined' || typeof streamURL === 'undefined' || !printerURL) {
+    throw new Error('Missing required keys!');
   }
 
-  let returnURL = "";
+  let returnURL = '';
   // Only acquire camera url if it doesn't already exists / user inputted
-  if (currentURL === "" || currentURL === " ") {
+  if (currentURL === '' || currentURL === ' ') {
     if (!!streamURL) {
-      if (streamURL.includes("http")) {
+      if (streamURL.includes('http')) {
         returnURL = streamURL;
       } else {
         returnURL = printerURL + streamURL;
@@ -36,35 +36,35 @@ const acquirePrinterFilesAndFolderData = function (fileList) {
   const recursivelyPrintNames = function (entry, depth) {
     // eslint-disable-next-line no-param-reassign
     depth = depth || 0;
-    let timeStat = "";
+    let timeStat = '';
     let filament = [];
-    const isFolder = entry.type === "folder";
+    const isFolder = entry.type === 'folder';
     if (!isFolder) {
-      if (typeof entry.gcodeAnalysis !== "undefined") {
-        if (typeof entry.gcodeAnalysis.estimatedPrintTime !== "undefined") {
+      if (typeof entry.gcodeAnalysis !== 'undefined') {
+        if (typeof entry.gcodeAnalysis.estimatedPrintTime !== 'undefined') {
           timeStat = entry.gcodeAnalysis.estimatedPrintTime;
           // Start collecting multiple tool lengths and information from files....
           Object.keys(entry.gcodeAnalysis.filament).forEach(function (item, i) {
             filament[i] = entry.gcodeAnalysis.filament[item].length;
           });
         } else {
-          timeStat = "No Time Estimate";
+          timeStat = 'No Time Estimate';
           filament = null;
         }
       } else {
-        timeStat = "No Time Estimate";
+        timeStat = 'No Time Estimate';
         filament = null;
       }
 
       let path = null;
-      if (entry.path.indexOf("/") > -1) {
-        path = entry.path.substr(0, entry.path.lastIndexOf("/"));
+      if (entry.path.indexOf('/') > -1) {
+        path = entry.path.substr(0, entry.path.lastIndexOf('/'));
       } else {
-        path = "local";
+        path = 'local';
       }
       let thumbnail = null;
 
-      if (typeof entry.thumbnail !== "undefined") {
+      if (typeof entry.thumbnail !== 'undefined') {
         thumbnail = entry.thumbnail;
       }
 
@@ -72,7 +72,7 @@ const acquirePrinterFilesAndFolderData = function (fileList) {
       let failed = 0;
       let last = null;
 
-      if (typeof entry.prints !== "undefined") {
+      if (typeof entry.prints !== 'undefined') {
         success = entry.prints.success;
         failed = entry.prints.failure;
         last = entry.prints.last.success;
@@ -90,29 +90,29 @@ const acquirePrinterFilesAndFolderData = function (fileList) {
         thumbnail,
         success: success,
         failed: failed,
-        last: last
+        last: last,
       };
       printerFiles.push(file);
     }
 
     const folderPaths = {
-      name: "",
-      path: "",
-      display: ""
+      name: '',
+      path: '',
+      display: '',
     };
     if (isFolder) {
-      if (entry.path.indexOf("/") > -1) {
-        folderPaths.path = entry.path.substr(0, entry.path.lastIndexOf("/"));
+      if (entry.path.indexOf('/') > -1) {
+        folderPaths.path = entry.path.substr(0, entry.path.lastIndexOf('/'));
       } else {
-        folderPaths.path = "local";
+        folderPaths.path = 'local';
       }
 
-      if (entry.path.indexOf("/")) {
+      if (entry.path.indexOf('/')) {
         folderPaths.name = entry.path;
         folderPaths.display = entry.path;
       } else {
-        folderPaths.name = entry.path.substr(0, entry.path.lastIndexOf("/"));
-        folderPaths.display = entry.path.substr(0, entry.path.lastIndexOf("/"));
+        folderPaths.name = entry.path.substr(0, entry.path.lastIndexOf('/'));
+        folderPaths.display = entry.path.substr(0, entry.path.lastIndexOf('/'));
       }
 
       printerLocations.push(folderPaths);
@@ -131,11 +131,11 @@ const acquirePrinterFilesAndFolderData = function (fileList) {
 
   return {
     printerFiles,
-    printerLocations
+    printerLocations,
   };
 };
 
 module.exports = {
   acquireWebCamData,
-  acquirePrinterFilesAndFolderData
+  acquirePrinterFilesAndFolderData,
 };

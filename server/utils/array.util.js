@@ -52,7 +52,7 @@ const sumValuesGroupByDate = (input) => {
   input.forEach((dv) => (dates[dv.x] = (dates[dv.x] || 0) + dv.y));
   return Object.keys(dates).map((date) => ({
     x: new Date(date),
-    y: dates[date]
+    y: dates[date],
   }));
 };
 
@@ -67,5 +67,5 @@ module.exports = {
   checkNestedIndex,
   arrayCounts,
   sumValuesGroupByDate,
-  shiftOverItems
+  shiftOverItems,
 };

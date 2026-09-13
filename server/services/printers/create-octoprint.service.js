@@ -1660,7 +1660,7 @@ class OctoPrintPrinter {
       //Grab api once more after this for full update of file... including thumbnail
       setTimeout(() => {
         this.secondaryFileInformationUpdate(fullPath).catch((e) => {
-          logger.error("Secondary file information update failed", e.toString());
+          logger.error('Secondary file information update failed', e.toString());
         });
       }, 2000);
     } else {

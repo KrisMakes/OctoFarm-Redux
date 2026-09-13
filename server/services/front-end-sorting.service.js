@@ -1,4 +1,4 @@
-const { defaultSortBy, defaultFilterBy } = require("../constants/filter-sorting.constants");
+const { defaultSortBy, defaultFilterBy } = require('../constants/filter-sorting.constants');
 
 let filterBy = defaultFilterBy;
 

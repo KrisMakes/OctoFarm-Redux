@@ -1,14 +1,14 @@
-const { readdirSync, statSync, unlinkSync } = require("fs");
-const { join } = require("path");
+const { readdirSync, statSync, unlinkSync } = require('fs');
+const { join } = require('path');
 
-const { createZipFile } = require("../utils/zip.utils.js");
-const { getLogsPath } = require("../utils/system-paths.utils.js");
+const { createZipFile } = require('../utils/zip.utils.js');
+const { getLogsPath } = require('../utils/system-paths.utils.js');
 const {
-  generateOctoFarmSystemInformationTxt
-} = require("./system-information-text-generator.service.js");
-const { generateTodayTextString } = require("../utils/date.utils");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+  generateOctoFarmSystemInformationTxt,
+} = require('./system-information-text-generator.service.js');
+const { generateTodayTextString } = require('../utils/date.utils');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_SERVER_LOGS);
 
 const logFolder = getLogsPath();
@@ -26,7 +26,7 @@ class Logs {
         path: logFilePath,
         size: stats?.size,
         modified: stats?.mtime,
-        created: stats?.birthtime
+        created: stats?.birthtime,
       };
       fileArray.push(logFile);
     }
@@ -43,7 +43,7 @@ class Logs {
       return false;
     }
     const logFilePath = join(logFolder, name);
-    logger.debug("Deleting log file: " + logFilePath);
+    logger.debug('Deleting log file: ' + logFilePath);
     unlinkSync(logFilePath);
     return true;
   }
@@ -90,10 +90,10 @@ class Logs {
 
     // Let me know if there's a better way here. Just always used forEach.
     currentLogFiles.forEach((logPath) => {
-      if (logPath?.name.includes(".log")) {
+      if (logPath?.name.includes('.log')) {
         const logFile = {
           name: logPath?.name,
-          path: logPath?.path
+          path: logPath?.path,
         };
         fileList.push(logFile);
       }

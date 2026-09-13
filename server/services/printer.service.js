@@ -1,8 +1,8 @@
-"use strict";
+'use strict';
 
-const printerModel = require("../models/Printer");
-const Logger = require("../handlers/logger");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const printerModel = require('../models/Printer');
+const Logger = require('../handlers/logger');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_PRINTER);
 
@@ -13,7 +13,7 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_PRINTER);
  */
 const create = (printer) => {
   if (!printer) {
-    throw new Error("Missing printer");
+    throw new Error('Missing printer');
   }
 
   return printerModel.create(printer);
@@ -30,10 +30,10 @@ const findOneAndUpdate = (id, obj) => {
   return printerModel
     .findOneAndUpdate({ _id: id }, obj, { new: true })
     .then((res) => {
-      logger.debug("Successfully updated printer database!", obj);
+      logger.debug('Successfully updated printer database!', obj);
     })
     .catch((e) => {
-      logger.error("Failed to update printer database!", e);
+      logger.error('Failed to update printer database!', e);
     });
 };
 
@@ -41,11 +41,11 @@ const findOneAndPush = (id, pushKey, obj) => {
   return printerModel
     .findOneAndUpdate({ _id: id }, { $push: { [pushKey]: obj } }, { new: true })
     .then((res) => {
-      logger.debug("Successfully updated printer database! Key Push: " + pushKey, obj);
+      logger.debug('Successfully updated printer database! Key Push: ' + pushKey, obj);
       return res;
     })
     .catch((e) => {
-      logger.error("Failed to update printer database!! Key Push: " + pushKey, e);
+      logger.error('Failed to update printer database!! Key Push: ' + pushKey, e);
       throw e;
     });
 };
@@ -54,5 +54,5 @@ module.exports = {
   create,
   list,
   findOneAndUpdate,
-  findOneAndPush
+  findOneAndPush,
 };

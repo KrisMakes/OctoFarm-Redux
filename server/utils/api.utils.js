@@ -8,5 +8,5 @@ const checkApiStatusResponse = (response) => {
 };
 
 module.exports = {
-  checkApiStatusResponse
+  checkApiStatusResponse,
 };

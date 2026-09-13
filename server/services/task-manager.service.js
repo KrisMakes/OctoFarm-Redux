@@ -1,7 +1,7 @@
-const Logger = require("../handlers/logger.js");
-const { JobValidationException } = require("../exceptions/job.exceptions");
-const { ToadScheduler, SimpleIntervalJob, AsyncTask } = require("toad-scheduler");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const Logger = require('../handlers/logger.js');
+const { JobValidationException } = require('../exceptions/job.exceptions');
+const { ToadScheduler, SimpleIntervalJob, AsyncTask } = require('toad-scheduler');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_TASK_MANAGER);
 
 /**
@@ -15,7 +15,7 @@ class TaskManagerService {
   static validateInput(taskId, workload, schedulerOptions) {
     if (!taskId) {
       throw new JobValidationException(
-        "Task ID was not provided. Cant register task or schedule job."
+        'Task ID was not provided. Cant register task or schedule job.'
       );
     }
     if (!!this.taskStates[taskId]) {
@@ -24,10 +24,10 @@ class TaskManagerService {
         taskId
       );
     }
-    if (typeof workload !== "function") {
+    if (typeof workload !== 'function') {
       throw new JobValidationException(
         `Job '${
-          workload.name || "anonymous"
+          workload.name || 'anonymous'
         }' with taskId '${taskId}' is not a callable function and can't be scheduled.`,
         taskId
       );
@@ -85,7 +85,7 @@ class TaskManagerService {
 
     this.taskStates[taskID] = {
       options: schedulerOptions,
-      task: timedTask
+      task: timedTask,
     };
 
     if (schedulerOptions.runOnce) {
@@ -143,7 +143,7 @@ class TaskManagerService {
       if (!registration.lastError)
         registration.erroredlastError = {
           time: Date.now(),
-          error
+          error,
         };
 
       logger.error(`Task '${taskId}' threw an exception:` + error.stack);
@@ -155,7 +155,7 @@ class TaskManagerService {
    */
   static stopSchedulerTasks() {
     this.jobScheduler.stop();
-    logger.warning("Successfully stopped all scheduled tasks!");
+    logger.warning('Successfully stopped all scheduled tasks!');
     return true;
   }
 
@@ -169,5 +169,5 @@ class TaskManagerService {
 }
 
 module.exports = {
-  TaskManager: TaskManagerService
+  TaskManager: TaskManagerService,
 };

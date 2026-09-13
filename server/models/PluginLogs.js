@@ -1,35 +1,35 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const PluginLogsSchema = new mongoose.Schema(
   {
     id: {
       type: Number,
-      required: true
+      required: true,
     },
     date: {
       type: Date,
-      required: true
+      required: true,
     },
     message: {
       type: String,
-      required: true
+      required: true,
     },
     printerID: {
       type: String,
-      required: true
+      required: true,
     },
     printerURL: {
       type: String,
-      required: true
+      required: true,
     },
     state: {
       type: String,
-      required: true
+      required: true,
     },
     pluginDisplay: {
       type: String,
-      required: true
-    }
+      required: true,
+    },
   },
   // The { capped: true, size: 10000 } this used to declare never took effect --
   // Mongoose applies capped options only when it creates the collection. A TTL
@@ -44,6 +44,6 @@ const PluginLogsSchema = new mongoose.Schema(
 const ONE_YEAR_IN_SECONDS = 365 * 24 * 60 * 60;
 PluginLogsSchema.index({ date: 1 }, { expireAfterSeconds: ONE_YEAR_IN_SECONDS });
 
-const PluginLogs = mongoose.model("PluginLogs", PluginLogsSchema);
+const PluginLogs = mongoose.model('PluginLogs', PluginLogsSchema);
 
 module.exports = PluginLogs;

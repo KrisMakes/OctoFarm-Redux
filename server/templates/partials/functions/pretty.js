@@ -1,15 +1,15 @@
-const _ = require("lodash");
+const _ = require('lodash');
 
 const bytes = function (a, b) {
   if (a === undefined || isNaN(a) || a === null) {
-    return "No File Estimate";
+    return 'No File Estimate';
   } else {
-    if (0 == a) return "0 Bytes";
+    if (0 == a) return '0 Bytes';
     const c = 1024,
       d = b || 2,
-      e = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"],
+      e = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'],
       f = Math.floor(Math.log(a) / Math.log(c));
-    return parseFloat(a / Math.pow(c, f)).toFixed(d) + " " + e[f];
+    return parseFloat(a / Math.pow(c, f)).toFixed(d) + ' ' + e[f];
   }
 };
 
@@ -19,9 +19,9 @@ const calculatePercent = function (use, total) {
 };
 
 const generateTime = function (seconds) {
-  let string = "";
+  let string = '';
   if (seconds === undefined || isNaN(seconds) || seconds === null) {
-    string = "No Time Estimate";
+    string = 'No Time Estimate';
   } else {
     const days = Math.floor(seconds / (3600 * 24));
 
@@ -37,22 +37,22 @@ const generateTime = function (seconds) {
     string = `${days}d, ${hrs}h, ${mnts}m, ${seconds}s`;
 
     if (mnts == 0) {
-      if (string.includes("0m")) {
-        string = string.replace(" 0m,", "");
+      if (string.includes('0m')) {
+        string = string.replace(' 0m,', '');
       }
     }
     if (hrs == 0) {
-      if (string.includes("0h")) {
-        string = string.replace(" 0h,", "");
+      if (string.includes('0h')) {
+        string = string.replace(' 0h,', '');
       }
     }
     if (days == 0) {
-      if (string.includes("0d")) {
-        string = string.replace("0d,", "");
+      if (string.includes('0d')) {
+        string = string.replace('0d,', '');
       }
     }
     if (mnts == 0 && hrs == 0 && days == 0 && seconds == 0) {
-      string = string.replace("0s", seconds + "s");
+      string = string.replace('0s', seconds + 's');
     }
   }
 
@@ -61,19 +61,19 @@ const generateTime = function (seconds) {
 
 const returnProgressColour = function (percent, reverse) {
   if (percent < 45) {
-    return reverse ? "bg-danger" : "bg-success";
+    return reverse ? 'bg-danger' : 'bg-success';
   } else if (percent < 75) {
-    return "bg-warning";
+    return 'bg-warning';
   } else {
-    return reverse ? "bg-success" : "bg-danger";
+    return reverse ? 'bg-success' : 'bg-danger';
   }
 };
 
 const generateMilisecondsTime = function (miliseconds) {
   let seconds = miliseconds / 1000;
-  let string = "";
+  let string = '';
   if (seconds === undefined || isNaN(seconds) || seconds === null) {
-    string = "No Interval";
+    string = 'No Interval';
   } else {
     const days = Math.floor(seconds / (3600 * 24));
 
@@ -89,28 +89,28 @@ const generateMilisecondsTime = function (miliseconds) {
     string = `${days}d, ${hrs}h, ${mnts}m, ${seconds}s`;
 
     if (mnts == 0) {
-      if (string.includes("0m")) {
-        string = string.replace(" 0m,", "");
+      if (string.includes('0m')) {
+        string = string.replace(' 0m,', '');
       }
     }
     if (hrs == 0) {
-      if (string.includes("0h")) {
-        string = string.replace(" 0h,", "");
+      if (string.includes('0h')) {
+        string = string.replace(' 0h,', '');
       }
     }
     if (days == 0) {
-      if (string.includes("0d")) {
-        string = string.replace("0d,", "");
+      if (string.includes('0d')) {
+        string = string.replace('0d,', '');
       }
     }
     if (seconds == 0) {
-      string = string.replace(", 0s", "");
+      string = string.replace(', 0s', '');
     }
     if (mnts == 0 && hrs == 0 && days == 0 && seconds == 0) {
-      string = string.replace("0s", miliseconds + " ms");
+      string = string.replace('0s', miliseconds + ' ms');
     }
     if (!miliseconds) {
-      string = "No Interval";
+      string = 'No Interval';
     }
   }
   // This return used to sit inside the else, so the "No Interval" guard branch fell
@@ -124,5 +124,5 @@ module.exports = {
   generateTime: generateTime,
   calculatePercent: calculatePercent,
   generateMilisecondsTime,
-  returnProgressColour
+  returnProgressColour,
 };

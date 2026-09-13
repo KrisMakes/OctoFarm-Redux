@@ -1,11 +1,11 @@
-"use strict";
+'use strict';
 
-const _ = require("lodash");
-const Logger = require("../handlers/logger.js");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
-const { getMaintenanceCosts, getElectricityCosts } = require("../utils/print-cost.util");
+const _ = require('lodash');
+const Logger = require('../handlers/logger.js');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
+const { getMaintenanceCosts, getElectricityCosts } = require('../utils/print-cost.util');
 
-const { getDefaultFileCleanStatistics } = require("../constants/cleaner.constants");
+const { getDefaultFileCleanStatistics } = require('../constants/cleaner.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_FILE_CLEANER);
 const cleanFileList = [];
@@ -36,7 +36,7 @@ class FileCleanerService {
         const device = {
           ip: printer.printerURL,
           index: printer.index,
-          storage: printer.storage
+          storage: printer.storage,
         };
         devices.push(device);
       }
@@ -58,7 +58,7 @@ class FileCleanerService {
       }
     }
 
-    const uniqueDevices = _.uniqBy(devices, "printerURL");
+    const uniqueDevices = _.uniqBy(devices, 'printerURL');
     uniqueDevices.forEach((device) => {
       storageFree.push(device.storage.free);
       storageTotal.push(device.storage.total);
@@ -91,7 +91,7 @@ class FileCleanerService {
 
   static generate(fileList, selectedFilament, costSettings) {
     if (!fileList) {
-      logger.error("Printer File Cleaner failed: farmPrinter:fileList not defined.");
+      logger.error('Printer File Cleaner failed: farmPrinter:fileList not defined.');
       return;
     }
 
@@ -109,8 +109,8 @@ class FileCleanerService {
           uploadDate: file.date,
           fileSize: file.size,
           thumbnail: file.thumbnail,
-          toolUnits: "",
-          toolCosts: "",
+          toolUnits: '',
+          toolCosts: '',
           success: file.success,
           failed: file.failed,
           last: file.last,
@@ -118,14 +118,14 @@ class FileCleanerService {
           filamentLength: file?.length || 0,
           printCost,
           electricityCosts,
-          maintenanceCosts
+          maintenanceCosts,
         };
         sortedFile.toolUnits = FileCleanerService.getUnits(
           selectedFilament,
           sortedFile.filamentLength
         );
         sortedFile.toolCosts = FileCleanerService.getCost(selectedFilament, sortedFile.toolUnits);
-        if (!!file?.date && typeof file.date === "number") {
+        if (!!file?.date && typeof file.date === 'number') {
           sortedFileList.push(sortedFile);
         }
       }
@@ -135,13 +135,13 @@ class FileCleanerService {
       fileList: sortedFileList,
       filecount: sortedFileList?.length || 0,
       folderList: fileList?.folderList || [],
-      folderCount: fileList?.folderList.length || 0
+      folderCount: fileList?.folderList.length || 0,
     };
   }
 
   static generateSingle(file, selectedFilament, costSettings) {
     if (!file) {
-      logger.error("Printer File Cleaner failed: file not defined.");
+      logger.error('Printer File Cleaner failed: file not defined.');
       return;
     }
 
@@ -158,8 +158,8 @@ class FileCleanerService {
       uploadDate: file.date,
       fileSize: file.size,
       thumbnail: file.thumbnail,
-      toolUnits: "",
-      toolCosts: "",
+      toolUnits: '',
+      toolCosts: '',
       success: file.success,
       failed: file.failed,
       last: file.last,
@@ -167,7 +167,7 @@ class FileCleanerService {
       filamentLength: file.length,
       printCost,
       electricityCosts,
-      maintenanceCosts
+      maintenanceCosts,
     };
     sortedFile.toolUnits = FileCleanerService.getUnits(selectedFilament, sortedFile.filamentLength);
     sortedFile.toolCosts = FileCleanerService.getCost(selectedFilament, sortedFile.toolUnits);
@@ -187,7 +187,7 @@ class FileCleanerService {
     if (!!fileLength) {
       for (let l = 0; l < fileLength.length; l++) {
         const length = fileLength[l] / 1000;
-        if (typeof filamentSelection !== "undefined" && Array.isArray(filamentSelection)) {
+        if (typeof filamentSelection !== 'undefined' && Array.isArray(filamentSelection)) {
           if (filamentSelection[l] === null) {
             const radius = 1.75 / 2;
             const volume = length * Math.PI * radius * radius;
@@ -195,7 +195,7 @@ class FileCleanerService {
             lengthArray.push(length);
             weightArray.push(usage);
             strings.push(`<b>Tool ${l}:</b> ${length.toFixed(2)}m / ${usage.toFixed(2)}g`);
-          } else if (typeof filamentSelection[l] !== "undefined") {
+          } else if (typeof filamentSelection[l] !== 'undefined') {
             const radius = parseFloat(filamentSelection[l].spools.profile.diameter) / 2;
             const volume = length * Math.PI * radius * radius;
             const usage = volume * parseFloat(filamentSelection[l].spools.profile.density);
@@ -237,15 +237,15 @@ class FileCleanerService {
     const strings = [];
     const costArray = [];
     filamentSelection = JSON.parse(JSON.stringify(filamentSelection));
-    filamentSelection.unshift("SKIP");
+    filamentSelection.unshift('SKIP');
     for (let u = 0; u < units.length; u++) {
-      if (typeof filamentSelection !== "undefined" && Array.isArray(filamentSelection)) {
-        if (filamentSelection[u] === "SKIP") {
+      if (typeof filamentSelection !== 'undefined' && Array.isArray(filamentSelection)) {
+        if (filamentSelection[u] === 'SKIP') {
           //Skip
-        } else if (typeof filamentSelection[u] !== "undefined" && filamentSelection[u] !== null) {
-          let newUnit = units[u].split(" / ");
-          newUnit = newUnit[1].replace("g", "");
-          if (!units[u].includes("Total")) {
+        } else if (typeof filamentSelection[u] !== 'undefined' && filamentSelection[u] !== null) {
+          let newUnit = units[u].split(' / ');
+          newUnit = newUnit[1].replace('g', '');
+          if (!units[u].includes('Total')) {
             const cost = (
               (filamentSelection[u].spools.price / filamentSelection[u].spools.weight) *
               parseFloat(newUnit)
@@ -255,11 +255,11 @@ class FileCleanerService {
           }
         } else {
           costArray.push(0);
-          strings.push("(No Spool)");
+          strings.push('(No Spool)');
         }
       } else {
         costArray.push(0);
-        strings.push("(No Spool)");
+        strings.push('(No Spool)');
       }
     }
     const totalCost = costArray.reduce((a, b) => a + b, 0);
@@ -271,9 +271,7 @@ class FileCleanerService {
     const today = new Date();
     today.setDate(today.getDate() - days);
     const isExcluded = (filePath) =>
-      excludedFolders.some(
-        (folder) => filePath === folder || filePath.startsWith(`${folder}/`)
-      );
+      excludedFolders.some((folder) => filePath === folder || filePath.startsWith(`${folder}/`));
     const deleteList = [];
     for (const file of fileList) {
       if (isExcluded(file.path)) {
@@ -288,5 +286,5 @@ class FileCleanerService {
 }
 
 module.exports = {
-  FileClean: FileCleanerService
+  FileClean: FileCleanerService,
 };

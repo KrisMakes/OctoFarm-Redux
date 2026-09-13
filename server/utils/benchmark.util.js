@@ -1,5 +1,5 @@
-const Logger = require("../handlers/logger.js");
-const { LOGGER_ROUTE_KEYS } = require("../constants/logger.constants");
+const Logger = require('../handlers/logger.js');
+const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.UTILS_BENCHMARK);
 
 /**
@@ -22,7 +22,7 @@ async function bench(cb, report = false) {
   if (!!report) {
     return {
       result,
-      time: afterTime - beforeTime
+      time: afterTime - beforeTime,
     };
   } else return result;
 }
@@ -36,5 +36,5 @@ function noop() {}
 module.exports = {
   bench,
   byteCount,
-  noop
+  noop,
 };
