@@ -79,6 +79,8 @@ class PrinterStore {
         disabled: printer.disabled,
         printerName: printer.printerName,
         printerURL: printer.printerURL,
+        // printer-health-checks.service destructures this off the summary.
+        webSocketURL: printer.webSocketURL,
         group: printer.group,
         camURL: printer.camURL,
         printerState: printer.printerState,

@@ -7,12 +7,16 @@ const printerChecks = (printer) => {
 
   let doTheyMatch = false;
 
-  if (printerURL.includes('https://')) {
-    doTheyMatch = webSocketURL.includes('wss://');
-  }
+  // Both are required fields on a printer, but a health check is exactly the
+  // place where one can be missing -- do not throw out of the whole batch for it.
+  if (typeof printerURL === 'string' && typeof webSocketURL === 'string') {
+    if (printerURL.includes('https://')) {
+      doTheyMatch = webSocketURL.includes('wss://');
+    }
 
-  if (printerURL.includes('http://')) {
-    doTheyMatch = webSocketURL.includes('ws://');
+    if (printerURL.includes('http://')) {
+      doTheyMatch = webSocketURL.includes('ws://');
+    }
   }
 
   return {
