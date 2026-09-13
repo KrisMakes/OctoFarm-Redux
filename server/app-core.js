@@ -80,13 +80,16 @@ function setupExpressServer() {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        // The bundled bootstrap/slate themes @import the Lato webfont from
+        // Google. Allowed so the CSP does not change how the app looks; on an
+        // air-gapped farm the request simply fails and the fallback stack is used.
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         // Printer cameras and thumbnails are cross-origin when the proxy is off.
         imgSrc: ["'self'", 'data:', 'blob:', 'http:', 'https:'],
         mediaSrc: ["'self'", 'data:', 'blob:', 'http:', 'https:'],
         // The OctoPrint proxy and the printers' own APIs.
         connectSrc: ["'self'", 'http:', 'https:', 'ws:', 'wss:'],
-        fontSrc: ["'self'", 'data:'],
+        fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
         workerSrc: ["'self'", 'blob:'],
         objectSrc: ["'none'"],
         frameAncestors: ["'self'"],
