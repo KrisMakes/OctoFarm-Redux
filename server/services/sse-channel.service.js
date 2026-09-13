@@ -66,6 +66,13 @@ class SseChannel {
     req.on('error', remove);
 
     this.start();
+
+    // Push a frame straight away rather than leaving the new client waiting for
+    // the next tick. Without this a monitoring view sat blank for up to a full
+    // interval (1s) on every page load, which is visible as a slow load.
+    Promise.resolve(this.#onTick(this)).catch((e) => {
+      logger.error(`${this.#name}: initial send failed`, e.toString());
+    });
   };
 
   /**

@@ -96,6 +96,9 @@ router.get('/filemanager', ensureAuthenticated, ensureCurrentUserAndGroup, async
     ...baseRenderContext(req, 'File Manager'),
     currentOperationsCount: getCurrentOperations().count,
     fileStatistics: FileClean.returnStatistics(),
+    // The custom-gcode modal this page includes builds a printer picker from
+    // _id and printerName. Summaries, not the deep-cloned list.
+    printers: getPrinterStoreCache().listPrinterSummaries(),
   });
 });
 
