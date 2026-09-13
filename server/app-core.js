@@ -39,15 +39,20 @@ function setupExpressServer() {
   let app = express();
 
   app.use(octofarmGlobalLimits);
-  // Gzip everything the app sends. Nothing compressed before this: the largest
-  // page bundle is ~870KB and the SSE streams are the highest-volume traffic on
-  // the box. text/event-stream is excluded from the default filter, so opt it
-  // in explicitly -- the payloads are JSON and compress extremely well.
+  // Gzip everything the app sends. Nothing compressed before this, and the
+  // largest page bundle is ~870KB.
+  //
+  // Server-sent events must NOT be compressed. compression() buffers until it
+  // has enough input to be worth a gzip block and only releases early on an
+  // explicit res.flush(), so an SSE stream stops arriving: measured 82,050
+  // bytes uncompressed against 10 bytes over six seconds with gzip. That stalls
+  // /events and every monitoring view.
   app.use(
     compression({
       filter: (req, res) => {
-        if (res.getHeader('Content-Type')?.toString().includes('text/event-stream')) {
-          return true;
+        const contentType = res.getHeader('Content-Type')?.toString() ?? '';
+        if (contentType.includes('text/event-stream')) {
+          return false;
         }
         return compression.filter(req, res);
       },
