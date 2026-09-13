@@ -9,7 +9,8 @@
     "migration:up": "migrate-mongo up",
     "migration:down": "migrate-mongo down",
     "migration:status": "migrate-mongo status",
-    "prettier": "prettier --write \"./**/*.js\""
+    "prettier": "prettier --write \"./**/*.js\"",
+    "test:proxies": "node scripts/proxy-smoke-test.js"
   },
   "repository": {
     "type": "git",
@@ -56,7 +57,6 @@
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "passport-remember-me": "0.0.1",
-    "request": "^2.88.2",
     "sanitize": "^2.1.2",
     "semver": "^7.3.5",
     "simple-git": "^3.14.1",

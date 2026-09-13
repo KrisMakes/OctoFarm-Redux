@@ -247,10 +247,19 @@ class HistoryCaptureService {
     ensureBaseFolderExists();
     ensureFolderExists(PATHS.thumbnails);
 
-    await downloadImage(url, filePath, this.#apikey, () => {
-      logger.info('Thumbnail downloaded from: ', { url });
-      logger.info('Thumbnail saved as: ', { filePath });
-    });
+    // downloadImage now actually waits for the bytes and rejects on a non-2xx
+    // response, so a printer that refuses the request would otherwise abort the
+    // whole history capture. A missing thumbnail is not worth losing the record
+    // over -- every other failure in here returns '' too.
+    try {
+      await downloadImage(url, filePath, this.#apikey, () => {
+        logger.info('Thumbnail downloaded from: ', { url });
+        logger.info('Thumbnail saved as: ', { filePath });
+      });
+    } catch (e) {
+      logger.error('Unable to download thumbnail!', { url, error: e.toString() });
+      return '';
+    }
 
     return filePath;
   }

@@ -1,6 +1,6 @@
 const fetch = require('./fetch.util');
 const fs = require('fs');
-const request = require('request');
+const { pipeline } = require('stream/promises');
 
 const downloadFromOctoPrint = async (url, path, apiKey, deleteTimelapse) => {
   const res = await fetch(url, {
@@ -23,12 +23,27 @@ const downloadFromOctoPrint = async (url, path, apiKey, deleteTimelapse) => {
   });
 };
 
+// Was two `request` calls: a HEAD whose callback assigned headers onto the
+// *response* object (which does nothing), then a second bare GET that carried
+// no X-Api-Key at all -- so a printer with access control on returned 403 and
+// the write stream saved the error page as the thumbnail. It also resolved as
+// soon as the HEAD was issued, so callers that awaited it carried on before the
+// file existed. This sends the key, waits for the bytes, and rejects on a
+// non-2xx instead of writing the body of the failure to disk.
 const downloadImage = async (url, path, apiKey, callback) => {
-  return request.head(url, (err, res) => {
-    res.headers['content-type'] = 'image/png';
-    res.headers['x-api-key'] = apiKey;
-    request(url).pipe(fs.createWriteStream(path)).on('close', callback);
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'X-Api-Key': apiKey,
+    },
   });
+  if (!res.ok) {
+    throw new Error(`Image download from ${url} failed: ${res.status} ${res.statusText}`);
+  }
+  await pipeline(res.body, fs.createWriteStream(path));
+  if (!!callback) {
+    callback();
+  }
 };
 
 module.exports = {
