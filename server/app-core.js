@@ -126,14 +126,23 @@ function setupExpressServer() {
   if (process.env.NODE_ENV === 'development') {
     app.use('/assets', express.static(path.join(__dirname, '..', 'client', 'assets')));
   }
-  // Every filename under /assets is version-stamped by webpack and referenced
-  // through <%= clientVersion %>, so a release always produces new URLs and
-  // there is nothing to revalidate. This was serving them with maxAge: 0.
+  // no-cache means "you may cache this, but revalidate every time" -- so
+  // unchanged assets come back as a 304 with no body, and a changed asset is
+  // picked up immediately.
+  //
+  // It is deliberately NOT `immutable, max-age=1y`. Asset filenames are stamped
+  // with the package version, not a content hash, so every rebuild at the same
+  // version reuses the same URL. Marking those immutable means a browser that
+  // cached one build will never fetch another until the version is bumped --
+  // which silently served a stale bundle after a rebuild and cost a long
+  // debugging session. Restore long-lived caching only alongside
+  // [contenthash] filenames.
   app.use(
     '/assets',
     express.static(path.join(__dirname, 'assets'), {
-      maxAge: process.env.NODE_ENV === 'development' ? 0 : '1y',
-      immutable: process.env.NODE_ENV !== 'development',
+      etag: true,
+      lastModified: true,
+      setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
     })
   );
   app.use(cookieParser());
