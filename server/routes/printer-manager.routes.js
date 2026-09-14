@@ -306,6 +306,32 @@ router.post('/copyFileToPrinters', ensureAuthenticated, async (req, res) => {
 
   try {
     const outcome = await copyFileToPrinters({ sourcePrinter, targetPrinters, fullPath });
+
+    // The file now genuinely exists on each target's disk, but that printer's
+    // fileList in the store is whatever it was before the upload -- OctoFarm
+    // only builds that list by asking OctoPrint, and nothing prompted it to
+    // ask again. Without this the copy "succeeds" and the file is invisible
+    // in the file manager until something else (a websocket event, the
+    // Re-Sync button) happens to refresh that printer.
+    await Promise.all(
+      outcome.results
+        .filter((result) => result.ok)
+        .map((result) =>
+          getPrinterStoreCache()
+            .resyncFilesList(result.id)
+            .catch((e) => {
+              // The copy itself already succeeded; a failed resync just means
+              // the target's file list will look stale until its next
+              // websocket update or a manual Re-Sync, which is the same
+              // "worst case" as before this fix existed.
+              logger.warning(
+                `Could not resync file list for ${result.id} after copy`,
+                e.toString()
+              );
+            })
+        )
+    );
+
     res.send(outcome);
   } catch (e) {
     // Only the download half throws out here; a failed upload is reported
