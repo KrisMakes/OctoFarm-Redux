@@ -573,6 +573,14 @@ a.notyet {
 [id^="remainingTime-"] small + small {
   margin-top: 3px;
 }
+/* Only the ETA line ever wraps -- "No Active Print" and every duration
+   string never do -- so an idle printer's card was a line shorter than an
+   active one's and the two no longer matched height in a row of panels.
+   Reserve 2 lines here always, so idle and active panels agree on height
+   whether or not this particular printer's ETA actually needs both. */
+[id^="remainingTime-"] small + small {
+  min-height: 2.6em;
+}
 .printTimeRow {
   margin-bottom: 0;
 }
