@@ -50,12 +50,22 @@ long-standing bugs; this fork is a full modernization plus everything below.
 
 ### New features
 
+**File manager overhaul** - built entirely in this fork:
+- Housekeeping mode: check off files (or "select all visible") and bulk-delete them in a single request, instead
+  of one network round-trip per file.
+- Filter the file list down to successful, failed, or never-printed files.
+- Age-based sweep auto-selects files older than X days for review before deleting, with per-folder exclusions.
+- Thumbnail hover preview, a density slider (normal/compact/ultra) to fit more files on screen, search that
+  matches multiple words in any order, and a "Hide Folders" toggle.
 - Copy a file directly to another printer - select one or more targets, with per-printer success/failure reporting.
+
+**Everything else:**
 - Corrected, actionable error messages when OctoPrint's own reported state contradicts itself (e.g. "already
   printing" while the printer shows disconnected), instead of a generic conflict message.
 - Camera feeds now stream through OctoFarm itself (same-origin proxy) instead of the browser hitting each printer
   directly.
-- File manager house-keeping ("delete files older than X days") can now exclude specific folders from the sweep.
+- Health check failures now name the specific check that failed (printer settings, required API, websocket,
+  connection defaults, webcam settings, or history collection) instead of one generic "Failed health check!".
 - Replaced the toilet-roll filament icon with a real spool.
 
 ### Improvements
@@ -95,6 +105,11 @@ long-standing bugs; this fork is a full modernization plus everything below.
   affected printers.
 - A CSP misconfiguration could block the bundled theme's Google web font from loading.
 - Server-sent events (live dashboard/monitoring updates) could get stuck buffering for seconds under compression.
+- Filament cost totals could be wrong on prints that only used a non-zero tool number.
+- Alert/webhook scripts could receive a permanent placeholder instead of the real history/error record ID.
+- Spool weight bookkeeping and snapshot capture had inverted or incomplete guard conditions.
+- A database write failure could silently look like it succeeded to the code that requested it.
+- Task presets used by more than one scheduled task could cross-contaminate each other's settings.
 
 ### Security
 
@@ -107,7 +122,7 @@ long-standing bugs; this fork is a full modernization plus everything below.
 - The live event stream no longer responds to unauthenticated requests.
 - Your session cookie is no longer forwarded to third-party printers through the camera/file proxy.
 
-### Housekeeping
+### Developer / build
 
 - Reproducible builds, content-hashed asset filenames, and an asset-manifest system (no more hardcoded bundle
   names).
