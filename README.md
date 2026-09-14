@@ -55,6 +55,7 @@ long-standing bugs; this fork is a full modernization plus everything below.
 - Camera feeds now stream through OctoFarm itself (same-origin proxy) instead of the browser hitting each printer
   directly.
 - File manager house-keeping ("delete files older than X days") can now exclude specific folders from the sweep.
+- Replaced the toilet-roll filament icon with a real spool.
 
 ### Improvements
 
@@ -80,9 +81,27 @@ long-standing bugs; this fork is a full modernization plus everything below.
 - A crashed background task used to bring down the entire app; it's now logged and the app keeps running.
 - Login sessions no longer reset on every restart.
 - Container shutdowns are now clean instead of abrupt (previously risked database corruption).
+- A finished print could keep showing "Complete" and stale progress after the file was unselected.
+- The file manager's upload queue could silently upload the wrong file and drop one from the queue when more than
+  one upload was queued at once.
+- Deleting or exporting several history/log databases from System Settings threw an error and didn't work at all.
+- Wiping a database from System Settings could double-restart the server and double-send its response.
+- Editing a filament history entry could silently wipe spool assignments from other tools on the same job.
+- A task with no repeat interval rendered the literal word "undefined" in System > Tasks.
+- "Files common to all printers" was wrong whenever a printer's file list hadn't finished caching yet.
+- A missing/renamed asset served a misleading 200 OK web page instead of a real 404.
+- Live-updating data (websocket URL) could be missing from the printer summary, breaking monitoring views for
+  affected printers.
+- A CSP misconfiguration could block the bundled theme's Google web font from loading.
+- Server-sent events (live dashboard/monitoring updates) could get stuck buffering for seconds under compression.
 
 ### Security
 
+- Closed a bypass where the registration page could be POSTed to directly and create an account even while
+  registration was disabled in settings.
+- The entire server-side template source tree used to be served as static files to anyone, logged in or not.
+- Login and registration now have their own strict rate limit; previously the only limit in place was far too
+  generous to stop password guessing.
 - Removed a long-deprecated HTTP library and a stale dependency with a known sandbox-escape vulnerability.
 - The live event stream no longer responds to unauthenticated requests.
 - Your session cookie is no longer forwarded to third-party printers through the camera/file proxy.
@@ -94,8 +113,9 @@ long-standing bugs; this fork is a full modernization plus everything below.
 - New smoke tests requiring no framework, database, or hardware: proxy behavior, cross-printer file transfer, and
   build/manifest verification.
 - Working lint config (previously silently never ran) and a cleaned-up, drift-free dependency lockfile.
-- Removed dead code (an old camera-snapshot path fully superseded by the streaming proxy) and the Patreon/supporter
-  feature.
+- Removed dead code (an old camera-snapshot path fully superseded by the streaming proxy), nine unused server
+  dependencies, a Dockerfile that could no longer build this deployment, and the Patreon/supporter feature.
+- Stopped shipping webpack source maps in the built image.
 - Various icon/favicon fixes for correct rendering in Safari.
 
 ## Getting Started
