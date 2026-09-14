@@ -1305,9 +1305,10 @@ export class FileActions {
     if (status === 404) {
       UI.createAlert('error', 'We could not find the location, does it exist?', 3000, 'clicked');
     } else if (status === 409) {
-      // Nearly always "Printer is not operational" -- OctoPrint refuses to
-      // select a file while the serial connection to the printer is closed.
-      const reason = await readOctoPrintError(post, 'the file is in use');
+      // OctoPrint's 409 here covers both "not operational" and "already
+      // printing" -- readOctoPrintError checks the second against what
+      // OctoFarm's own connection to the printer currently shows.
+      const reason = await readOctoPrintError(post, 'the file is in use', printer);
       UI.createAlert('warning', `Could not select the file: ${reason}`, 5000, 'clicked');
     } else {
       UI.createAlert('success', 'Successfully selected your file...', 3000, 'clicked');
@@ -1382,7 +1383,8 @@ export class FileActions {
           } else if (status === 409) {
             const reason = await readOctoPrintError(
               post,
-              'it already exists at the destination, or is in use'
+              'it already exists at the destination, or is in use',
+              printer
             );
             UI.createAlert('warning', `Could not move it: ${reason}`, 5000, 'clicked');
           } else {
@@ -1533,7 +1535,7 @@ export class FileActions {
               'clicked'
             );
           } else if (status === 409) {
-            const reason = await readOctoPrintError(deleteResponse, 'the file is in use');
+            const reason = await readOctoPrintError(deleteResponse, 'the file is in use', printer);
             UI.createAlert('warning', `Could not delete the file: ${reason}`, 5000, 'clicked');
           } else {
             const opt = {
@@ -1636,7 +1638,8 @@ export class FileActions {
           } else if (status === 409) {
             const reason = await readOctoPrintError(
               post,
-              'it already exists at the destination, or is in use'
+              'it already exists at the destination, or is in use',
+              printer
             );
             UI.createAlert('error', `Could not move it: ${reason}`, 5000, 'clicked');
           } else {
