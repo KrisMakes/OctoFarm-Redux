@@ -34,7 +34,8 @@ your whole farm.
 
 - Manage your OctoPrint instances, right down to triggering updates and plugin installs.
 - Keep track of all the live data on your farm with a selection of views.
-- Manage your OctoPrint file system, including age-based house-keeping with per-folder exclusions.
+- Manage your OctoPrint file system: multi-select bulk delete via housekeeping mode, an age-based sweep to
+  auto-select old files (with per-folder exclusions), and filters by last print result (success/failed/unprinted).
 - Get an overview of your farm with the customisable dashboard.
 - Manage and track filament/spool usage and cost on your farm.
 - Track history and logs for all of your instances.
@@ -43,12 +44,58 @@ your whole farm.
 ## What's different from upstream
 
 This fork carries fixes and small improvements that either never landed upstream or don't apply to a personal,
-single-maintainer setup:
+single-maintainer setup. Upstream OctoFarm was left on years-old, end-of-life dependencies with a number of
+long-standing bugs; this fork is a full modernization plus everything below.
 
-- The Patreon/supporter feature has been fully removed.
-- Spool cost was being silently under-reported on cancelled/failed prints (double-applied completion-ratio bug) -
-  fixed.
+### New features
+
+- Copy a file directly to another printer - select one or more targets, with per-printer success/failure reporting.
+- Corrected, actionable error messages when OctoPrint's own reported state contradicts itself (e.g. "already
+  printing" while the printer shows disconnected), instead of a generic conflict message.
+- Camera feeds now stream through OctoFarm itself (same-origin proxy) instead of the browser hitting each printer
+  directly.
 - File manager house-keeping ("delete files older than X days") can now exclude specific folders from the sweep.
+
+### Improvements
+
+- Cameras recover automatically after a stalled stream or after switching browser tabs away and back, instead of
+  needing a manual page refresh.
+- Print-finish time now displays in full (was silently truncated) and is now actually correct (was silently off by
+  hours due to a container timezone bug).
+- Panel/camera view cards stay a consistent height regardless of printer state.
+- Static assets now cache correctly in the browser, so a deployed fix is guaranteed to reach you rather than
+  possibly serving stale JS.
+- Entire stack updated to current, supported versions - Node, MongoDB, Express, Mongoose, and all major
+  dependencies (previously years out of date, several end-of-life).
+
+### Bug fixes
+
+- Alerts never actually worked - a data bug meant a configured alert never matched any printer, so nothing ever
+  fired regardless of configuration.
+- Spool cost was being silently under-reported on cancelled/failed prints (double-applied completion-ratio bug).
+- Thumbnails could silently fail to save for any printer with API access control enabled.
+- Printer setup could hang forever on "Setting Up" and never appear in the dashboard.
+- Old temperature history was never actually cleaned up - over 2 million stale records had piled up.
+- File-action errors (delete, move, select) showed the same vague message for every possible cause.
+- A crashed background task used to bring down the entire app; it's now logged and the app keeps running.
+- Login sessions no longer reset on every restart.
+- Container shutdowns are now clean instead of abrupt (previously risked database corruption).
+
+### Security
+
+- Removed a long-deprecated HTTP library and a stale dependency with a known sandbox-escape vulnerability.
+- The live event stream no longer responds to unauthenticated requests.
+- Your session cookie is no longer forwarded to third-party printers through the camera/file proxy.
+
+### Housekeeping
+
+- Reproducible builds, content-hashed asset filenames, and an asset-manifest system (no more hardcoded bundle
+  names).
+- New smoke tests requiring no framework, database, or hardware: proxy behavior, cross-printer file transfer, and
+  build/manifest verification.
+- Working lint config (previously silently never ran) and a cleaned-up, drift-free dependency lockfile.
+- Removed dead code (an old camera-snapshot path fully superseded by the streaming proxy) and the Patreon/supporter
+  feature.
 - Various icon/favicon fixes for correct rendering in Safari.
 
 ## Getting Started
