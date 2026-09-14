@@ -34,8 +34,9 @@ your whole farm.
 
 - Manage your OctoPrint instances, right down to triggering updates and plugin installs.
 - Keep track of all the live data on your farm with a selection of views.
-- Manage your OctoPrint file system: multi-select bulk delete via housekeeping mode, an age-based sweep to
-  auto-select old files (with per-folder exclusions), and filters by last print result (success/failed/unprinted).
+- Manage your OctoPrint file system: turn on housekeeping mode to check off files and bulk-delete them, filter the
+  list down to just successful, failed, or never-printed files, and let an age-based sweep auto-select old files for
+  you (with per-folder exclusions).
 - Get an overview of your farm with the customisable dashboard.
 - Manage and track filament/spool usage and cost on your farm.
 - Track history and logs for all of your instances.
