@@ -8,6 +8,11 @@ const STALE_AFTER_MS = 15000;
 const RECONNECT_COOLDOWN_MS = 10000;
 const REATTACH_DELAY_MS = 50;
 const SAMPLE_SIZE = 24;
+// Fallback cadence for a stream whose canvas can't be pixel-sampled at all
+// (see the catch block below). Much longer than RECONNECT_COOLDOWN_MS so a
+// healthy stream we simply can't verify isn't reconnected needlessly often,
+// while a genuinely stalled one still recovers eventually instead of never.
+const UNSAMPLEABLE_RECONNECT_INTERVAL_MS = 45000;
 
 const isSafari = () => /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
 
@@ -51,24 +56,28 @@ const checkCameraStreams = () => {
         canvas: document.createElement('canvas'),
         lastSignature: null,
         lastChangeAt: now,
-        lastReconnectAt: 0,
-        tainted: false,
+        lastReconnectAt: now,
       };
       watchState.set(img, entry);
-    }
-
-    if (entry.tainted) {
-      return;
     }
 
     let signature;
     try {
       signature = sampleFrameSignature(img, entry.canvas);
     } catch (e) {
-      // The canvas is tainted because the camera is on another origin and sends
-      // no CORS headers, which is the normal case: requesting CORS on the image
-      // made Safari refuse to load it at all. Nothing to sample, so leave it be.
-      entry.tainted = true;
+      // This can throw even for a same-origin proxied stream on some Safari
+      // builds -- a WebKit quirk with multipart/x-mixed-replace canvas reads,
+      // not the cross-origin taint it used to mean back when cameras were
+      // fetched straight from the printer with no proxy. Whatever the cause,
+      // giving up on this image forever the first time it happens (as this
+      // used to) meant the one browser this watchdog exists for could end up
+      // with a stalled camera that never recovers again for the rest of the
+      // page's life. Fall back to a plain timer instead: far less precise
+      // than pixel diffing, but it still recovers eventually instead of never.
+      if (now - entry.lastReconnectAt >= UNSAMPLEABLE_RECONNECT_INTERVAL_MS) {
+        entry.lastReconnectAt = now;
+        forceReconnect(img);
+      }
       return;
     }
 
