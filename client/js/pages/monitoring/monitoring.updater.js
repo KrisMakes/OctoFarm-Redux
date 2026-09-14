@@ -438,11 +438,13 @@ function printTimeElapsedTemplate(currentJob, category) {
     currentJob && (category === 'Active' || category === 'Complete')
       ? Calc.generateTime(currentJob.expectedPrintTime)
       : 'No Active Print';
+  // No <br> between these -- both <small>s are already display:block, so they
+  // stack on their own, and a <br> here rendered at the parent span's
+  // inherited (larger) line-height, adding a whole dead line between them.
   return `
         <small title="Print Time Elapsed">
             <i class="fas fa-hourglass-start"></i> ${elapsed}
         </small>
-        <br>
         <small title="Expected Print Time">
             <i class="fas fa-clock"></i> ${expected}
         </small>
@@ -463,7 +465,6 @@ function printTimeRemainingTemplate(currentJob, category) {
         <small title="Print Time Remaining">
             <i class="fas fa-hourglass-end"></i> ${remaining}
         </small>
-        <br>
         <small title="Estimated Time of Arrival">
         <i class="fas fa-calendar-alt"></i> ${eta}
         </small>
