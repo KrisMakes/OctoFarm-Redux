@@ -558,19 +558,23 @@ a.notyet {
   display: block;
   min-height: 22px;
 }
-/* The ETA date ("Fri Sep 11 2026: 08:28") is long enough to wrap onto a second line
-   while an idle panel's "No Active Print" text never does - reserving an approximate
-   min-height for that extra line can only ever be a guess that drifts a few px across
-   browsers/fonts. Force every line here to stay on one line instead, so an active and
-   an idle panel always render the exact same number of lines and match exactly with no
-   guessing involved. */
+/* The ETA date ("Fri Sep 11 2026: 08:28") is long enough to overflow a narrow
+   card's half-width column, and truncating it with an ellipsis used to hide
+   the one piece of information this line exists to show. Let it wrap instead
+   -- a tighter line-height here keeps the extra line from pushing the row
+   below (the filament/tool list) noticeably further down. */
 [id^="printTimeElapsed-"] small,
 [id^="remainingTime-"] small {
   display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+  line-height: 1.3;
+  overflow-wrap: break-word;
+}
+.printTimeRow {
+  margin-bottom: 0;
+}
+.printTimeRow > [class^="col-"] {
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 .camExtra {
   pointer-events: none;

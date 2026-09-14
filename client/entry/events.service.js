@@ -76,17 +76,12 @@ function setupEventSource() {
 
 setupEventSource();
 
-// layout.ejs loads this bundle on every page, so only start the camera watchdog
-// on views that actually render a camera. The check has to wait for the body --
-// this script is in <head>.
-function startWatchdogIfCamerasPresent() {
-  if (document.querySelector('.camImg, #printerControlCamera')) {
-    startCameraStreamWatchdog();
-  }
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', startWatchdogIfCamerasPresent, { once: true });
-} else {
-  startWatchdogIfCamerasPresent();
-}
+// This used to wait for DOMContentLoaded and only start when a `.camImg`
+// was already in the DOM at that instant -- but the monitoring views build
+// their camera markup client-side after an async fetch, well after
+// DOMContentLoaded fires, so that check never once found a camera and the
+// watchdog never actually started, on any page, ever. Starting
+// unconditionally costs nothing on a page with no cameras: it's one
+// document-level listener, plus (Safari only) a 5s interval whose
+// querySelectorAll('.camImg') just returns empty.
+startCameraStreamWatchdog();

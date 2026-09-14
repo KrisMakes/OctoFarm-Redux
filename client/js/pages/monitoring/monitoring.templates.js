@@ -370,7 +370,7 @@ export function drawPanelView(printer, clientSettings) {
                         </button>
             </center>
           </div>
-          <div class="row">
+          <div class="row printTimeRow">
            <div class="col-12">
                 <small id="displayLayerProgressData-${printer._id}"></small>
             </div>
@@ -381,7 +381,7 @@ export function drawPanelView(printer, clientSettings) {
                       <span id="remainingTime-${printer._id}">
                 Loading...
             </span>
-            </div> 
+            </div>
 
           </div>
           <div
