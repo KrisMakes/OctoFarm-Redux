@@ -41,14 +41,8 @@ export const readOctoPrintError = async (response, fallback, printer) => {
 
   const category = printer?.printerState?.colour?.category;
   if (ALREADY_PRINTING_PATTERN.test(reason) && category && category !== 'Active') {
-    const name = printer.printerName ?? 'This printer';
     const state = printer.printerState.state;
-    return (
-      `OctoPrint thinks a print is already running, but ${name} is showing as ` +
-      `"${state}" right now. This usually means OctoPrint's connection to the ` +
-      `printer dropped mid-print and it never cleared that flag -- try ` +
-      `disconnecting and reconnecting the printer to clear it.`
-    );
+    return `stuck state -- shows "${state}", not printing. Try reconnecting it.`;
   }
   return reason;
 };
