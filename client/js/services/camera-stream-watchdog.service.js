@@ -48,6 +48,35 @@ const forceReconnect = (img) => {
   }, REATTACH_DELAY_MS);
 };
 
+// Backgrounding a tab is enough on its own -- in every browser, not just
+// Safari -- for the browser to stall or deprioritise a long-lived streaming
+// connection like multipart/x-mixed-replace. Nothing about that is
+// detectable from inside the hidden tab (timers throttle too), so rather
+// than try to notice it happened, just force every camera to reconnect the
+// moment the tab is looked at again instead of waiting for a manual refresh.
+const reconnectAllCameras = () => {
+  const now = Date.now();
+  document.querySelectorAll('.camImg').forEach((img) => {
+    if (isPlaceholderSrc(img.src)) {
+      return;
+    }
+    forceReconnect(img);
+    const entry = watchState.get(img);
+    if (entry) {
+      entry.lastReconnectAt = now;
+      entry.lastChangeAt = now;
+      entry.lastLoadEventAt = now;
+      entry.lastSignature = null;
+    }
+  });
+};
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    reconnectAllCameras();
+  }
+};
+
 const checkCameraStreams = () => {
   const now = Date.now();
   document.querySelectorAll('.camImg').forEach((img) => {
@@ -133,6 +162,10 @@ const checkCameraStreams = () => {
 };
 
 export const startCameraStreamWatchdog = () => {
+  // Applies to every browser -- backgrounding a tab is what causes this, not
+  // a Safari-specific quirk.
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
   if (!isSafari()) {
     return;
   }
