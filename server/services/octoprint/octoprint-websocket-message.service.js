@@ -222,14 +222,12 @@ class OctoprintWebsocketMessageService {
         break;
       case EVENT_TYPES.FileAdded:
         captureFileAdded(printerID, payload);
-        // Trigger resyncs
         break;
       case EVENT_TYPES.FileDeselected:
         captureFileDeselected(printerID, payload);
         break;
       case EVENT_TYPES.FileRemoved:
         captureFileRemoved(printerID, payload);
-        // Trigger resyncs
         break;
       case EVENT_TYPES.FirmwareData:
         // Update firmware data rather than resyncing
@@ -237,18 +235,15 @@ class OctoprintWebsocketMessageService {
         break;
       case EVENT_TYPES.FolderAdded:
         captureFolderAdded(printerID, payload);
-        // Trigger resyncs
         break;
       case EVENT_TYPES.FolderRemoved:
         captureFolderRemoved(printerID, payload);
-        // Trigger resyncs
         break;
       case EVENT_TYPES.Home:
         captureHome(printerID, payload);
         break;
       case EVENT_TYPES.MetadataAnalysisFinished:
         await captureMetadataAnalysisFinished(printerID, payload);
-        // Trigger resyncs
         break;
       case EVENT_TYPES.MetadataAnalysisStarted:
         captureMetadataAnalysisStarted(printerID, payload);
@@ -299,7 +294,6 @@ class OctoprintWebsocketMessageService {
 
       case EVENT_TYPES.UpdatedFiles:
         captureUpdatedFiles(printerID, payload);
-        // Trigger resyncs
         break;
 
       case EVENT_TYPES.Upload:

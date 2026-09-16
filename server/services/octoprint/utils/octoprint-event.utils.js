@@ -27,6 +27,24 @@ const runEventScript = (id, eventName) => {
     });
 };
 
+/**
+ * Refresh the printer's cached file tree from OctoPrint.
+ *
+ * Anything that changes the file tree's shape (a file or folder added or
+ * removed, a bulk update) rather than just one entry's metadata needs the
+ * full resyncFilesList, or the cache and OctoPrint's real file system drift
+ * apart -- a file could stay invisible in the File Manager after a
+ * successful upload, or a deleted file could keep showing until something
+ * else happened to resync it.
+ */
+const resyncFileTree = (id, eventName) => {
+  getPrinterStoreCache()
+    .resyncFilesList(id)
+    .catch((e) => {
+      logger.error(`Failed to resync file list after ${eventName} event`, e.toString());
+    });
+};
+
 const tickerWrapper = (id, state, message) => {
   PrinterTicker.addIssue(new Date(), getPrinterStoreCache().getPrinterURL(id), message, state, id);
 };
@@ -121,13 +139,24 @@ const captureError = (id, data) => {
       getPrinterStoreCache().resetJob(id);
     });
 };
+// A new or removed file changes the shape of the printer's file tree itself,
+// not just one entry's metadata, so (unlike captureMetadataStatisticsUpdated's
+// single-file resyncFile) this needs the full resyncFilesList. Without it, a
+// file added directly through OctoPrint sat in cache limbo: OctoPrint's very
+// next event for it (MetadataAnalysisFinished) would look the path up in a
+// file list that never got the new entry, log "Couldn't find file index to
+// update!", and drop the estimate -- and the file stayed invisible in the
+// File Manager until something else happened to resync it, even though the
+// upload itself had fully succeeded.
 const captureFileAdded = (id, data) => {
+  resyncFileTree(id, 'FileAdded');
   runEventScript(id, 'fileadded');
 };
 const captureFileDeselected = (id, data) => {
   runEventScript(id, 'filedeselected');
 };
 const captureFileRemoved = (id, data) => {
+  resyncFileTree(id, 'FileRemoved');
   runEventScript(id, 'fileremoved');
 };
 const captureFirmwareData = (id, data) => {
@@ -145,9 +174,11 @@ const captureFirmwareData = (id, data) => {
   }
 };
 const captureFolderAdded = (id, data) => {
+  resyncFileTree(id, 'FolderAdded');
   runEventScript(id, 'folderadded');
 };
 const captureFolderRemoved = (id, data) => {
+  resyncFileTree(id, 'FolderRemoved');
   runEventScript(id, 'folderremoved');
 };
 const captureHome = (id, data) => {
@@ -229,6 +260,7 @@ const captureTransferStarted = (id, data) => {
   runEventScript(id, 'fileuploading');
 };
 const captureUpdatedFiles = (id, data) => {
+  resyncFileTree(id, 'UpdatedFiles');
   runEventScript(id, 'fileupdate');
 };
 const captureUpload = (id, data) => {
