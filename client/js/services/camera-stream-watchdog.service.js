@@ -80,7 +80,7 @@ const handleVisibilityChange = () => {
 const checkCameraStreams = () => {
   const now = Date.now();
   document.querySelectorAll('.camImg').forEach((img) => {
-    if (isPlaceholderSrc(img.src) || !img.complete || img.naturalWidth === 0) {
+    if (isPlaceholderSrc(img.src)) {
       return;
     }
 
@@ -91,12 +91,20 @@ const checkCameraStreams = () => {
         lastSignature: null,
         lastChangeAt: now,
         lastReconnectAt: now,
-        // `img.complete` is already true by this point, so an initial `load`
-        // genuinely already fired -- seed this as "now" rather than 0, or the
-        // very first check would look falsely stale before the listener
-        // below has had any chance to observe a real one.
+        // If a real frame already loaded by the time this entry is first
+        // created, an initial `load` genuinely already fired -- seed this as
+        // "now" rather than 0, or the very first check would look falsely
+        // stale before the listener below has had any chance to observe one.
         lastLoadEventAt: now,
         unverifiableBackoffMs: UNVERIFIABLE_RECONNECT_INITIAL_MS,
+        // A broken image is already `complete` with no `load` event ever
+        // coming, so if this is the first time we're seeing it and it's
+        // already in that state, there will never be an `error` event to
+        // catch either -- it already fired before this listener existed.
+        // Count it as already-errored so the retry-with-backoff below picks
+        // it up on this very check instead of waiting forever for an event
+        // that already happened.
+        erroredAt: img.complete && img.naturalWidth === 0 ? now : 0,
       };
       // A multipart/x-mixed-replace <img> fires a fresh `load` event on every
       // part the server sends, not just the first -- the browser is already
@@ -106,8 +114,33 @@ const checkCameraStreams = () => {
       img.addEventListener('load', () => {
         watchState.get(img).lastLoadEventAt = Date.now();
       });
+      // A reconnect (e.g. the one fired on tab-foreground) can itself fail --
+      // Safari's network stack isn't always back up the instant the tab
+      // becomes visible. That leaves the <img> broken (naturalWidth 0)
+      // forever, because a broken image is still "complete" as far as the DOM
+      // is concerned, and nothing was watching for this before: the state
+      // machine only ever checked a pixel signature, which a broken image
+      // can't produce, so it just silently stopped looking at it instead of
+      // retrying.
+      img.addEventListener('error', () => {
+        watchState.get(img).erroredAt = Date.now();
+      });
       watchState.set(img, entry);
     }
+
+    if (!img.complete || img.naturalWidth === 0) {
+      if (entry.erroredAt && now - entry.lastReconnectAt >= entry.unverifiableBackoffMs) {
+        entry.lastReconnectAt = now;
+        entry.unverifiableBackoffMs = Math.min(
+          entry.unverifiableBackoffMs * 2,
+          UNVERIFIABLE_RECONNECT_MAX_MS
+        );
+        forceReconnect(img);
+      }
+      return;
+    }
+    // A frame arrived, so any earlier broken/errored state no longer applies.
+    entry.erroredAt = 0;
 
     let signature;
     try {
