@@ -11,7 +11,7 @@ import {
   printerEmergencyStop,
   printerHomeAllAxis,
   printerTurnOffHeaters,
-  printerTorchOn,
+  printerTorchToggle,
 } from './octoprint/octoprint-printer-commands.actions';
 import {
   connectPrinterSequence,
@@ -34,7 +34,7 @@ function returnActionBtnTemplate(id, webURL, disableWeb = false) {
               <i class="fas fa-toggle-off"></i>
         </button>
         <button
-             title="Turns on the printer's light (WS281x LED Status plugin's torch mode)"
+             title="Toggle the printer's light (WS281x LED Status plugin's torch mode)"
              id="printerTorch-${id}"
              type="button"
              class="tag btn btn-warning btn-sm"
@@ -287,7 +287,7 @@ function addGroupEventListeners(printers, group) {
   document.getElementById(`printerTorch-${group}`).addEventListener('click', async (e) => {
     e.target.disabled = true;
     for (const printer of printers) {
-      const { status, message } = await printerTorchOn(printer);
+      const { status, message } = await printerTorchToggle(printer);
       UI.createAlert(status, message, 3000, 'Clicked');
     }
     e.target.disabled = false;
@@ -433,7 +433,7 @@ function addEventListeners(printer) {
   // torch is to see what's happening on a printer that's mid-print.
   document.getElementById(`printerTorch-${printer._id}`).addEventListener('click', async (e) => {
     e.target.disabled = true;
-    const { status, message } = await printerTorchOn(printer);
+    const { status, message } = await printerTorchToggle(printer);
     UI.createAlert(status, message, 3000, 'Clicked');
     e.target.disabled = false;
   });

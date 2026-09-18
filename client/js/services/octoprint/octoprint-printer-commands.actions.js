@@ -191,24 +191,30 @@ export async function printerEmergencyStop(printer) {
 
 // Torch is the WS281x LED Status plugin's temporary full-brightness override for
 // actually seeing the print, distinct from the status-colour LEDs it normally
-// shows. Only turning it on is wired up -- torch_off is a no-op unless the user
-// configured torch mode as "toggle" rather than "momentary" (auto-off after a
-// timer) in the plugin's own settings, so a button that always calls it would
-// silently fail for anyone on the (default) momentary mode.
-export async function printerTorchOn(printer) {
+// shows. Whether it auto-off's or stays on until told to is a per-install
+// setting (the plugin's own "momentary" vs "toggle" mode), so rather than only
+// ever sending torch_on, read the plugin's actual current state first and send
+// whichever command flips it -- that's correct either way, and self-corrects
+// if the two ever drift (e.g. someone toggled it from OctoPrint's own UI).
+export async function printerTorchToggle(printer) {
+  const state = await OctoPrintClient.get(printer, 'api/plugin/ws281x_led_status');
+  let torchOn = false;
+  if (state?.ok) {
+    torchOn = !!(await state.json()).torch_on;
+  }
   const opt = {
-    command: 'torch_on',
+    command: torchOn ? 'torch_off' : 'torch_on',
   };
   const { status } = await OctoPrintClient.post(printer, 'plugin/ws281x_led_status', opt);
   if (status >= 200 && status < 300) {
     return {
       status: bulkActionsStates.SUCCESS,
-      message: 'Torch turned on!',
+      message: torchOn ? 'Torch turned off!' : 'Torch turned on!',
     };
   } else {
     return {
       status: bulkActionsStates.ERROR,
-      message: 'Failed to turn the torch on - is the WS281x LED Status plugin installed?',
+      message: 'Failed to toggle the torch - is the WS281x LED Status plugin installed?',
     };
   }
 }
