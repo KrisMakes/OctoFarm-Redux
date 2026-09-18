@@ -68,13 +68,17 @@ const forceReconnect = (img) => {
 // Every button then hangs with no error at all, which is precisely the "buttons
 // stop working after I change tabs" this reconnect was meant to be unrelated to.
 //
-// A live multipart stream fires a `load` event on every frame it delivers, so a
-// camera that is genuinely fine announces itself within a moment of the tab
-// coming back. Waiting for that costs nothing and leaves healthy streams -- the
-// common case by far -- completely untouched.
+// So a camera only gets reconnected once it has actually failed to deliver
+// anything in the moments after the tab came back. Two independent signals say
+// it is fine, and either one is enough: a `load` event, which a multipart stream
+// fires per frame, and a change in the sampled pixels. The `load` event is the
+// cheaper of the two but does not arrive for every stream, so the pixel sample
+// is what usually answers -- the streams are proxied through this origin, so
+// there is no taint to work around.
 const GRACE_AFTER_VISIBLE_MS = 2500;
 
 const reconnectStalledCameras = () => {
+  const canvas = document.createElement('canvas');
   document.querySelectorAll('.camImg').forEach((img) => {
     if (isPlaceholderSrc(img.src)) {
       return;
@@ -84,11 +88,27 @@ const reconnectStalledCameras = () => {
       sawFrame = true;
     };
     img.addEventListener('load', onLoad);
+
+    let before = null;
+    try {
+      before = sampleFrameSignature(img, canvas);
+    } catch (e) {
+      // Sampling is unavailable on this build; the `load` event is all there is.
+    }
+
     setTimeout(() => {
       img.removeEventListener('load', onLoad);
-      // Still attached, still showing the same stream, and nothing arrived.
       if (sawFrame || !img.isConnected || isPlaceholderSrc(img.src)) {
         return;
+      }
+      if (before !== null) {
+        try {
+          if (sampleFrameSignature(img, canvas) !== before) {
+            return;
+          }
+        } catch (e) {
+          // Fall through and reconnect: no signal either way.
+        }
       }
       forceReconnect(img);
       const entry = watchState.get(img);
