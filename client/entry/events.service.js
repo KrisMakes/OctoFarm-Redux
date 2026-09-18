@@ -81,6 +81,24 @@ function setupEventSource() {
 
 setupEventSource();
 
+// Safari can silently stall this connection while the tab is backgrounded
+// without ever firing 'onerror' -- the same silent-stall behaviour that
+// camera-stream-watchdog.service.js already has to work around for MJPEG
+// streams. Without this, window.serverOffline can be left stuck true from a
+// stall that never got reported, which axios's response interceptor
+// (octofarm-client.service.js) reads to silently swallow every request's
+// error -- so buttons that go through it (Power, bulk actions, etc.) look
+// like they've simply stopped responding, with no error toast to explain why.
+// Tearing down and reopening on return is cheap and doesn't gamble on
+// whether the browser will ever notice and report the stall itself.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    window.serverOffline = false;
+    evtSource?.close();
+    setupEventSource();
+  }
+});
+
 // This used to wait for DOMContentLoaded and only start when a `.camImg`
 // was already in the DOM at that instant -- but the monitoring views build
 // their camera markup client-side after an async fetch, well after
