@@ -42,7 +42,11 @@ const forceReconnect = (img) => {
   const url = new URL(img.src, window.location.href);
   url.searchParams.set('_reconnect', Date.now().toString());
   const freshSrc = url.toString();
-  img.src = '';
+  // Not `img.src = ''`: an empty src resolves against the document, so WebKit
+  // treats it as a request for the page's own URL and fetches the whole HTML
+  // document into an <img>. That spends one of the origin's few sockets to
+  // load something that can never render.
+  img.removeAttribute('src');
   setTimeout(() => {
     img.src = freshSrc;
   }, REATTACH_DELAY_MS);
@@ -50,30 +54,58 @@ const forceReconnect = (img) => {
 
 // Backgrounding a tab is enough on its own -- in every browser, not just
 // Safari -- for the browser to stall or deprioritise a long-lived streaming
-// connection like multipart/x-mixed-replace. Nothing about that is
-// detectable from inside the hidden tab (timers throttle too), so rather
-// than try to notice it happened, just force every camera to reconnect the
-// moment the tab is looked at again instead of waiting for a manual refresh.
-const reconnectAllCameras = () => {
-  const now = Date.now();
+// connection like multipart/x-mixed-replace, so a camera does need help to come
+// back when the tab is looked at again.
+//
+// It must not be given that help unconditionally, though, which is what this
+// used to do. Reconnecting every camera on every tab switch costs a socket per
+// camera, and WebKit does not release the socket behind the stream being
+// replaced anywhere near as promptly as it hands out the new one. Those sockets
+// come from the six or so a browser allows per origin, shared across every tab
+// open on it, and this app already holds several permanently (the /events
+// stream, the monitoring worker's, and one per camera). Overshoot that and the
+// browser does not fail anything -- it queues, behind streams that never end.
+// Every button then hangs with no error at all, which is precisely the "buttons
+// stop working after I change tabs" this reconnect was meant to be unrelated to.
+//
+// A live multipart stream fires a `load` event on every frame it delivers, so a
+// camera that is genuinely fine announces itself within a moment of the tab
+// coming back. Waiting for that costs nothing and leaves healthy streams -- the
+// common case by far -- completely untouched.
+const GRACE_AFTER_VISIBLE_MS = 2500;
+
+const reconnectStalledCameras = () => {
   document.querySelectorAll('.camImg').forEach((img) => {
     if (isPlaceholderSrc(img.src)) {
       return;
     }
-    forceReconnect(img);
-    const entry = watchState.get(img);
-    if (entry) {
-      entry.lastReconnectAt = now;
-      entry.lastChangeAt = now;
-      entry.lastLoadEventAt = now;
-      entry.lastSignature = null;
-    }
+    let sawFrame = false;
+    const onLoad = () => {
+      sawFrame = true;
+    };
+    img.addEventListener('load', onLoad);
+    setTimeout(() => {
+      img.removeEventListener('load', onLoad);
+      // Still attached, still showing the same stream, and nothing arrived.
+      if (sawFrame || !img.isConnected || isPlaceholderSrc(img.src)) {
+        return;
+      }
+      forceReconnect(img);
+      const entry = watchState.get(img);
+      if (entry) {
+        const now = Date.now();
+        entry.lastReconnectAt = now;
+        entry.lastChangeAt = now;
+        entry.lastLoadEventAt = now;
+        entry.lastSignature = null;
+      }
+    }, GRACE_AFTER_VISIBLE_MS);
   });
 };
 
 const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
-    reconnectAllCameras();
+    reconnectStalledCameras();
   }
 };
 
