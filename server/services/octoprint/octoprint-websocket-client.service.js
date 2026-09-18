@@ -359,6 +359,14 @@ class WebSocketClient {
     }
     // No clearTimeout here: reconnectTimeout is provably false at this point.
     this.#instance.removeAllListeners();
+    // A pending handshake on this dying instance (its own 10s handshakeTimeout
+    // timer, independent of anything above) can still fire 'error' after every
+    // real listener was just stripped. With zero 'error' listeners left,
+    // Node's EventEmitter throws instead of emitting -- crashing the whole
+    // process over one printer's reconnect, taking down every printer's
+    // monitoring and every connected browser's SSE stream with it. We're done
+    // with this instance; swallow whatever it still has to say.
+    this.#instance.on('error', () => {});
     this.reconnectingIn = Date.now() + this.autoReconnectInterval;
     this.#retryNumber = this.#retryNumber + 1;
     getPrinterStoreCache().updatePrinterLiveValue(this.id, {
