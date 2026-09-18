@@ -9,6 +9,7 @@ import {
   reconnectFrequency,
 } from '../js/services/amialive.service';
 import { startCameraStreamWatchdog } from '../js/services/camera-stream-watchdog.service';
+import { updateMaintenanceModeBanner } from '../js/services/maintenance-mode-banner.service';
 
 // reconnectFrequencySeconds doubles every retry
 
@@ -50,6 +51,10 @@ function setupEventSource() {
     if (type === MESSAGE_TYPES.CURRENT_OPERATIONS) {
       const { operations, count } = message;
       await currentOperationsPanelService(operations, count);
+    }
+
+    if (type === MESSAGE_TYPES.MAINTENANCE_MODE) {
+      updateMaintenanceModeBanner(message);
     }
   };
   evtSource.onopen = function (e) {

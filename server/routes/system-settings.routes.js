@@ -337,6 +337,7 @@ const SERVER_SETTINGS_SECTIONS = [
   'influxExport',
   'monitoringViews',
   'cameras',
+  'features',
 ];
 
 router.post('/server/update', ensureAuthenticated, ensureAdministrator, async (req, res) => {

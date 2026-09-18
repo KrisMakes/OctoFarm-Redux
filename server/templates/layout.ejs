@@ -49,6 +49,12 @@
         has no way to know its hash. This is how it finds out. %>
     <meta name="octofarm-worker-url" content="<%= workerScriptUrl() %>"/>
     <title><%= octoFarmPageTitle %>: <%= page %></title>
+    <%# Read synchronously by printer-action-buttons.service.js so the Maintenance
+        Mode button can be hidden for farms without the plugin without an extra
+        request -- serverSettings is already computed for this render either way. %>
+    <script>
+        window.OCTOFARM_FEATURES = { psuMaintenanceMode: <%- JSON.stringify(!!(typeof serverSettings !== "undefined" && serverSettings?.features?.psuMaintenanceMode)) %> };
+    </script>
     <%# defer throughout: these were blocking scripts, so ~1MB had to download and
         execute before any HTML rendered. defer keeps them in source order.
         jquery and bootbox are plain vendor files, not webpack entries. %>
@@ -194,6 +200,17 @@
         </ul>
     </div>
 </nav>
+<%# Seeded from maintenanceModePrinters for a correct first paint; kept live
+    afterwards by maintenance-mode-banner.service.js over the events SSE
+    stream, so a printer left in maintenance mode stays visible farm-wide
+    without anyone needing to remember which page they toggled it from. %>
+<div id="maintenanceModeBanner"
+     class="alert alert-warning text-center mb-0 py-1 <%= (typeof maintenanceModePrinters !== "undefined" && maintenanceModePrinters.length > 0) ? "" : "d-none" %>"
+     data-printers="<%= (typeof maintenanceModePrinters !== "undefined") ? maintenanceModePrinters.join("|") : "" %>"
+     role="alert">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <span id="maintenanceModeBannerText"></span>
+</div>
 <% } %>
 <div class="restricScreenSize">
     <%- body %>

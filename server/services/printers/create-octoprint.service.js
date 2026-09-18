@@ -1419,6 +1419,36 @@ class OctoPrintPrinter {
     return this.printerPowerState;
   }
 
+  // The custom "PSU Control - Maintenance Mode" plugin isn't installed on
+  // every farm, so this is opt-in via the features.psuMaintenanceMode
+  // setting -- otherwise every printer would 404 against this endpoint on
+  // every poll, for farms that never installed the plugin at all.
+  async acquireMaintenanceModeState() {
+    if (!SettingsClean.returnSystemSettings()?.features?.psuMaintenanceMode) {
+      return;
+    }
+
+    const response = await this.#api.getCalibrationMode().catch((e) => {
+      logger.http('Failed to acquire maintenance mode state', e.toString());
+      return undefined;
+    });
+
+    if (!response?.ok) {
+      return;
+    }
+
+    const { powerOffWhenIdle } = await response.json();
+    const maintenanceModeEnabled = !powerOffWhenIdle;
+
+    if (maintenanceModeEnabled !== this.maintenanceModeEnabled) {
+      this.maintenanceModeEnabled = maintenanceModeEnabled;
+      notifySubscribers(this._id.toString(), MESSAGE_TYPES.MAINTENANCE_MODE, {
+        printerName: this.printerName,
+        maintenanceModeEnabled,
+      });
+    }
+  }
+
   killApiTimeout() {
     logger.debug('Clearing API Timeout');
     clearTimeout(this.#reconnectTimeout);

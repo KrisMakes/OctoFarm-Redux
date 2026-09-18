@@ -173,6 +173,10 @@ const CHECK_PRINTERS_POWER_STATES = async () => {
   await getPrinterManagerCache().checkPrinterPowerStates();
 };
 
+const CHECK_MAINTENANCE_MODE_STATES = async () => {
+  await getPrinterManagerCache().checkMaintenanceModeStates();
+};
+
 const FILAMENT_CLEAN_TASK = async () => {
   await FilamentClean.start();
 };
@@ -210,6 +214,7 @@ class OctoFarmTasks {
     TaskStart(GENERATE_PRINTER_CONTROL_LIST, TaskPresets.PERIODIC_5000MS),
     TaskStart(STATE_TRACK_COUNTERS, TaskPresets.PERIODIC, 30000),
     TaskStart(CHECK_PRINTERS_POWER_STATES, TaskPresets.PERIODIC, 30000),
+    TaskStart(CHECK_MAINTENANCE_MODE_STATES, TaskPresets.PERIODIC, 30000),
     TaskStart(GENERATE_MONTHLY_HISTORY_STATS, TaskPresets.PERIODIC_600000MS),
     TaskStart(FILAMENT_CLEAN_TASK, TaskPresets.PERIODIC_600000MS),
     TaskStart(RUN_PRINTER_HEALTH_CHECKS, TaskPresets.PERIODIC_600000MS),

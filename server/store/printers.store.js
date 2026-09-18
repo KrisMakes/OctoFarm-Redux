@@ -191,6 +191,7 @@ class PrinterStore {
         fullyScanned: printer?.onboarding?.fullyScanned,
         klipperState: printer?.klipperState,
         printerPowerState: printer?.printerPowerState,
+        maintenanceModeEnabled: printer?.maintenanceModeEnabled,
         storage: printer?.storage,
         aspectRatio,
         quickConnectSettings: printer.quickConnectSettings,

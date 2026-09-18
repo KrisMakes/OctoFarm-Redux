@@ -44,6 +44,10 @@ function returnActionBtnTemplate(id, webURL, disableWeb = false) {
   if (disableWeb) {
     disabledWebButton = 'd-none';
   }
+  // Depends on a custom OctoPrint plugin not every farm has installed --
+  // hidden entirely unless an admin has confirmed it via the System settings
+  // checkbox, rather than showing a button that 404s for most installs.
+  const maintenanceModeHidden = window.OCTOFARM_FEATURES?.psuMaintenanceMode ? '' : 'd-none';
   return `
       <div class="btn-group dropright">
          <button  
@@ -109,7 +113,7 @@ function returnActionBtnTemplate(id, webURL, disableWeb = false) {
              title="Locks the PSU on and disables its idle auto-off for manual/LCD-menu activity (e.g. calibration) that OctoPrint can't otherwise see"
              id="printerMaintenanceMode-${id}"
              type="button"
-             class="dropdown-item"
+             class="dropdown-item ${maintenanceModeHidden}"
           >
             <i class="fa-solid fa-lock text-warning"></i> Toggle Maintenance Mode
           </button>

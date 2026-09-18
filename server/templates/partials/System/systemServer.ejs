@@ -212,6 +212,27 @@
                         </form>
                     </div>
                 </div>
+                <hr>
+                <div class="row">
+                    <div class="col-12">
+                        <p class="font-weight-bold">Features</p>
+                        <p>Optional integrations that depend on something outside stock OctoFarm/OctoPrint --
+                            leave off unless you've set up the dependency yourself.</p>
+                    </div>
+                    <div class="col-md-12 col-lg-6">
+                        <form class="was-validated">
+                            <div class="custom-control custom-checkbox mb-3">
+                                <input type="checkbox" class="custom-control-input"
+                                       id="enablePsuMaintenanceMode" required <%= (serverSettings.features.psuMaintenanceMode) ? "checked" : "" %>
+                                >
+                                <label class="custom-control-label"
+                                       for="enablePsuMaintenanceMode">PSU Maintenance Mode button</label>
+                                <div class="valid-feedback">Shown on the printer command panel</div>
+                                <div class="invalid-feedback">Hidden -- requires the "PSU Control - Maintenance Mode" OctoPrint plugin</div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
             <div class="tab-pane fade" id="server-timeout" role="tabpanel"
                  aria-labelledby="server-timeout">

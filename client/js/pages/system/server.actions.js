@@ -325,6 +325,9 @@ async function updateServerSettings() {
       proxyEnabled: settingsElements.cameras.proxyEnabled.checked,
       updateInterval: settingsElements.cameras.updateInterval.value * 1000,
     },
+    features: {
+      psuMaintenanceMode: settingsElements.features.psuMaintenanceMode.checked,
+    },
   };
   const previousSettings = await OctoFarmClient.get('settings/server/get');
   if (

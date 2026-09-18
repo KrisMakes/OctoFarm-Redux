@@ -116,6 +116,9 @@ const settingsElements = {
     proxyEnabled: document.getElementById('cameraProxyActive'),
     updateInterval: document.getElementById('cameraUpdateInterval'),
   },
+  features: {
+    psuMaintenanceMode: document.getElementById('enablePsuMaintenanceMode'),
+  },
 };
 
 function returnSaveBtn() {

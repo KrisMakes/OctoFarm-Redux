@@ -47,6 +47,13 @@ function baseRenderContext(req, page) {
     printerCount: getPrinterStoreCache().getPrinterCount(),
     serverSettings: SettingsClean.returnSystemSettings(),
     clientSettings: req.user.clientSettings,
+    // Seeds the header banner with the correct state on first paint --
+    // the client keeps it live afterwards over the maintenance_mode SSE
+    // message, but that only reaches clients connected before it fires.
+    maintenanceModePrinters: getPrinterStoreCache()
+      .listPrinters()
+      .filter((printer) => printer?.maintenanceModeEnabled)
+      .map((printer) => printer.printerName),
   };
 }
 

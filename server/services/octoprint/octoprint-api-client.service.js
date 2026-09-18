@@ -6,6 +6,7 @@ const apiSettingsPart = apiBase + '/settings';
 const apiFile = (path) => apiBase + '/files/local/' + encodeURI(path);
 const apiFiles = (recursive = true) => apiBase + '/files?recursive=' + recursive;
 const apiConnection = apiBase + '/connection';
+const apiCalibrationMode = apiBase + '/plugin/calibration_mode';
 const apiPrinterProfiles = apiBase + '/printerprofiles';
 const apiSystem = apiBase + '/system';
 const apiSystemInfo = apiSystem + '/info';
@@ -83,6 +84,12 @@ class OctoprintApiClientService extends OctoprintApiService {
 
   async getConnection() {
     return this.get(apiConnection);
+  }
+
+  // Custom "PSU Control - Maintenance Mode" plugin, not part of stock
+  // OctoPrint -- 404s on any install that doesn't have it.
+  async getCalibrationMode() {
+    return this.get(apiCalibrationMode);
   }
 
   async getPrinterProfiles() {
