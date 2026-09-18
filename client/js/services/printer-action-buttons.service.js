@@ -26,6 +26,30 @@ import {
 // command lands, there's just no power at the strip to act on it. Check the
 // smart-plug-reported power state first (when this printer has one
 // configured) so the button says so instead of falsely claiming success.
+// checkQuickConnectState/checkGroupQuickConnectState run on every printer
+// state tick (~1s) and unconditionally reset these buttons' `disabled`
+// attribute based on online/offline, which silently un-does the click
+// handler's own `e.target.disabled = true` guard while a toggle is still in
+// flight. A read-then-decide toggle (torch, maintenance mode) is exactly the
+// case where a second click landing mid-flight matters: it re-reads a state
+// that's about to change (or just changed) and immediately reverses the
+// first click's effect, e.g. torch flipping on then straight back off. Track
+// in-flight toggles independently of the DOM so an unrelated tick can't
+// re-open this window.
+const inFlightToggles = new Set();
+
+async function guardedToggle(key, action) {
+  if (inFlightToggles.has(key)) {
+    return;
+  }
+  inFlightToggles.add(key);
+  try {
+    await action();
+  } finally {
+    inFlightToggles.delete(key);
+  }
+}
+
 async function torchToggleWithPsuCheck(printer) {
   if (printer?.powerSettings?.powerStatusURL) {
     const isPoweredOn = await PrinterPowerService.printerIsPoweredOn(printer);
@@ -170,11 +194,6 @@ function groupInit(printers) {
     const cleanGroup = encodeURIComponent(group);
     const skipElement = document.getElementById(`printerQuickConnect-${cleanGroup}`);
     const groupContainer = document.getElementById(`printerActionBtns-${cleanGroup}`);
-    if (!skipElement) {
-      groupContainer.innerHTML = `
-        ${returnActionBtnTemplate(`${cleanGroup}`, '', true)}
-      `;
-    }
     const filteredGroupPrinterList = printers.filter((printer) => {
       if (encodeURIComponent(printer.group) === cleanGroup) {
         return printer;
@@ -182,7 +201,18 @@ function groupInit(printers) {
     });
 
     checkGroupQuickConnectState(filteredGroupPrinterList, cleanGroup);
-    addGroupEventListeners(filteredGroupPrinterList, cleanGroup);
+
+    // Listeners attach to these same button elements below, so this has to
+    // stay a single guard covering both -- calling this a second time on
+    // buttons that already exist would stack a second click listener on top
+    // of the first, and every click after that would fire the handler once
+    // per stacked listener.
+    if (!skipElement) {
+      groupContainer.innerHTML = `
+        ${returnActionBtnTemplate(`${cleanGroup}`, '', true)}
+      `;
+      addGroupEventListeners(filteredGroupPrinterList, cleanGroup);
+    }
   });
 }
 
@@ -320,8 +350,10 @@ function addGroupEventListeners(printers, group) {
   document.getElementById(`printerTorch-${group}`).addEventListener('click', async (e) => {
     e.target.disabled = true;
     for (const printer of printers) {
-      const { status, message } = await torchToggleWithPsuCheck(printer);
-      UI.createAlert(status, message, 3000, 'Clicked');
+      await guardedToggle(`torch-${printer._id}`, async () => {
+        const { status, message } = await torchToggleWithPsuCheck(printer);
+        UI.createAlert(status, message, 3000, 'Clicked');
+      });
     }
     e.target.disabled = false;
   });
@@ -331,8 +363,10 @@ function addGroupEventListeners(printers, group) {
     .addEventListener('click', async (e) => {
       e.target.disabled = true;
       for (const printer of printers) {
-        const { status, message } = await printerMaintenanceModeToggle(printer);
-        UI.createAlert(status, message, 3000, 'Clicked');
+        await guardedToggle(`maintenance-${printer._id}`, async () => {
+          const { status, message } = await printerMaintenanceModeToggle(printer);
+          UI.createAlert(status, message, 3000, 'Clicked');
+        });
       }
       e.target.disabled = false;
     });
@@ -477,8 +511,10 @@ function addEventListeners(printer) {
   // torch is to see what's happening on a printer that's mid-print.
   document.getElementById(`printerTorch-${printer._id}`).addEventListener('click', async (e) => {
     e.target.disabled = true;
-    const { status, message } = await torchToggleWithPsuCheck(printer);
-    UI.createAlert(status, message, 3000, 'Clicked');
+    await guardedToggle(`torch-${printer._id}`, async () => {
+      const { status, message } = await torchToggleWithPsuCheck(printer);
+      UI.createAlert(status, message, 3000, 'Clicked');
+    });
     e.target.disabled = false;
   });
 
@@ -486,8 +522,10 @@ function addEventListeners(printer) {
     .getElementById(`printerMaintenanceMode-${printer._id}`)
     .addEventListener('click', async (e) => {
       e.target.disabled = true;
-      const { status, message } = await printerMaintenanceModeToggle(printer);
-      UI.createAlert(status, message, 3000, 'Clicked');
+      await guardedToggle(`maintenance-${printer._id}`, async () => {
+        const { status, message } = await printerMaintenanceModeToggle(printer);
+        UI.createAlert(status, message, 3000, 'Clicked');
+      });
       e.target.disabled = false;
     });
 
