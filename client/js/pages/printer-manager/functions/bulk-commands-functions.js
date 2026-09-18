@@ -1034,7 +1034,7 @@ export async function bulkOctoPrintGcodeCommand() {
                 } else {
                   updateTableRow(
                     printersToSendGcode[p]._id,
-                    'danger',
+                    bulkActionsStates.ERROR,
                     'Failed to send your command to the printer!'
                   );
                 }
@@ -1259,7 +1259,7 @@ export async function bulkUpdateOctoPrintSettings() {
 
     // populate github
   } else {
-    UI.createAlert('danger', 'Failed to grab latest settings list...', 3000, 'Clicked');
+    UI.createAlert('error', 'Failed to grab latest settings list...', 3000, 'Clicked');
   }
 }
 

@@ -116,7 +116,7 @@ export default class OctoPrintClient {
       async callback(result) {
         if (result) {
           const post = await OctoPrintClient.post(printer, url).catch((e) => {
-            UI.createAlert('danger', e, 4000, 'Clicked');
+            UI.createAlert('error', e, 4000, 'Clicked');
           });
 
           const body = {

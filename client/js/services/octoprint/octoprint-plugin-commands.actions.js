@@ -53,7 +53,7 @@ async function updateBtnOnClick(printerID) {
             await OctoFarmClient.post('printers/rescanOctoPrintUpdates/' + printer._id);
           } else {
             UI.createAlert(
-              'danger',
+              'error',
               'Updates failed to fire, manual intervention required!',
               3000,
               'Clicked'
