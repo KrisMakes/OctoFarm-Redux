@@ -190,6 +190,9 @@ function returnActionBtnTemplate(id, webURL, disableWeb = false) {
 
 function printerQuickConnected(id) {
   let connectBtn = document.getElementById('printerQuickConnect-' + id);
+  if (!connectBtn) {
+    return;
+  }
   connectBtn.innerHTML = '<i class="fas fa-toggle-on"></i>';
   connectBtn.classList.remove('btn-danger');
   connectBtn.classList.add('btn-success');
@@ -197,6 +200,9 @@ function printerQuickConnected(id) {
 }
 function printerQuickDisconnected(id) {
   let connectBtn = document.getElementById('printerQuickConnect-' + id);
+  if (!connectBtn) {
+    return;
+  }
   connectBtn.innerHTML = '<i class="fas fa-toggle-off"></i>';
   connectBtn.classList.remove('btn-success');
   connectBtn.classList.add('btn-danger');
@@ -551,15 +557,25 @@ function checkQuickConnectState(printer) {
   const isOnline = printerIsOnline(printer);
   const isPrinting = printerIsPrinting(printer);
 
+  // Optional chaining throughout: one missing element used to throw here and
+  // silently abort everything below it for this printer -- including the
+  // Quick Connect ("Power") button's icon/class update at the bottom of this
+  // function -- on every future tick, until the page was reloaded.
   //printerActionsHeader
-  document.getElementById('printerSyncButton-' + printer._id).disabled = !isOnline;
-  document.getElementById('printerQuickConnect-' + printer._id).disabled = !isOnline;
-  document.getElementById('printerManageDropDown-' + printer._id).disabled = !isOnline;
-  document.getElementById('printerHome-' + printer._id).disabled = !printerIsIdle(printer);
-  document.getElementById('printerEmergency-' + printer._id).disabled = !isPrinting;
-  document.getElementById('printerHeatersOff-' + printer._id).disabled = !printerIsIdle(printer);
-  document.getElementById('printerTorch-' + printer._id).disabled = !isOnline;
-  document.getElementById('printerMaintenanceMode-' + printer._id).disabled = !isOnline;
+  const setDisabled = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.disabled = value;
+    }
+  };
+  setDisabled('printerSyncButton-' + printer._id, !isOnline);
+  setDisabled('printerQuickConnect-' + printer._id, !isOnline);
+  setDisabled('printerManageDropDown-' + printer._id, !isOnline);
+  setDisabled('printerHome-' + printer._id, !printerIsIdle(printer));
+  setDisabled('printerEmergency-' + printer._id, !isPrinting);
+  setDisabled('printerHeatersOff-' + printer._id, !printerIsIdle(printer));
+  setDisabled('printerTorch-' + printer._id, !isOnline);
+  setDisabled('printerMaintenanceMode-' + printer._id, !isOnline);
 
   PrinterPowerService.revealPowerButtons(printer).catch((e) => {
     console.error(e);
@@ -571,10 +587,10 @@ function checkQuickConnectState(printer) {
       printer.connectionOptions?.baudratePreference === null ||
       printer.connectionOptions?.printerProfilePreference === null
     ) {
-      document.getElementById('printerQuickConnect-' + printer._id).disabled = true;
+      setDisabled('printerQuickConnect-' + printer._id, true);
     }
   } else {
-    document.getElementById('printerQuickConnect-' + printer._id).disabled = true;
+    setDisabled('printerQuickConnect-' + printer._id, true);
   }
 
   if (!isOnline) {
@@ -597,14 +613,20 @@ function checkGroupQuickConnectState(printers, group) {
   const printersAllDisconnectedOrError = printers.filter((printer) =>
     printerIsDisconnectedOrError(printer)
   ).length;
-  document.getElementById('printerSyncButton-' + group).disabled = !printersAllOnline > 0;
-  document.getElementById('printerQuickConnect-' + group).disabled = !printersAllOnline > 0;
-  document.getElementById('printerManageDropDown-' + group).disabled = !printersAllOnline > 0;
-  document.getElementById('printerHome-' + group).disabled = !printersAllIdle;
-  document.getElementById('printerEmergency-' + group).disabled = !printersAllPrinting;
-  document.getElementById('printerHeatersOff-' + group).disabled = !printersAllIdle;
-  document.getElementById('printerTorch-' + group).disabled = !printersAllOnline > 0;
-  document.getElementById('printerMaintenanceMode-' + group).disabled = !printersAllOnline > 0;
+  const setGroupDisabled = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.disabled = value;
+    }
+  };
+  setGroupDisabled('printerSyncButton-' + group, !printersAllOnline > 0);
+  setGroupDisabled('printerQuickConnect-' + group, !printersAllOnline > 0);
+  setGroupDisabled('printerManageDropDown-' + group, !printersAllOnline > 0);
+  setGroupDisabled('printerHome-' + group, !printersAllIdle);
+  setGroupDisabled('printerEmergency-' + group, !printersAllPrinting);
+  setGroupDisabled('printerHeatersOff-' + group, !printersAllIdle);
+  setGroupDisabled('printerTorch-' + group, !printersAllOnline > 0);
+  setGroupDisabled('printerMaintenanceMode-' + group, !printersAllOnline > 0);
   const noConnectionOptions = printers.filter(
     (obj) =>
       obj?.connectionOptions?.portPreference === null ||
@@ -612,7 +634,7 @@ function checkGroupQuickConnectState(printers, group) {
       obj?.connectionOptions?.printerProfilePreference === null
   ).length;
   if (noConnectionOptions > 0) {
-    document.getElementById('printerQuickConnect-' + group).disabled = true;
+    setGroupDisabled('printerQuickConnect-' + group, true);
   }
   if (printersAllDisconnectedOrError > 0) {
     printerQuickDisconnected(group);
