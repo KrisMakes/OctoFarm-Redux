@@ -189,6 +189,30 @@ export async function printerEmergencyStop(printer) {
   }
 }
 
+// Torch is the WS281x LED Status plugin's temporary full-brightness override for
+// actually seeing the print, distinct from the status-colour LEDs it normally
+// shows. Only turning it on is wired up -- torch_off is a no-op unless the user
+// configured torch mode as "toggle" rather than "momentary" (auto-off after a
+// timer) in the plugin's own settings, so a button that always calls it would
+// silently fail for anyone on the (default) momentary mode.
+export async function printerTorchOn(printer) {
+  const opt = {
+    command: 'torch_on',
+  };
+  const { status } = await OctoPrintClient.post(printer, 'plugin/ws281x_led_status', opt);
+  if (status >= 200 && status < 300) {
+    return {
+      status: bulkActionsStates.SUCCESS,
+      message: 'Torch turned on!',
+    };
+  } else {
+    return {
+      status: bulkActionsStates.ERROR,
+      message: 'Failed to turn the torch on - is the WS281x LED Status plugin installed?',
+    };
+  }
+}
+
 export async function printerHomeAllAxis(printer) {
   const opt = {
     commands: ['G28'],

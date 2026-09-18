@@ -11,6 +11,7 @@ import {
   printerEmergencyStop,
   printerHomeAllAxis,
   printerTurnOffHeaters,
+  printerTorchOn,
 } from './octoprint/octoprint-printer-commands.actions';
 import {
   connectPrinterSequence,
@@ -31,6 +32,14 @@ function returnActionBtnTemplate(id, webURL, disableWeb = false) {
            class="tag btn btn-danger btn-sm"
            >
               <i class="fas fa-toggle-off"></i>
+        </button>
+        <button
+             title="Turns on the printer's light (WS281x LED Status plugin's torch mode)"
+             id="printerTorch-${id}"
+             type="button"
+             class="tag btn btn-warning btn-sm"
+        >
+             <i class="fa-solid fa-lightbulb"></i>
         </button>
         <a title="Open OctoPrint"
                id="printerWeb-${id}"
@@ -58,7 +67,7 @@ function returnActionBtnTemplate(id, webURL, disableWeb = false) {
              class="dropdown-item"
           >
             <i class="fa-solid fa-temperature-arrow-down text-info"></i> Turn Off Heaters
-          </button> 
+          </button>
           <button
              title="Uses the values from your selected filament and pre-heats to those values."
              id="printerPreHeat-${id}"
@@ -274,6 +283,15 @@ function addGroupEventListeners(printers, group) {
     }
     e.target.disabled = false;
   });
+
+  document.getElementById(`printerTorch-${group}`).addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    for (const printer of printers) {
+      const { status, message } = await printerTorchOn(printer);
+      UI.createAlert(status, message, 3000, 'Clicked');
+    }
+    e.target.disabled = false;
+  });
 }
 
 function init(printer, element) {
@@ -411,6 +429,15 @@ function addEventListeners(printer) {
       e.target.disabled = false;
     });
 
+  // Not gated on printerIsIdle like Home/Turn Off Heaters -- the whole point of a
+  // torch is to see what's happening on a printer that's mid-print.
+  document.getElementById(`printerTorch-${printer._id}`).addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    const { status, message } = await printerTorchOn(printer);
+    UI.createAlert(status, message, 3000, 'Clicked');
+    e.target.disabled = false;
+  });
+
   PrinterPowerService.setupEventListeners(printer);
 }
 
@@ -425,6 +452,7 @@ function checkQuickConnectState(printer) {
   document.getElementById('printerHome-' + printer._id).disabled = !printerIsIdle(printer);
   document.getElementById('printerEmergency-' + printer._id).disabled = !isPrinting;
   document.getElementById('printerHeatersOff-' + printer._id).disabled = !printerIsIdle(printer);
+  document.getElementById('printerTorch-' + printer._id).disabled = !isOnline;
 
   PrinterPowerService.revealPowerButtons(printer).catch((e) => {
     console.error(e);
@@ -468,6 +496,7 @@ function checkGroupQuickConnectState(printers, group) {
   document.getElementById('printerHome-' + group).disabled = !printersAllIdle;
   document.getElementById('printerEmergency-' + group).disabled = !printersAllPrinting;
   document.getElementById('printerHeatersOff-' + group).disabled = !printersAllIdle;
+  document.getElementById('printerTorch-' + group).disabled = !printersAllOnline > 0;
   const noConnectionOptions = printers.filter(
     (obj) =>
       obj?.connectionOptions?.portPreference === null ||
