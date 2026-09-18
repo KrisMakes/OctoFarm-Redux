@@ -1,6 +1,7 @@
 import PrinterPowerService from './printer-power.service.js';
 import UI from '../utils/ui';
 import OctoFarmClient from './octofarm-client.service';
+import bulkActionsStates from '../pages/printer-manager/bulk-actions.constants';
 import {
   printerIsDisconnectedOrError,
   printerIsIdle,
@@ -17,6 +18,25 @@ import {
   connectPrinterSequence,
   disconnectPrinterSequenceNoConfirm,
 } from './octoprint/octoprint-helpers.service';
+
+// The WS281x LED strip on this farm is wired off the printer's own PSU rail,
+// not the Pi's supply, so OctoPrint (running on the Pi) stays reachable and
+// happily reports torch_on succeeding even with the PSU switched off -- the
+// command lands, there's just no power at the strip to act on it. Check the
+// smart-plug-reported power state first (when this printer has one
+// configured) so the button says so instead of falsely claiming success.
+async function torchToggleWithPsuCheck(printer) {
+  if (printer?.powerSettings?.powerStatusURL) {
+    const isPoweredOn = await PrinterPowerService.printerIsPoweredOn(printer);
+    if (!isPoweredOn) {
+      return {
+        status: bulkActionsStates.ERROR,
+        message: `${printer.printerName}: Torch can't be turned on - PSU is off!`,
+      };
+    }
+  }
+  return printerTorchToggle(printer);
+}
 
 function returnActionBtnTemplate(id, webURL, disableWeb = false) {
   let disabledWebButton;
@@ -287,7 +307,7 @@ function addGroupEventListeners(printers, group) {
   document.getElementById(`printerTorch-${group}`).addEventListener('click', async (e) => {
     e.target.disabled = true;
     for (const printer of printers) {
-      const { status, message } = await printerTorchToggle(printer);
+      const { status, message } = await torchToggleWithPsuCheck(printer);
       UI.createAlert(status, message, 3000, 'Clicked');
     }
     e.target.disabled = false;
@@ -433,7 +453,7 @@ function addEventListeners(printer) {
   // torch is to see what's happening on a printer that's mid-print.
   document.getElementById(`printerTorch-${printer._id}`).addEventListener('click', async (e) => {
     e.target.disabled = true;
-    const { status, message } = await printerTorchToggle(printer);
+    const { status, message } = await torchToggleWithPsuCheck(printer);
     UI.createAlert(status, message, 3000, 'Clicked');
     e.target.disabled = false;
   });
