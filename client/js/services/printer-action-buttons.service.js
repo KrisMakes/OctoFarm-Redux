@@ -36,7 +36,17 @@ import {
 // first click's effect, e.g. torch flipping on then straight back off. Track
 // in-flight toggles independently of the DOM so an unrelated tick can't
 // re-open this window.
+//
+// That independence cuts both ways, though: the old `disabled`-attribute
+// guard got silently reset every ~1s regardless of whether the in-flight
+// request ever actually finished, which accidentally self-healed a request
+// that never settles. Safari can suspend a fetch indefinitely on a
+// backgrounded tab without ever rejecting it, so without a timeout here this
+// guard -- unlike the thing it replaced -- can wedge a button permanently:
+// the very first click after that never releases the lock, and every
+// click after it silently no-ops forever with zero console/network activity.
 const inFlightToggles = new Set();
+const TOGGLE_LOCK_TIMEOUT_MS = 20000;
 
 async function guardedToggle(key, action) {
   if (inFlightToggles.has(key)) {
@@ -44,7 +54,12 @@ async function guardedToggle(key, action) {
   }
   inFlightToggles.add(key);
   try {
-    await action();
+    await Promise.race([
+      action(),
+      new Promise((resolve) =>
+        setTimeout(resolve, TOGGLE_LOCK_TIMEOUT_MS)
+      ),
+    ]);
   } finally {
     inFlightToggles.delete(key);
   }
