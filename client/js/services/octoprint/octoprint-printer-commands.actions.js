@@ -1,5 +1,6 @@
 import OctoPrintClient from './octoprint-client.service';
 import bulkActionsStates from '../../pages/printer-manager/bulk-actions.constants';
+import { updateMaintenanceModeBanner } from '../maintenance-mode-banner.service';
 
 export async function printerPreHeatChamber(printer, chamberTemp) {
   let chamberData = {
@@ -232,11 +233,16 @@ export async function printerMaintenanceModeToggle(printer) {
   const post = await OctoPrintClient.post(printer, 'plugin/calibration_mode', opt);
   if (post?.ok) {
     const { powerOffWhenIdle } = await post.json();
+    const maintenanceModeEnabled = !powerOffWhenIdle;
+    // Don't wait for the next 30s poll to discover what this tab already
+    // knows -- the toggle's own response already carries the new state.
+    // Other tabs/sessions still pick it up from that poll's SSE broadcast.
+    updateMaintenanceModeBanner({ printerName: printer.printerName, maintenanceModeEnabled });
     return {
       status: bulkActionsStates.SUCCESS,
-      message: powerOffWhenIdle
-        ? 'Maintenance mode off - PSU auto power-off re-enabled!'
-        : 'Maintenance mode on - PSU locked on, auto power-off disabled!',
+      message: maintenanceModeEnabled
+        ? 'Maintenance mode on - PSU locked on, auto power-off disabled!'
+        : 'Maintenance mode off - PSU auto power-off re-enabled!',
     };
   } else {
     return {
