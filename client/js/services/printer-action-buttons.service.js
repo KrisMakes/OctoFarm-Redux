@@ -13,6 +13,7 @@ import {
   printerHomeAllAxis,
   printerTurnOffHeaters,
   printerTorchToggle,
+  printerMaintenanceModeToggle,
 } from './octoprint/octoprint-printer-commands.actions';
 import {
   connectPrinterSequence,
@@ -103,7 +104,15 @@ function returnActionBtnTemplate(id, webURL, disableWeb = false) {
              class="dropdown-item"
           >
             <i class="fa-solid fa-ban text-danger"></i> Emergency Stop
-          </button> 
+          </button>
+          <button
+             title="Locks the PSU on and disables its idle auto-off for manual/LCD-menu activity (e.g. calibration) that OctoPrint can't otherwise see"
+             id="printerMaintenanceMode-${id}"
+             type="button"
+             class="dropdown-item"
+          >
+            <i class="fa-solid fa-lock text-warning"></i> Toggle Maintenance Mode
+          </button>
           <button id="printerPowerOn-${id}" title="Turn on your printer" class="dropdown-item d-none" href="#" disabled><i class="text-success fas fa-power-off"></i> Power On Printer</button>
           <button id="printerPowerOff-${id}" title="Turn off your printer" class="dropdown-item d-none" href="#" disabled><i class="text-danger fas fa-power-off"></i> Power Off Printer</button>
           <hr class="d-none">
@@ -312,6 +321,17 @@ function addGroupEventListeners(printers, group) {
     }
     e.target.disabled = false;
   });
+
+  document
+    .getElementById(`printerMaintenanceMode-${group}`)
+    .addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      for (const printer of printers) {
+        const { status, message } = await printerMaintenanceModeToggle(printer);
+        UI.createAlert(status, message, 3000, 'Clicked');
+      }
+      e.target.disabled = false;
+    });
 }
 
 function init(printer, element) {
@@ -458,6 +478,15 @@ function addEventListeners(printer) {
     e.target.disabled = false;
   });
 
+  document
+    .getElementById(`printerMaintenanceMode-${printer._id}`)
+    .addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      const { status, message } = await printerMaintenanceModeToggle(printer);
+      UI.createAlert(status, message, 3000, 'Clicked');
+      e.target.disabled = false;
+    });
+
   PrinterPowerService.setupEventListeners(printer);
 }
 
@@ -473,6 +502,7 @@ function checkQuickConnectState(printer) {
   document.getElementById('printerEmergency-' + printer._id).disabled = !isPrinting;
   document.getElementById('printerHeatersOff-' + printer._id).disabled = !printerIsIdle(printer);
   document.getElementById('printerTorch-' + printer._id).disabled = !isOnline;
+  document.getElementById('printerMaintenanceMode-' + printer._id).disabled = !isOnline;
 
   PrinterPowerService.revealPowerButtons(printer).catch((e) => {
     console.error(e);
@@ -517,6 +547,7 @@ function checkGroupQuickConnectState(printers, group) {
   document.getElementById('printerEmergency-' + group).disabled = !printersAllPrinting;
   document.getElementById('printerHeatersOff-' + group).disabled = !printersAllIdle;
   document.getElementById('printerTorch-' + group).disabled = !printersAllOnline > 0;
+  document.getElementById('printerMaintenanceMode-' + group).disabled = !printersAllOnline > 0;
   const noConnectionOptions = printers.filter(
     (obj) =>
       obj?.connectionOptions?.portPreference === null ||

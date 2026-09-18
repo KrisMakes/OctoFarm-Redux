@@ -219,6 +219,34 @@ export async function printerTorchToggle(printer) {
   }
 }
 
+// PSU Control - Maintenance Mode is a custom plugin: it locks the PSU on and
+// disables psucontrol's idle auto-off, for LCD-menu/manual activity (e.g.
+// bed calibration) that OctoPrint never sees over serial and so can't use to
+// reset the idle timer. Its own SimpleAPI already exposes a "toggle" command
+// that flips the setting and returns the resulting state, so unlike the torch
+// button there's no need to read the state first.
+export async function printerMaintenanceModeToggle(printer) {
+  const opt = {
+    command: 'toggle',
+  };
+  const post = await OctoPrintClient.post(printer, 'plugin/calibration_mode', opt);
+  if (post?.ok) {
+    const { powerOffWhenIdle } = await post.json();
+    return {
+      status: bulkActionsStates.SUCCESS,
+      message: powerOffWhenIdle
+        ? 'Maintenance mode off - PSU auto power-off re-enabled!'
+        : 'Maintenance mode on - PSU locked on, auto power-off disabled!',
+    };
+  } else {
+    return {
+      status: bulkActionsStates.ERROR,
+      message:
+        'Failed to toggle maintenance mode - is the PSU Control - Maintenance Mode plugin installed?',
+    };
+  }
+}
+
 export async function printerHomeAllAxis(printer) {
   const opt = {
     commands: ['G28'],
