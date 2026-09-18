@@ -43,7 +43,7 @@
     "js/runtime.2.0.0.a33b15be.min.js",
     "js/shared-vendor.2.0.0.009581b0.min.js",
     "js/shared-app.2.0.0.32af3593.min.js",
-    "js/events.service.2.0.0.bec5b9d1.min.js"
+    "js/events.service.2.0.0.d490237c.min.js"
   ],
   "filament-manager.runner": [
     "js/runtime.2.0.0.a33b15be.min.js",

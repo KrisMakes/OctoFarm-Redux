@@ -68,64 +68,46 @@ const forceReconnect = (img) => {
 // Every button then hangs with no error at all, which is precisely the "buttons
 // stop working after I change tabs" this reconnect was meant to be unrelated to.
 //
-// So a camera only gets reconnected once it has actually failed to deliver
-// anything in the moments after the tab came back. Two independent signals say
-// it is fine, and either one is enough: a `load` event, which a multipart stream
-// fires per frame, and a change in the sampled pixels. The `load` event is the
-// cheaper of the two but does not arrive for every stream, so the pixel sample
-// is what usually answers -- the streams are proxied through this origin, so
-// there is no taint to work around.
-const GRACE_AFTER_VISIBLE_MS = 2500;
-
-const reconnectStalledCameras = () => {
-  const canvas = document.createElement('canvas');
+// Deciding that on the spot does not work. A stalled stream is indistinguishable
+// from a working one for a while: the `load` event does not fire per frame on
+// these streams at all, and the pixel sample cannot separate "no new frames"
+// from "nothing in front of the camera moved" -- an idle printer in a dark
+// enclosure reads as identical either way, so every healthy camera got
+// reconnected anyway and the churn came straight back.
+//
+// Nothing here has to make that call, because checkCameraStreams below already
+// does, correctly: it watches the pixels over a 15s window with a cooldown, and
+// it runs on Safari, which is the only browser that stalls these streams in the
+// first place. So the only thing worth acting on immediately is an image that is
+// outright broken -- no frame at all, which is unambiguous -- and the rest is
+// left to settle. The cost is that a stalled camera takes the watchdog's window
+// to come back rather than returning instantly; the benefit is that the tab
+// switch stops spending sockets the buttons need.
+const reconnectBrokenCameras = () => {
+  const now = Date.now();
   document.querySelectorAll('.camImg').forEach((img) => {
     if (isPlaceholderSrc(img.src)) {
       return;
     }
-    let sawFrame = false;
-    const onLoad = () => {
-      sawFrame = true;
-    };
-    img.addEventListener('load', onLoad);
-
-    let before = null;
-    try {
-      before = sampleFrameSignature(img, canvas);
-    } catch (e) {
-      // Sampling is unavailable on this build; the `load` event is all there is.
+    const entry = watchState.get(img);
+    // Give the stall detector a fresh window either way: it has been looking at
+    // a throttled, backgrounded stream and its last reading means nothing now.
+    if (entry) {
+      entry.lastChangeAt = now;
+      entry.lastSignature = null;
     }
-
-    setTimeout(() => {
-      img.removeEventListener('load', onLoad);
-      if (sawFrame || !img.isConnected || isPlaceholderSrc(img.src)) {
-        return;
-      }
-      if (before !== null) {
-        try {
-          if (sampleFrameSignature(img, canvas) !== before) {
-            return;
-          }
-        } catch (e) {
-          // Fall through and reconnect: no signal either way.
-        }
-      }
+    if (img.complete && img.naturalWidth === 0) {
       forceReconnect(img);
-      const entry = watchState.get(img);
       if (entry) {
-        const now = Date.now();
         entry.lastReconnectAt = now;
-        entry.lastChangeAt = now;
-        entry.lastLoadEventAt = now;
-        entry.lastSignature = null;
       }
-    }, GRACE_AFTER_VISIBLE_MS);
+    }
   });
 };
 
 const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
-    reconnectStalledCameras();
+    reconnectBrokenCameras();
   }
 };
 
