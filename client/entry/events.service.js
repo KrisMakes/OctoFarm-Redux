@@ -1,4 +1,4 @@
-import { parsePayload, debounce } from '../js/utils/sse.utils';
+import { parsePayload } from '../js/utils/sse.utils';
 import { MESSAGE_TYPES } from '../../server/constants/sse.constants';
 import { updateLiveFileInformation } from '../js/pages/file-manager/file-manager-sse.handler';
 import currentOperationsPanelService from '../js/services/current-operations-panel.service';
@@ -14,9 +14,49 @@ import { updateMaintenanceModeBanner } from '../js/services/maintenance-mode-ban
 // reconnectFrequencySeconds doubles every retry
 
 let evtSource;
+let reconnectTimer = null;
 
-const reconnectFunc = debounce(
-  function () {
+// Every one of these connections occupies one of the six sockets a browser will
+// open to a single origin over HTTP/1.1, and it occupies it forever -- an SSE
+// stream never completes. The panel view already spends four of those six on
+// long-lived streams (this one, the monitoring worker's, and one per proxied
+// camera), so a single orphaned EventSource leaves one spare socket and two
+// orphans leave none. At that point every XHR the page makes queues behind a
+// stream that will never finish: buttons stop responding with no error at all,
+// because nothing ever fails -- it simply never gets a socket. Measured
+// directly against this farm: two surplus streams is the difference between a
+// 28ms request and one still unanswered after four seconds.
+//
+// So an orphan is not a leak to tidy up later, it is the bug. Everything below
+// exists to guarantee that at most one connection is live at a time.
+function cancelPendingReconnect() {
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+function closeEventSource() {
+  if (!evtSource) {
+    return;
+  }
+  // Drop the handlers before closing: close() does not stop an already-queued
+  // error event, and that event would otherwise run against the connection that
+  // replaced this one.
+  evtSource.onmessage = null;
+  evtSource.onopen = null;
+  evtSource.onerror = null;
+  evtSource.close();
+  evtSource = null;
+}
+
+function scheduleReconnect() {
+  // A pending reconnect that fires after something else has already opened a
+  // connection is exactly how an orphan is created.
+  cancelPendingReconnect();
+  const delay = reconnectFrequency.getSeconds * 1000;
+  reconnectTimer = setTimeout(function () {
+    reconnectTimer = null;
     setupEventSource();
     // Double every attempt to avoid overwhelming client
     reconnectFrequency.setSeconds = reconnectFrequency.getSeconds * 2;
@@ -24,15 +64,15 @@ const reconnectFunc = debounce(
     if (reconnectFrequency.getSeconds >= 64) {
       reconnectFrequency.setSeconds = 64;
     }
-  },
-  function () {
-    return reconnectFrequency.getSeconds * 1000;
-  }
-);
+  }, delay);
+}
 
 function setupEventSource() {
-  evtSource = new EventSource('/events');
-  evtSource.onmessage = async function (e) {
+  cancelPendingReconnect();
+  closeEventSource();
+  const source = new EventSource('/events');
+  evtSource = source;
+  source.onmessage = async function (e) {
     const payload = parsePayload(e.data);
     // parsePayload returns false on a malformed frame; destructuring that threw
     // a TypeError out of the handler.
@@ -57,7 +97,7 @@ function setupEventSource() {
       updateMaintenanceModeBanner(message);
     }
   };
-  evtSource.onopen = function (e) {
+  source.onopen = function (e) {
     console.debug('Connected to servers event stream...');
     // Reset reconnect frequency upon successful connection
     reconnectFrequency.setSeconds = 3;
@@ -66,7 +106,16 @@ function setupEventSource() {
   // the ApplicationError became an unhandled rejection every time the server
   // blipped. EventSource has no 'close' event either, so the onclose handler
   // that used to follow was dead code.
-  evtSource.onerror = async function (e) {
+  source.onerror = async function (e) {
+    // This used to close `evtSource` rather than the connection that actually
+    // errored. A stalled connection reports its error late, so by the time it
+    // did, `evtSource` could already be a newer, healthy connection -- which
+    // this then closed, leaving the broken one open, unreferenced and
+    // unclosable for the life of the page.
+    if (source !== evtSource) {
+      source.close();
+      return;
+    }
     window.serverOffline = true;
     console.debug(
       'Server connection lost! Re-connecting in... ' + reconnectFrequency.getSeconds + 's'
@@ -74,8 +123,8 @@ function setupEventSource() {
     console.debug('Events service error', e?.target?.readyState);
     triggerCountDownTimer(reconnectFrequency.getSeconds);
     await drawModal();
-    evtSource.close();
-    reconnectFunc();
+    closeEventSource();
+    scheduleReconnect();
   };
 }
 
@@ -94,9 +143,21 @@ setupEventSource();
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     window.serverOffline = false;
-    evtSource?.close();
+    // setupEventSource() closes the previous connection and cancels any pending
+    // reconnect itself. Doing it here as well used to leave the retry timer
+    // armed, so the reconnect it had already scheduled fired a moment later and
+    // opened a second connection on top of this one.
     setupEventSource();
   }
+});
+
+// A connection the page never closes stays open long enough to still be holding
+// a socket while the next page is loading, so the new page starts a socket down.
+// 'pagehide' rather than 'beforeunload' because Safari does not reliably fire
+// 'beforeunload' and ignores pages that use it for back/forward caching.
+window.addEventListener('pagehide', () => {
+  cancelPendingReconnect();
+  closeEventSource();
 });
 
 // This used to wait for DOMContentLoaded and only start when a `.camImg`

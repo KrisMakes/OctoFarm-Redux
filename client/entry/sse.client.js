@@ -32,8 +32,9 @@ function setupEventSource(url) {
   if (evtSource) {
     evtSource.close();
   }
-  evtSource = new EventSource(url);
-  evtSource.onmessage = function (e) {
+  const source = new EventSource(url);
+  evtSource = source;
+  source.onmessage = function (e) {
     if (!e.data) {
       return;
     }
@@ -44,7 +45,7 @@ function setupEventSource(url) {
       postMessage(res);
     }
   };
-  evtSource.onopen = function (e) {
+  source.onopen = function (e) {
     console.debug('Connected to ' + url);
     // Reset reconnect frequency upon successful connection
     reconnectFrequencySeconds = 1;
@@ -53,10 +54,20 @@ function setupEventSource(url) {
   // ApplicationError became an unhandled rejection on every server blip.
   // EventSource also has no 'close' event, so the onclose handler that used to
   // sit here -- calling the non-existent console.warning -- was dead.
-  evtSource.onerror = function () {
+  source.onerror = function () {
+    // Close the connection that actually errored, not whatever `evtSource`
+    // happens to point at now -- a stalled stream reports its error late, so
+    // this could otherwise close a newer healthy connection and leave the
+    // broken one to auto-retry forever with nothing holding a reference to it.
+    // An EventSource reconnects by itself unless it is closed, so an orphan
+    // here does not merely waste a socket, it keeps reclaiming one.
+    if (source !== evtSource) {
+      source.close();
+      return;
+    }
     console.error('Issue with SSE connection... ');
     postMessage(false);
-    evtSource.close();
+    source.close();
     reconnectFunc();
   };
 }
