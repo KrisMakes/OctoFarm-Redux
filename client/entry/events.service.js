@@ -151,15 +151,6 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// A connection the page never closes stays open long enough to still be holding
-// a socket while the next page is loading, so the new page starts a socket down.
-// 'pagehide' rather than 'beforeunload' because Safari does not reliably fire
-// 'beforeunload' and ignores pages that use it for back/forward caching.
-window.addEventListener('pagehide', () => {
-  cancelPendingReconnect();
-  closeEventSource();
-});
-
 // This used to wait for DOMContentLoaded and only start when a `.camImg`
 // was already in the DOM at that instant -- but the monitoring views build
 // their camera markup client-side after an async fetch, well after

@@ -18,6 +18,9 @@ const SAMPLE_SIZE = 24;
 // the fallback path too, not only the pixel-diff path.
 const UNVERIFIABLE_RECONNECT_INITIAL_MS = 45000;
 const UNVERIFIABLE_RECONNECT_MAX_MS = 300000;
+// Ceiling for the same escalation applied to the pixel-diff path, for a stream
+// whose pixels never change because the scene genuinely never changes.
+const STALE_RECONNECT_MAX_MS = 300000;
 
 const isSafari = () => /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
 
@@ -92,9 +95,12 @@ const reconnectBrokenCameras = () => {
     const entry = watchState.get(img);
     // Give the stall detector a fresh window either way: it has been looking at
     // a throttled, backgrounded stream and its last reading means nothing now.
+    // The signature itself is kept -- discarding it would read as a change on
+    // the next sample, which resets the escalating backoff below and would put
+    // a permanently static camera back to being reconnected every 15s for as
+    // often as the tab is switched.
     if (entry) {
       entry.lastChangeAt = now;
-      entry.lastSignature = null;
     }
     if (img.complete && img.naturalWidth === 0) {
       forceReconnect(img);
@@ -131,6 +137,7 @@ const checkCameraStreams = () => {
         // stale before the listener below has had any chance to observe one.
         lastLoadEventAt: now,
         unverifiableBackoffMs: UNVERIFIABLE_RECONNECT_INITIAL_MS,
+        staleBackoffMs: STALE_AFTER_MS,
         // A broken image is already `complete` with no `load` event ever
         // coming, so if this is the first time we're seeing it and it's
         // already in that state, there will never be an `error` event to
@@ -215,14 +222,28 @@ const checkCameraStreams = () => {
     if (signature !== entry.lastSignature) {
       entry.lastSignature = signature;
       entry.lastChangeAt = now;
+      // Frames are arriving, so go back to noticing a stall promptly.
+      entry.staleBackoffMs = STALE_AFTER_MS;
       return;
     }
 
+    // Identical pixels mean one of two things and there is no way to tell them
+    // apart from here: the stream has stalled, or nothing in front of the camera
+    // moved. The second is the normal overnight state of this farm -- printers
+    // off, enclosure dark -- and reconnecting on a flat 15s timer meant spending
+    // a socket per camera every 15-25s all night, against the same small
+    // per-origin pool every button needs.
+    //
+    // Escalating the threshold separates the two on its own: a genuinely stalled
+    // stream starts delivering frames again after one reconnect, which resets
+    // this to 15s, while a scene that is still identical after a fresh
+    // connection was never stalled and is backed off toward the cap instead.
     const staleFor = now - entry.lastChangeAt;
     const sinceLastReconnect = now - entry.lastReconnectAt;
-    if (staleFor >= STALE_AFTER_MS && sinceLastReconnect >= RECONNECT_COOLDOWN_MS) {
+    if (staleFor >= entry.staleBackoffMs && sinceLastReconnect >= RECONNECT_COOLDOWN_MS) {
       entry.lastReconnectAt = now;
       entry.lastChangeAt = now;
+      entry.staleBackoffMs = Math.min(entry.staleBackoffMs * 2, STALE_RECONNECT_MAX_MS);
       forceReconnect(img);
     }
   });
