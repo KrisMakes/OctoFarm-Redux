@@ -1,45 +1,40 @@
-// Safari can silently stall a multipart/x-mixed-replace (MJPEG) stream and never
-// recover on its own - unlike Chrome. Blindly reconnecting every camera on a timer
-// was itself causing visible hiccups on streams that were working fine, so instead
-// this samples actual pixel data from each stream and only force-reconnects a camera
-// once it has provably stopped updating.
+// Recovers a camera whose MJPEG stream has died, without disturbing one that is
+// merely showing something that does not move.
+//
+// A failed camera is directly observable and does not need to be inferred: the
+// proxy answers 404 or 502 when it cannot reach the printer, and a stream that
+// dies mid-flight ends the response, so the <img> is left broken -- `complete`
+// with a `naturalWidth` of 0, drawn as the empty grey box you actually see on
+// the page. A printer with no camera configured at all is a separate, static
+// case handled before any of this, by pointing the <img> at noCamera.jpg.
+//
+// What this must NOT do is treat an unchanging picture as a failure. This used
+// to compare sampled pixels and reconnect anything that had not changed in 15s,
+// which is indistinguishable from the normal overnight state of this farm --
+// printers off, enclosure dark, a perfectly healthy stream of identical black
+// frames. Reconnecting on that cost a socket per camera every 15-25s all night,
+// and those sockets come from the handful a browser allows per origin, shared
+// across every tab open on it and already mostly spent on this app's permanent
+// streams (/events, the monitoring worker, one per camera). Overshooting that
+// does not fail anything -- requests queue behind streams that never end, so
+// every button in the UI goes dead with no error to explain it.
+//
+// So: reconnect what is provably broken, leave everything else alone.
 const CHECK_INTERVAL_MS = 5000;
-const STALE_AFTER_MS = 15000;
-const RECONNECT_COOLDOWN_MS = 10000;
 const REATTACH_DELAY_MS = 50;
-const SAMPLE_SIZE = 24;
-// Last-resort cadence for a stream we can neither pixel-sample nor see a
-// `load` event from (see below) -- doubles on every attempt that doesn't
-// bring either signal back, so a persistently unverifiable stream is
-// reconnected less and less often rather than forever at a fixed interval.
-// A fixed interval here would mean reconnecting a possibly-perfectly-healthy
-// stream indefinitely, which is the exact "hiccups on working streams"
-// problem this whole approach exists to avoid -- it just needs to be true of
-// the fallback path too, not only the pixel-diff path.
-const UNVERIFIABLE_RECONNECT_INITIAL_MS = 45000;
-const UNVERIFIABLE_RECONNECT_MAX_MS = 300000;
-// Ceiling for the same escalation applied to the pixel-diff path, for a stream
-// whose pixels never change because the scene genuinely never changes.
-const STALE_RECONNECT_MAX_MS = 300000;
+// A camera that stays broken is retried less and less often rather than forever
+// at a fixed interval -- if the printer is simply off, there is nothing to
+// reconnect to and hammering it only spends sockets.
+const BROKEN_RETRY_INITIAL_MS = 15000;
+const BROKEN_RETRY_MAX_MS = 300000;
 
 const isSafari = () => /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
 
 const isPlaceholderSrc = (src) => !src || src.endsWith('noCamera.jpg');
 
-const watchState = new WeakMap();
+const isBroken = (img) => img.complete && img.naturalWidth === 0;
 
-const sampleFrameSignature = (img, canvas) => {
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  canvas.width = SAMPLE_SIZE;
-  canvas.height = SAMPLE_SIZE;
-  ctx.drawImage(img, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
-  const { data } = ctx.getImageData(0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
-  let signature = 0;
-  for (let i = 0; i < data.length; i += 8) {
-    signature = (signature + data[i]) % 65536;
-  }
-  return signature;
-};
+const watchState = new WeakMap();
 
 const forceReconnect = (img) => {
   const url = new URL(img.src, window.location.href);
@@ -55,198 +50,55 @@ const forceReconnect = (img) => {
   }, REATTACH_DELAY_MS);
 };
 
-// Backgrounding a tab is enough on its own -- in every browser, not just
-// Safari -- for the browser to stall or deprioritise a long-lived streaming
-// connection like multipart/x-mixed-replace, so a camera does need help to come
-// back when the tab is looked at again.
-//
-// It must not be given that help unconditionally, though, which is what this
-// used to do. Reconnecting every camera on every tab switch costs a socket per
-// camera, and WebKit does not release the socket behind the stream being
-// replaced anywhere near as promptly as it hands out the new one. Those sockets
-// come from the six or so a browser allows per origin, shared across every tab
-// open on it, and this app already holds several permanently (the /events
-// stream, the monitoring worker's, and one per camera). Overshoot that and the
-// browser does not fail anything -- it queues, behind streams that never end.
-// Every button then hangs with no error at all, which is precisely the "buttons
-// stop working after I change tabs" this reconnect was meant to be unrelated to.
-//
-// Deciding that on the spot does not work. A stalled stream is indistinguishable
-// from a working one for a while: the `load` event does not fire per frame on
-// these streams at all, and the pixel sample cannot separate "no new frames"
-// from "nothing in front of the camera moved" -- an idle printer in a dark
-// enclosure reads as identical either way, so every healthy camera got
-// reconnected anyway and the churn came straight back.
-//
-// Nothing here has to make that call, because checkCameraStreams below already
-// does, correctly: it watches the pixels over a 15s window with a cooldown, and
-// it runs on Safari, which is the only browser that stalls these streams in the
-// first place. So the only thing worth acting on immediately is an image that is
-// outright broken -- no frame at all, which is unambiguous -- and the rest is
-// left to settle. The cost is that a stalled camera takes the watchdog's window
-// to come back rather than returning instantly; the benefit is that the tab
-// switch stops spending sockets the buttons need.
-const reconnectBrokenCameras = () => {
+const trackedEntry = (img, now) => {
+  let entry = watchState.get(img);
+  if (entry) {
+    return entry;
+  }
+  entry = {
+    lastReconnectAt: now,
+    retryBackoffMs: BROKEN_RETRY_INITIAL_MS,
+  };
+  // A broken image is already `complete`, so if it broke before this entry
+  // existed its `error` event has already been and gone and will never fire
+  // again. `isBroken` is checked directly rather than relying on the event.
+  img.addEventListener('load', () => {
+    const tracked = watchState.get(img);
+    if (tracked) {
+      // A frame arrived, so whatever went wrong before is over.
+      tracked.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
+    }
+  });
+  watchState.set(img, entry);
+  return entry;
+};
+
+const recoverBrokenCameras = ({ immediate }) => {
   const now = Date.now();
   document.querySelectorAll('.camImg').forEach((img) => {
     if (isPlaceholderSrc(img.src)) {
       return;
     }
-    const entry = watchState.get(img);
-    // Give the stall detector a fresh window either way: it has been looking at
-    // a throttled, backgrounded stream and its last reading means nothing now.
-    // The signature itself is kept -- discarding it would read as a change on
-    // the next sample, which resets the escalating backoff below and would put
-    // a permanently static camera back to being reconnected every 15s for as
-    // often as the tab is switched.
-    if (entry) {
-      entry.lastChangeAt = now;
+    const entry = trackedEntry(img, now);
+    if (!isBroken(img)) {
+      return;
     }
-    if (img.complete && img.naturalWidth === 0) {
-      forceReconnect(img);
-      if (entry) {
-        entry.lastReconnectAt = now;
-      }
+    // On returning to the tab, retry once straight away: the stream was torn
+    // down while the tab was in the background, and making the user wait out a
+    // backoff they never saw start is pointless.
+    if (!immediate && now - entry.lastReconnectAt < entry.retryBackoffMs) {
+      return;
     }
+    entry.lastReconnectAt = now;
+    entry.retryBackoffMs = Math.min(entry.retryBackoffMs * 2, BROKEN_RETRY_MAX_MS);
+    forceReconnect(img);
   });
 };
 
 const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
-    reconnectBrokenCameras();
+    recoverBrokenCameras({ immediate: true });
   }
-};
-
-const checkCameraStreams = () => {
-  const now = Date.now();
-  document.querySelectorAll('.camImg').forEach((img) => {
-    if (isPlaceholderSrc(img.src)) {
-      return;
-    }
-
-    let entry = watchState.get(img);
-    if (!entry) {
-      entry = {
-        canvas: document.createElement('canvas'),
-        lastSignature: null,
-        lastChangeAt: now,
-        lastReconnectAt: now,
-        // If a real frame already loaded by the time this entry is first
-        // created, an initial `load` genuinely already fired -- seed this as
-        // "now" rather than 0, or the very first check would look falsely
-        // stale before the listener below has had any chance to observe one.
-        lastLoadEventAt: now,
-        unverifiableBackoffMs: UNVERIFIABLE_RECONNECT_INITIAL_MS,
-        staleBackoffMs: STALE_AFTER_MS,
-        // A broken image is already `complete` with no `load` event ever
-        // coming, so if this is the first time we're seeing it and it's
-        // already in that state, there will never be an `error` event to
-        // catch either -- it already fired before this listener existed.
-        // Count it as already-errored so the retry-with-backoff below picks
-        // it up on this very check instead of waiting forever for an event
-        // that already happened.
-        erroredAt: img.complete && img.naturalWidth === 0 ? now : 0,
-      };
-      // A multipart/x-mixed-replace <img> fires a fresh `load` event on every
-      // part the server sends, not just the first -- the browser is already
-      // telling us "a new frame just arrived" for free. This costs nothing to
-      // keep and needs no canvas access, so it works even when pixel sampling
-      // (below) is unavailable, without resorting to a blind timer.
-      img.addEventListener('load', () => {
-        watchState.get(img).lastLoadEventAt = Date.now();
-      });
-      // A reconnect (e.g. the one fired on tab-foreground) can itself fail --
-      // Safari's network stack isn't always back up the instant the tab
-      // becomes visible. That leaves the <img> broken (naturalWidth 0)
-      // forever, because a broken image is still "complete" as far as the DOM
-      // is concerned, and nothing was watching for this before: the state
-      // machine only ever checked a pixel signature, which a broken image
-      // can't produce, so it just silently stopped looking at it instead of
-      // retrying.
-      img.addEventListener('error', () => {
-        watchState.get(img).erroredAt = Date.now();
-      });
-      watchState.set(img, entry);
-    }
-
-    if (!img.complete || img.naturalWidth === 0) {
-      if (entry.erroredAt && now - entry.lastReconnectAt >= entry.unverifiableBackoffMs) {
-        entry.lastReconnectAt = now;
-        entry.unverifiableBackoffMs = Math.min(
-          entry.unverifiableBackoffMs * 2,
-          UNVERIFIABLE_RECONNECT_MAX_MS
-        );
-        forceReconnect(img);
-      }
-      return;
-    }
-    // A frame arrived, so any earlier broken/errored state no longer applies.
-    entry.erroredAt = 0;
-
-    let signature;
-    try {
-      signature = sampleFrameSignature(img, entry.canvas);
-    } catch (e) {
-      // This can throw even for a same-origin proxied stream on some Safari
-      // builds -- a WebKit quirk with multipart/x-mixed-replace canvas reads,
-      // not the cross-origin taint it used to mean back when cameras were
-      // fetched straight from the printer with no proxy. Whatever the cause,
-      // giving up on this image forever the first time it happens (as this
-      // used to) meant the one browser this watchdog exists for could end up
-      // with a stalled camera that never recovers again for the rest of the
-      // page's life.
-      //
-      // The `load` events above are usually still available even when pixel
-      // sampling is not, and they mean this stream needs no help at all --
-      // check those first. Only fall back to a blind, backed-off reconnect
-      // when we have no signal whatsoever.
-      if (now - entry.lastLoadEventAt < STALE_AFTER_MS) {
-        entry.unverifiableBackoffMs = UNVERIFIABLE_RECONNECT_INITIAL_MS;
-        return;
-      }
-      if (now - entry.lastReconnectAt >= entry.unverifiableBackoffMs) {
-        entry.lastReconnectAt = now;
-        entry.unverifiableBackoffMs = Math.min(
-          entry.unverifiableBackoffMs * 2,
-          UNVERIFIABLE_RECONNECT_MAX_MS
-        );
-        forceReconnect(img);
-      }
-      return;
-    }
-
-    // Pixel sampling is working again (or always was) -- any earlier failure
-    // to reconnect its way out is no longer relevant.
-    entry.unverifiableBackoffMs = UNVERIFIABLE_RECONNECT_INITIAL_MS;
-
-    if (signature !== entry.lastSignature) {
-      entry.lastSignature = signature;
-      entry.lastChangeAt = now;
-      // Frames are arriving, so go back to noticing a stall promptly.
-      entry.staleBackoffMs = STALE_AFTER_MS;
-      return;
-    }
-
-    // Identical pixels mean one of two things and there is no way to tell them
-    // apart from here: the stream has stalled, or nothing in front of the camera
-    // moved. The second is the normal overnight state of this farm -- printers
-    // off, enclosure dark -- and reconnecting on a flat 15s timer meant spending
-    // a socket per camera every 15-25s all night, against the same small
-    // per-origin pool every button needs.
-    //
-    // Escalating the threshold separates the two on its own: a genuinely stalled
-    // stream starts delivering frames again after one reconnect, which resets
-    // this to 15s, while a scene that is still identical after a fresh
-    // connection was never stalled and is backed off toward the cap instead.
-    const staleFor = now - entry.lastChangeAt;
-    const sinceLastReconnect = now - entry.lastReconnectAt;
-    if (staleFor >= entry.staleBackoffMs && sinceLastReconnect >= RECONNECT_COOLDOWN_MS) {
-      entry.lastReconnectAt = now;
-      entry.lastChangeAt = now;
-      entry.staleBackoffMs = Math.min(entry.staleBackoffMs * 2, STALE_RECONNECT_MAX_MS);
-      forceReconnect(img);
-    }
-  });
 };
 
 export const startCameraStreamWatchdog = () => {
@@ -257,5 +109,5 @@ export const startCameraStreamWatchdog = () => {
   if (!isSafari()) {
     return;
   }
-  setInterval(checkCameraStreams, CHECK_INTERVAL_MS);
+  setInterval(() => recoverBrokenCameras({ immediate: false }), CHECK_INTERVAL_MS);
 };
