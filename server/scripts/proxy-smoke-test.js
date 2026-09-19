@@ -20,6 +20,9 @@ const express = require('express');
 const ROOT = path.resolve(__dirname, '..');
 process.env.NODE_ENV = 'test';
 process.env.OCTOFARM_SITE_TITLE = 'x';
+// The camera proxy's inactivity timeout is 30s in production.
+const IDLE_MS = 1000;
+process.env.CAMERA_STREAM_IDLE_TIMEOUT_MS = String(IDLE_MS);
 
 // --- stub the modules the routers pull in --------------------------------
 function stub(relPath, exports) {
@@ -49,6 +52,7 @@ const { proxyOctoPrintClientRequests } = require(path.join(ROOT, 'middleware/oct
 // --- the fake printer ----------------------------------------------------
 const BOUNDARY = 'octofarmboundary';
 let upstreamSockets = new Set();
+let liveStreams = 0;
 let lastUpstreamRequest = null;
 
 const printer = http.createServer((req, res) => {
@@ -64,12 +68,45 @@ const printer = http.createServer((req, res) => {
   });
 
   if (req.url.startsWith('/stream')) {
+    liveStreams++;
+    res.on('close', () => liveStreams--);
     res.writeHead(200, { 'Content-Type': `multipart/x-mixed-replace; boundary=${BOUNDARY}` });
     const frame = () =>
       res.write(`--${BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\n\r\nJPEG\r\n`);
     frame();
     const t = setInterval(frame, 50);
     res.on('close', () => clearInterval(t));
+    return;
+  }
+  // Connects, sends one frame, then goes quiet without hanging up -- a wedged
+  // mjpg-streamer.
+  if (req.url.startsWith('/silent')) {
+    res.writeHead(200, { 'Content-Type': `multipart/x-mixed-replace; boundary=${BOUNDARY}` });
+    res.write(`--${BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\n\r\nJPEG\r\n`);
+    return;
+  }
+  // Real camera frames are ~400KB. Sending that fast enough is what fills every
+  // buffer between here and a viewer that has stopped reading, which is the
+  // only way the proxy ever gets backpressured.
+  if (req.url.startsWith('/firehose')) {
+    res.writeHead(200, { 'Content-Type': `multipart/x-mixed-replace; boundary=${BOUNDARY}` });
+    const jpeg = Buffer.alloc(256 * 1024, 0x42);
+    let stopped = false;
+    const pump = () => {
+      while (!stopped) {
+        res.write(
+          `--${BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: ${jpeg.length}\r\n\r\n`
+        );
+        if (!res.write(jpeg)) {
+          res.once('drain', pump);
+          return;
+        }
+      }
+    };
+    res.on('close', () => {
+      stopped = true;
+    });
+    pump();
     return;
   }
   if (req.url.startsWith('/refuse')) {
@@ -157,11 +194,20 @@ async function main() {
       `${upstreamSockets.size} open`
     );
     ac.abort();
-    await new Promise((r) => setTimeout(r, 300));
+    // Counts streams rather than sockets. The HTTP client keeps an idle
+    // keep-alive socket to the printer for a few seconds after a stream is
+    // aborted, which is harmless -- nothing flows on it and it closes on its
+    // own -- but counting sockets made this fail on every run. What matters is
+    // that the printer stops streaming to nobody, since mjpg-streamer only has a
+    // handful of client slots.
+    const releaseDeadline = Date.now() + 2000;
+    while (liveStreams > 0 && Date.now() < releaseDeadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
     check(
-      'camera: upstream released when the viewer leaves',
-      upstreamSockets.size === 0,
-      `${upstreamSockets.size} sockets still open`
+      'camera: upstream stream stops when the viewer leaves',
+      liveStreams === 0,
+      `${liveStreams} still streaming`
     );
   }
 
@@ -203,7 +249,65 @@ async function main() {
     await res.text();
   }
 
-  // 6. camera: unknown printer
+  // 6. camera: printer connected but went quiet -> dropped after the idle timeout
+  {
+    PRINTER = { ...PRINTER, camURL: `http://127.0.0.1:${printerPort}/silent` };
+    const res = await fetch(`${base}/camera/${ID}`);
+    const reader = res.body.getReader();
+    let ended = false;
+    const deadline = Date.now() + IDLE_MS * 4;
+    while (Date.now() < deadline) {
+      const next = await Promise.race([
+        reader.read(),
+        new Promise((r) => setTimeout(() => r(null), deadline - Date.now())),
+      ]);
+      if (next?.done) {
+        ended = true;
+        break;
+      }
+    }
+    check('camera: a printer that goes quiet is dropped', ended);
+    await reader.cancel().catch(() => {});
+  }
+
+  // 7. camera: the VIEWER stops reading (a backgrounded tab) while the printer
+  // keeps streaming. That must not be mistaken for a printer that went quiet.
+  {
+    PRINTER = { ...PRINTER, camURL: `http://127.0.0.1:${printerPort}/firehose` };
+    const ac = new AbortController();
+    const res = await fetch(`${base}/camera/${ID}`, { signal: ac.signal });
+    const reader = res.body.getReader();
+    await reader.read();
+    // Stop reading for three idle timeouts.
+    await new Promise((r) => setTimeout(r, IDLE_MS * 3));
+    // Now read again, for long enough to get through everything that was
+    // buffered while we were away and on to live data. A proxy that timed the
+    // stream out while we were not reading ends it somewhere in here.
+    let ended = false;
+    let bytes = 0;
+    const until = Date.now() + IDLE_MS * 2;
+    try {
+      while (Date.now() < until) {
+        const { done, value } = await reader.read();
+        if (done) {
+          ended = true;
+          break;
+        }
+        bytes += value.length;
+      }
+    } catch (e) {
+      ended = true;
+    }
+    check(
+      'camera: a viewer that stops reading is not mistaken for a quiet printer',
+      !ended,
+      `${ended ? 'stream was ended' : 'still streaming'} after ${(bytes / 1048576).toFixed(1)}MB`
+    );
+    ac.abort();
+    await new Promise((r) => setTimeout(r, 300));
+  }
+
+  // 8. camera: unknown printer
   {
     PRINTER = null;
     const res = await fetch(`${base}/camera/${ID}`);

@@ -15,8 +15,9 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.ROUTE_CAMERA_PROXY);
 // meant to run forever -- so it has to be longer than the gap between frames of
 // the slowest camera worth supporting. `request` only ever applied its timeout
 // to the response headers, so a camera that connected and then went silent held
-// the socket open indefinitely; this covers that case too.
-const STREAM_IDLE_TIMEOUT_MS = 30000;
+// the socket open indefinitely; this covers that case too. Overridable only so
+// the proxy smoke test does not have to sit through it.
+const STREAM_IDLE_TIMEOUT_MS = Number(process.env.CAMERA_STREAM_IDLE_TIMEOUT_MS) || 30000;
 
 // Pipes the printer's MJPEG stream through OctoFarm rather than snapshotting it.
 // This used to decode a single frame per request and rely on server-sent events
@@ -56,6 +57,19 @@ router.get(
     const armIdleTimer = () => {
       clearIdleTimer();
       idleTimer = setTimeout(() => {
+        // pipe() stops reading from the camera whenever the browser stops
+        // reading from us, so "no data from the camera" is also exactly what a
+        // viewer that has stopped reading looks like -- and a backgrounded
+        // Safari tab does exactly that. Timing out here used to drop a
+        // perfectly healthy camera 30s after the tab was hidden, cutting the
+        // response off partway through a frame; the <img> kept the half-drawn
+        // frame, grey where the rest never arrived, and nothing reconnected it
+        // because an image with a partial frame is not a broken one. The
+        // silence is only the camera's fault if we were ready for more.
+        if (res.writableNeedDrain) {
+          res.once('drain', armIdleTimer);
+          return;
+        }
         logger.warning(`Camera ${id} sent nothing for ${STREAM_IDLE_TIMEOUT_MS}ms, dropping it`);
         controller.abort();
       }, STREAM_IDLE_TIMEOUT_MS);
