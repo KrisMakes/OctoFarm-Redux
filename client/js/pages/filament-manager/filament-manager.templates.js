@@ -1,3 +1,9 @@
+// Written on a sticker on the physical spool, so shown on its own wherever a
+// spool is picked. Spools created before numbering existed may lack one until
+// the migration has run.
+export const spoolNumberLabel = (spoolNumber) =>
+  typeof spoolNumber === 'number' ? `#${spoolNumber}` : '';
+
 export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
   let multiple = '';
   let unassignSpools = '';
@@ -12,6 +18,11 @@ export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
   return `
     <tr data-jplist-item id="spoolList-${spool._id}" class="jpSpoolItem">
         <th style="display: none;">${spool._id}</th>
+        <td><span class="d-none spoolNumber">${
+          spool.spoolNumber ?? ''
+        }</span><input class="form-control spool-number" type="number" min="1" step="1" placeholder="${
+    spool.spoolNumber ?? ''
+  }" disabled></td>
         <th scope="row"><span class="d-none name">${
           spool.name
         }</span><input class="form-control" type="text" placeholder="${spool.name}" disabled></th>

@@ -4,6 +4,7 @@
     <tr>
         <th style="display: none;"> </th>
         <th></th>
+        <td></td>
         <th scope="row"></th>
         <td></td>
         <td></td>
@@ -27,6 +28,7 @@
     <tr>
         <th style="display: none;"> </th>
         <th><i class="fas fa-filament-spool"></i></th>
+        <td><%= typeof spool.spoolNumber === 'number' ? '#' + spool.spoolNumber : '' %></td>
         <th scope="row"><%=spool.name%></th>
         <td id="spoolsListMaterial-<%=spool._id%>">
         </td>

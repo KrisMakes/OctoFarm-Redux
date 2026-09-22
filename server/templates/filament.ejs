@@ -57,6 +57,7 @@
         table:{
             id:"filamentOverviewTable", contentId:"filamentOverviewList", hide:false, headers: [
                 { title:"", style:"" },
+                { title:"No.", style:"" },
                 { title:"Spool Name", style:"min-width:50px;" },
                 { title:"Material", style:"" },
                 { title:"Manufacturer", style:"min-width:300px;" },
@@ -203,16 +204,20 @@
                 <div id="addSpoolsMessage"></div>
                 <form>
                     <div class="form-row">
+                        <div class="form-group col-md-2">
+                            <label for="spoolsNumber">Number</label>
+                            <input type="number" class="form-control" id="spoolsNumber" min="1" step="1" placeholder="Auto" title="The number on the spool's sticker. Leave empty to use the next free one.">
+                        </div>
                         <div class="form-group col-md-4">
                             <label for="spoolsName">Name</label>
                             <input type="text" class="form-control" id="spoolsName">
                         </div>
-                        <div class="form-group col-md-4">
+                        <div class="form-group col-md-3">
                             <label for="spoolsProfile">Profile</label>
                             <select id="spoolsProfile" class="form-control">
                             </select>
                         </div>
-                        <div class="form-group col-md-4">
+                        <div class="form-group col-md-3">
                             <label for="spoolsPrice">Price</label>
                             <input type="number" class="form-control" id="spoolsPrice" step="0.01">
                         </div>
@@ -283,6 +288,14 @@
                                                     data-path=".name"
                                                     data-order="desc"
                                                     data-type="text">Name (&darr;)</option>
+                                <option             value="7"
+                                                    data-path=".spoolNumber"
+                                                    data-order="asc"
+                                                    data-type="number">Number (&uarr;)</option>
+                                <option             value="8"
+                                                    data-path=".spoolNumber"
+                                                    data-order="desc"
+                                                    data-type="number">Number (&darr;)</option>
                                 <option             value="3"
                                                     data-path=".price"
                                                     data-order="asc"
@@ -327,7 +340,7 @@
                                    data-jplist-control="textbox-filter"
                                    data-group="spools"
                                    data-name="fileNameSearch"
-                                   data-path=".name"
+                                   data-path=".name, .spoolNumber"
                                    type="text"
                                    value=""
                                    placeholder="Search...">
@@ -406,6 +419,7 @@
                 <table class="table-hover table table-responsive-sm table-responsive-md col-lg-12">
                     <thead>
                     <tr>
+                        <th scope="col" style="min-width: 90px;">No.</th>
                         <th scope="col" style="min-width: 250px;">Name</th>
                         <th scope="col" style="min-width: 200px">Profile</th>
                         <th scope="col" style="max-width: 50px">Price</th>

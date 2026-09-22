@@ -6,6 +6,7 @@ import {
   materialsListTableRow,
   profileManagerTableRow,
   spoolsManagerTableRow,
+  spoolNumberLabel,
 } from './filament-manager.templates';
 import { cloneSpool } from './filament-manager-clone-spools.utils';
 import {
@@ -221,6 +222,7 @@ export const loadOverviewTable = async () => {
                 <tr>
                     <th style="display: none;"> </th>
                     <th><i class="fas fa-filament-spool"></i></th>
+                    <td>${spoolNumberLabel(spool.spoolNumber)}</td>
                     <th >${spool.name}</th>
                     <td id="spoolsListMaterial-${spool._id}">
                     </td>
@@ -388,6 +390,7 @@ export const setupAddSpoolsListener = () => {
     const spoolsUsed = document.getElementById('spoolsRemaining');
     const spoolsTempOffset = document.getElementById('spoolsTempOffset');
     const spoolsBedOffset = document.getElementById('spoolsBedOffset');
+    const spoolsNumber = document.getElementById('spoolsNumber');
     await addSpool(
       spoolsName,
       spoolsProfile,
@@ -395,7 +398,8 @@ export const setupAddSpoolsListener = () => {
       spoolsWeight,
       spoolsUsed,
       spoolsTempOffset,
-      spoolsBedOffset
+      spoolsBedOffset,
+      spoolsNumber
     );
   });
 };

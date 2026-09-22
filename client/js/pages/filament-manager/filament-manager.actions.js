@@ -87,7 +87,8 @@ export const addSpool = async (
   spoolsWeight,
   spoolsUsed,
   spoolsTempOffset,
-  spoolsBedOffset
+  spoolsBedOffset,
+  spoolsNumber
 ) => {
   const errors = [];
 
@@ -121,10 +122,13 @@ export const addSpool = async (
     spoolsUsed: spoolsUsed.value,
     spoolsTempOffset: spoolsTempOffset.value,
     spoolsBedOffset: spoolsBedOffset.value,
+    spoolsNumber: spoolsNumber?.value,
   };
   let post = await OctoFarmClient.post('filament/save/filament', opts);
 
-  if (post || post?.errors?.length === 0) {
+  // Was `post || ...`, which reported any answer at all as a success -- a
+  // refused spool number included.
+  if (post && post.errors?.length === 0) {
     UI.createMessage(
       {
         type: 'success',
@@ -139,10 +143,13 @@ export const addSpool = async (
     spoolsUsed.value = 0;
     spoolsTempOffset.value = 0.0;
     spoolsBedOffset.value = 0;
+    if (spoolsNumber) {
+      spoolsNumber.value = '';
+    }
     await reRenderPageInformation();
     return true;
   } else {
-    printErrors(post.errors);
+    printErrors(post?.errors ?? []);
     return false;
   }
 };
@@ -232,8 +239,13 @@ export const deleteSpool = async (e) => {
 };
 export const saveSpool = async (e) => {
   const row = e.parentElement.parentElement;
-  const editable = row.querySelectorAll('input');
+  // The number travels on its own: the route reads the rest by position.
+  const numberInput = row.querySelector('input.spool-number');
+  const editable = row.querySelectorAll('input:not(.spool-number)');
   const id = e.parentElement.parentElement.firstElementChild.innerHTML.trim();
+  const spoolNumber = numberInput.value;
+  numberInput.disabled = true;
+  numberInput.value = '';
   const spool = [];
   editable.forEach((edit) => {
     edit.disabled = true;
@@ -246,9 +258,12 @@ export const saveSpool = async (e) => {
   const data = {
     id,
     spool,
+    spoolNumber,
   };
   let post = await OctoFarmClient.post('filament/edit/filament', data);
   if (post && post.errors.length === 0) {
+    numberInput.placeholder = post.spoolNumber ?? '';
+    row.querySelector('.spoolNumber').textContent = post.spoolNumber ?? '';
     document.getElementById(`spoolsPrinterAssignment-${id}`).disabled = true;
     document.getElementById(`spoolsProfile-${id}`).disabled = true;
     document.getElementById(`save-${id}`).classList.add('d-none');

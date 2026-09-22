@@ -25,6 +25,35 @@ const {
 const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const { TaskManager } = require('../services/task-manager.service');
 
+// Blank means "not given"; anything else has to be a whole number from 1 up,
+// since it is written on a sticker and typed back in to find the spool.
+const parseSpoolNumber = (value) => {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return { spoolNumber: null };
+  }
+  const spoolNumber = Number(value);
+  if (!Number.isInteger(spoolNumber) || spoolNumber < 1) {
+    return { error: 'Spool number must be a whole number of 1 or more' };
+  }
+  return { spoolNumber };
+};
+
+// Always one past the highest, never a gap left by a deleted spool: that
+// spool's sticker may still be around, and two spools answering to the same
+// number is exactly what the number exists to prevent.
+const nextSpoolNumber = async () => {
+  const highest = await Spool.findOne({ 'spools.spoolNumber': { $type: 'number' } })
+    .sort({ 'spools.spoolNumber': -1 })
+    .lean();
+  return (highest?.spools.spoolNumber ?? 0) + 1;
+};
+
+const spoolNumberTaken = (spoolNumber, exceptId) =>
+  Spool.exists({
+    'spools.spoolNumber': spoolNumber,
+    ...(exceptId ? { _id: { $ne: exceptId } } : {}),
+  });
+
 router.get('/get/printerList', ensureAuthenticated, (_req, res) => {
   const printerList = FilamentClean.createPrinterList();
   res.send({ printerList });
@@ -63,6 +92,16 @@ router.post('/save/filament', ensureAuthenticated, async (req, res) => {
   const errors = [];
   logger.info('Saving Filament Manager Spool: ', filament);
 
+  const { spoolNumber: requestedNumber, error: numberError } = parseSpoolNumber(
+    filament.spoolsNumber
+  );
+  if (numberError) {
+    return res.send({ errors: [numberError] });
+  }
+  if (requestedNumber !== null && (await spoolNumberTaken(requestedNumber))) {
+    return res.send({ errors: [`Spool number ${requestedNumber} is already in use`] });
+  }
+
   const toSaveSpool = {
     name: filament.spoolsName,
     profile: filament.spoolsProfile,
@@ -72,6 +111,7 @@ router.post('/save/filament', ensureAuthenticated, async (req, res) => {
     tempOffset: parseInt(filament.spoolsTempOffset),
     bedOffset: parseInt(filament.spoolsBedOffset),
     fmID: null,
+    spoolNumber: requestedNumber ?? (await nextSpoolNumber()),
   };
   if (errors.length === 0) {
     const dataFilament = new Spool({
@@ -122,6 +162,21 @@ router.post('/edit/filament', ensureAuthenticated, async (req, res) => {
 
   logger.info('New details: ', req.body.spool);
 
+  const { spoolNumber, error: numberError } = parseSpoolNumber(req.body.spoolNumber);
+  if (numberError) {
+    return res.send({ errors: [numberError] });
+  }
+  if (spoolNumber !== null && (await spoolNumberTaken(spoolNumber, searchId))) {
+    return res.send({ errors: [`Spool number ${spoolNumber} is already in use`] });
+  }
+  // Clearing the field keeps the number the spool already has; its sticker
+  // does not come off just because the box was left empty.
+  if (spoolNumber !== null) {
+    oldSpoolData.spools.spoolNumber = spoolNumber;
+  } else if (typeof oldSpoolData.spools.spoolNumber !== 'number') {
+    oldSpoolData.spools.spoolNumber = await nextSpoolNumber();
+  }
+
   oldSpoolData.spools.name = newContent[0];
   oldSpoolData.spools.profile = newContent[6];
   oldSpoolData.spools.price = parseFloat(newContent[1]);
@@ -141,7 +196,7 @@ router.post('/edit/filament', ensureAuthenticated, async (req, res) => {
     .finally(() => {
       logger.info('Updated spool saved to database, running filament cleaner');
       TaskManager.forceRunTask('FILAMENT_CLEAN_TASK');
-      return res.send({ errors });
+      return res.send({ errors, spoolNumber: oldSpoolData.spools.spoolNumber });
     });
 });
 

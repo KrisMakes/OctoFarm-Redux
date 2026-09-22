@@ -39,6 +39,12 @@ const SpoolSchema = new mongoose.Schema({
       type: Number,
       required: false,
     },
+    // Short, human-facing number for a sticker on the physical spool. The
+    // ObjectId is what everything else keys on; this only has to be unique.
+    spoolNumber: {
+      type: Number,
+      required: false,
+    },
   },
 });
 

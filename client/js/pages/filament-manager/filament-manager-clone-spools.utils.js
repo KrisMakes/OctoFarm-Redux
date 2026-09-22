@@ -9,7 +9,7 @@ import { pageElements } from './filament-manager.utils';
 
 export const cloneSpool = async (e) => {
   const row = e.parentElement.parentElement;
-  const editable = row.querySelectorAll('input');
+  const editable = row.querySelectorAll('input:not(.spool-number)');
   const spool = [];
   editable.forEach((edit) => {
     spool.push(edit.placeholder);
@@ -51,6 +51,7 @@ export const cloneSpool = async (e) => {
     `
               <tr id="clonedRow-${spoolClonedId}-${nextSpoolIndex}">
                 <th style="display: none;">${nextSpoolIndex}</th>
+                <td><input id="clonedNumber-${spoolClonedId}-${nextSpoolIndex}" class="form-control" type="number" min="1" step="1" placeholder="Auto" value=""></td>
                 <th scope="row"><input id="clonedName-${spoolClonedId}-${nextSpoolIndex}" class="form-control" type="text" placeholder="${spoolName}" value="${spoolName}"></th>
                 <td>
                      <span class="d-none material" id="spoolsMaterialText-${spoolClonedId}-${nextSpoolIndex}"></span>
@@ -92,14 +93,15 @@ export const cloneSpool = async (e) => {
     .getElementById(`clonedSave-${spoolClonedId}-${nextSpoolIndex}`)
     .addEventListener('click', async function () {
       const clonedRow = document.getElementById(`clonedRow-${spoolClonedId}-${nextSpoolIndex}`);
-      const addedSpool = addSpool(
+      const addedSpool = await addSpool(
         document.getElementById(`clonedName-${spoolClonedId}-${nextSpoolIndex}`),
         document.getElementById(`spoolsProfile-${spoolClonedId}-${nextSpoolIndex}`),
         document.getElementById(`clonedPrice-${spoolClonedId}-${nextSpoolIndex}`),
         document.getElementById(`clonedWeight-${spoolClonedId}-${nextSpoolIndex}`),
         document.getElementById(`clonedUsed-${spoolClonedId}-${nextSpoolIndex}`),
         document.getElementById(`clonedToolOffset-${spoolClonedId}-${nextSpoolIndex}`),
-        document.getElementById(`clonedBedOffset-${spoolClonedId}-${nextSpoolIndex}`)
+        document.getElementById(`clonedBedOffset-${spoolClonedId}-${nextSpoolIndex}`),
+        document.getElementById(`clonedNumber-${spoolClonedId}-${nextSpoolIndex}`)
       );
       if (addedSpool) {
         // Remove Row

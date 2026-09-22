@@ -72,6 +72,7 @@ class FilamentCleanerService {
         bedOffset: sp.spools.bedOffset,
         printerAssignment: FilamentCleanerService.getPrinterAssignment(sp._id, farmPrinters),
         fmID: sp.spools.fmID,
+        spoolNumber: sp.spools.spoolNumber,
       };
       spoolsArray.push(spool);
     }
@@ -140,6 +141,7 @@ class FilamentCleanerService {
         if (showSpool) {
           createList.push({
             spoolID: spool._id,
+            spoolNumber: spool.spools.spoolNumber,
             spoolName: spool.spools.name,
             spoolWeight: spool.spools.weight,
             spoolUsed: spool.spools.used,

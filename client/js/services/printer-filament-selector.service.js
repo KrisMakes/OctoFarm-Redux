@@ -1,9 +1,11 @@
 import OctoFarmClient from './octofarm-client.service';
 import { isFilamentManagerPluginSyncEnabled } from './octoprint/filament-manager-plugin.service';
 import { selectFilament } from '../pages/filament-manager/filament-manager.actions';
+import { spoolNumberLabel } from '../pages/filament-manager/filament-manager.templates';
 
 const dropDownListTemplate = (spool, multiSelect) => {
-  const { spoolID, spoolName, spoolRemain, spoolMaterial, spoolManufacturer, selected } = spool;
+  const { spoolID, spoolNumber, spoolRemain, spoolMaterial, spoolManufacturer, selected } = spool;
+  const spoolName = [spoolNumberLabel(spoolNumber), spool.spoolName].filter(Boolean).join(' ');
   let disabled = '';
   if (selected && !multiSelect) {
     disabled = 'disabled';
