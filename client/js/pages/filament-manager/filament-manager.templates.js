@@ -4,6 +4,9 @@
 export const spoolNumberLabel = (spoolNumber) =>
   typeof spoolNumber === 'number' ? `#${spoolNumber}` : '';
 
+// How much is left, for the read-only column beside the editable used amount.
+export const spoolRemaining = (weight, used) => parseFloat(weight) - parseFloat(used);
+
 export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
   let multiple = '';
   let unassignSpools = '';
@@ -41,11 +44,16 @@ export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
         }</span><input class="form-control" type="number" step="1" placeholder="${
     spool.weight
   }" disabled></td>
-        <td><span class="d-none grams">${
+        <td><input class="form-control" type="number" step="1" placeholder="${
           spool.used
-        }</span><input class="form-control" type="number" step="1" placeholder="${
-    spool.weight - spool.used
-  }" disabled></td>
+        }" disabled></td>
+        <td><span class="d-none grams">${spoolRemaining(
+          spool.weight,
+          spool.used
+        )}</span><span class="spool-remaining">${spoolRemaining(
+    spool.weight,
+    spool.used
+  )}</span>g</td>
         <td><input class="form-control" type="number" step="any" placeholder="${
           spool.tempOffset || 0
         }" disabled></td>

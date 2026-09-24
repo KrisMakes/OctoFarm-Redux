@@ -62,6 +62,7 @@ export const cloneSpool = async (e) => {
                 <td><input id="clonedPrice-${spoolClonedId}-${nextSpoolIndex}" class="form-control" type="text" step="0.01" placeholder="${spool[1]}" value="${spool[1]}"></td>
                 <td><input id="clonedWeight-${spoolClonedId}-${nextSpoolIndex}" class="form-control" type="text" placeholder="${spool[2]}" value="1000"></td>
                 <td><input id="clonedUsed-${spoolClonedId}-${nextSpoolIndex}" class="form-control" type="text" placeholder="0" value="0"></td>
+                <td></td>
                 <td><input id="clonedToolOffset-${spoolClonedId}-${nextSpoolIndex}" class="form-control" type="text" placeholder="${spool[4]}" value="${spool[4]}"></td>
                 <td><input id="clonedBedOffset-${spoolClonedId}-${nextSpoolIndex}" class="form-control" type="text" placeholder="${spool[5]}" value="${spool[5]}"></td>
                  <td>

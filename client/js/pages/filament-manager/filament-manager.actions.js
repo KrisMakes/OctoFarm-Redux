@@ -1,6 +1,7 @@
 import OctoFarmClient from '../../services/octofarm-client.service';
 import UI from '../../utils/ui';
 import { reRenderPageInformation, printErrors, getSelectValues } from './filament-manager-ui.utils';
+import { spoolRemaining } from './filament-manager.templates';
 
 export async function selectFilament(spools, id) {
   let printerIds = [];
@@ -262,6 +263,10 @@ export const saveSpool = async (e) => {
   };
   let post = await OctoFarmClient.post('filament/edit/filament', data);
   if (post && post.errors.length === 0) {
+    // The remaining column is derived, so nothing else refreshes it.
+    const remaining = spoolRemaining(spool[2], spool[3]);
+    row.querySelector('.spool-remaining').textContent = remaining;
+    row.querySelector('.grams').textContent = remaining;
     numberInput.placeholder = post.spoolNumber ?? '';
     row.querySelector('.spoolNumber').textContent = post.spoolNumber ?? '';
     document.getElementById(`spoolsPrinterAssignment-${id}`).disabled = true;
