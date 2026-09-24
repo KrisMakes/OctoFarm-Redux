@@ -229,25 +229,19 @@ sense - it is maintenance on something other people designed, wrote, and release
 - **The [OctoFarm](https://github.com/OctoFarm/OctoFarm) contributors** - everyone who filed issues, wrote code,
   tested releases, translated the interface, and helped people in the community. Their work is in here too.
 - **[Gina Häußge](https://octoprint.org/) and the OctoPrint project** - OctoFarm manages OctoPrint instances, so
-  without OctoPrint neither upstream nor this fork would exist. OctoPrint is worth
-  [supporting directly](https://octoprint.org/support-octoprint/).
+  without OctoPrint neither upstream nor this fork would exist.
 
 If you found your way here looking for OctoFarm itself, go to
 **[the original project](https://github.com/OctoFarm/OctoFarm)** first and read
-[its documentation](https://docs.octofarm.net/). This fork is a personal one, carries no support, and makes no claim
-to be its continuation.
+[its documentation](https://docs.octofarm.net/). This fork is a personal one, maintained for a single farm, and
+makes no claim to be its continuation.
 
 Like upstream, this fork stays under the same [AGPL-3.0 licence](LICENSE.txt) it was given under.
 
 ## Support
 
-**Support the original work first.** OctoFarm and OctoPrint are what you are actually running:
-
-- [Buy OctoFarm a coffee](https://buymeacoffee.com/OctoFarm) - James Mackay's own link, also in the app under System > About.
-- [Support OctoPrint](https://octoprint.org/support-octoprint/) - Gina Häußge works on OctoPrint full time and is funded by its users.
-
-If this *fork* specifically has been useful to you - the fixes and additions listed above - you can leave a tip at
-[ko-fi.com/danisim](https://ko-fi.com/danisim). Entirely optional, nothing is locked behind it, and it is no
-substitute for supporting the projects this is built on.
+OctoFarm-Redux is free. If the work in this fork - the fixes and additions listed above - has been useful to you,
+you can leave a tip at [ko-fi.com/danisim](https://ko-fi.com/danisim). Entirely optional; nothing is locked behind
+it.
 
 [DashboardScreenshot]: screenshots/dashboard.png
