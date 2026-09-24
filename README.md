@@ -26,6 +26,7 @@
 - [Deployment](#deployment)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
+- [Support](#support)
 
 ## About
 
@@ -237,5 +238,16 @@ If you found your way here looking for OctoFarm itself, go to
 to be its continuation.
 
 Like upstream, this fork stays under the same [AGPL-3.0 licence](LICENSE.txt) it was given under.
+
+## Support
+
+**Support the original work first.** OctoFarm and OctoPrint are what you are actually running:
+
+- [Buy OctoFarm a coffee](https://buymeacoffee.com/OctoFarm) - James Mackay's own link, also in the app under System > About.
+- [Support OctoPrint](https://octoprint.org/support-octoprint/) - Gina Häußge works on OctoPrint full time and is funded by its users.
+
+If this *fork* specifically has been useful to you - the fixes and additions listed above - you can leave a tip at
+[ko-fi.com/danisim](https://ko-fi.com/danisim). Entirely optional, nothing is locked behind it, and it is no
+substitute for supporting the projects this is built on.
 
 [DashboardScreenshot]: screenshots/dashboard.png
