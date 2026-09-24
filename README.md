@@ -8,11 +8,14 @@
   <img src="server/assets/images/navbar-logo.png" alt="OctoFarm-Redux logo" width="180px">
 
   <p align="center">
-    OctoFarm-Redux is a personal, private fork of <a href="https://github.com/OctoFarm/OctoFarm">OctoFarm</a> - a single pane of glass that combines multiple OctoPrint instances into one interface, monitoring and managing a 3D printer farm over the OctoPrint API and websocket systems.
+    OctoFarm-Redux is a personal, private fork of <a href="https://github.com/OctoFarm/OctoFarm">OctoFarm</a>, created by <a href="https://github.com/NotExpectedYet">James Mackay (NotExpectedYet)</a> and its contributors - a single pane of glass that combines multiple OctoPrint instances into one interface, monitoring and managing a 3D printer farm over the OctoPrint API and websocket systems.
   </p>
 
   <p align="center">
-    Upstream OctoFarm has gone unmaintained, so this fork exists to keep bugfixes and small improvements landing on top of it. It is not a public project or a community fork - just an actively maintained, improved version kept up to date for personal use.
+    <strong>Everything here rests on their work.</strong> The application, its architecture, and very nearly all of the
+    code are theirs; they built it, and they gave it away for free under the AGPL. This fork only maintains what they
+    made. Upstream OctoFarm is no longer being updated, so this repository keeps bugfixes and small improvements
+    landing on top of it. It is not a public project, a successor, or a community fork - just their work, kept running.
   </p>
 </div>
 
@@ -27,6 +30,10 @@
 ## About
 
 ![OctoFarm Dashboard][DashboardScreenshot]
+
+Everything described in this section is OctoFarm's own, built upstream by James Mackay and the project's
+contributors. It is what you get from OctoFarm itself; the fork's own changes are in the
+[next section](#whats-different-from-upstream).
 
 OctoFarm was built to solve a problem anyone running multiple 3D printers on OctoPrint runs into: how do you manage
 several printers from one place? Add your OctoPrint instances and it scans and keeps you up to date on the status of
@@ -44,9 +51,10 @@ your whole farm.
 
 ## What's different from upstream
 
-This fork carries fixes and small improvements that either never landed upstream or don't apply to a personal,
-single-maintainer setup. Upstream OctoFarm was left on years-old, end-of-life dependencies with a number of
-long-standing bugs; this fork is a full modernization plus everything below.
+Everything in this section is a change *on top of* OctoFarm, not a replacement for it - the list is long only
+because upstream development stopped, not because there was anything wrong with what was built. Some of these are
+fixes that never landed upstream, some don't apply to a personal single-maintainer setup, and most of the rest is
+bringing dependencies that have since gone end-of-life back up to date.
 
 ### New features
 
@@ -209,8 +217,25 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## Acknowledgements
 
-- [Gina Häußge](https://octoprint.org/) - without OctoPrint none of this, upstream or fork, would be possible.
-- [OctoFarm](https://github.com/OctoFarm/OctoFarm) and its original maintainer - this fork exists on top of their
-  work.
+**This project would not exist without the people below. None of the work in this fork is original in any meaningful
+sense - it is maintenance on something other people designed, wrote, and released for free.**
+
+- **[James Mackay (NotExpectedYet)](https://github.com/NotExpectedYet)** - the creator and original maintainer of
+  [OctoFarm](https://github.com/OctoFarm/OctoFarm). He wrote the application this fork is built from: the printer
+  management, the monitoring views, the file and filament managers, the history system, the OctoPrint API and
+  websocket layer - the whole of it. Years of his work were given away under a free licence, which is the only
+  reason a fork like this is possible at all. Every feature listed above sits on that foundation.
+- **The [OctoFarm](https://github.com/OctoFarm/OctoFarm) contributors** - everyone who filed issues, wrote code,
+  tested releases, translated the interface, and helped people in the community. Their work is in here too.
+- **[Gina Häußge](https://octoprint.org/) and the OctoPrint project** - OctoFarm manages OctoPrint instances, so
+  without OctoPrint neither upstream nor this fork would exist. OctoPrint is worth
+  [supporting directly](https://octoprint.org/support-octoprint/).
+
+If you found your way here looking for OctoFarm itself, go to
+**[the original project](https://github.com/OctoFarm/OctoFarm)** first and read
+[its documentation](https://docs.octofarm.net/). This fork is a personal one, carries no support, and makes no claim
+to be its continuation.
+
+Like upstream, this fork stays under the same [AGPL-3.0 licence](LICENSE.txt) it was given under.
 
 [DashboardScreenshot]: screenshots/dashboard.png
