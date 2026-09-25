@@ -80,9 +80,17 @@ one does not sit powered up overnight because somebody forgot, and it appears th
 than on the next 30-second poll. Needs the "PSU Control - Maintenance Mode" OctoPrint plugin, so it stays off
 until switched on under System > Server > Features.
 
-**Spool numbers** - every spool carries a short number you can write on a sticker and put on the physical spool.
-Blank takes the next free number, duplicates are refused, and the number shows in the spool manager, the overview
-and every spool picker, with search and sort to match.
+**Spool manager** - reworked so the numbers on screen can be trusted:
+- Every spool carries a short number you can write on a sticker and put on the physical roll. Leave it blank and
+  it takes the next free one, duplicates and half-numbers are refused, and a deleted spool's number is never
+  handed out again in case its sticker is still about.
+- That number shows in the spool manager, the overview table and every spool picker on the printer views
+  ("#1 3DJake ecoPLA Black (901g) - PLA"), and both the search box and the sort dropdown work on it.
+- "Used (g)" now shows what has been used. It used to show what was left, and opening a spool for editing copied
+  that figure into the used field, so a spool could be marked empty just by opening and saving it.
+- Remaining has a read-only column of its own beside it, and sorting by Remaining now really sorts by remaining.
+- Filament accounting corrected throughout: cost on cancelled prints, totals on a non-zero tool, spool
+  assignments surviving a history edit, and the weight bookkeeping guards (see the fixes below).
 
 **Camera streaming** - camera feeds stream through OctoFarm itself (a same-origin proxy) instead of the browser
 connecting to every printer directly, which is also what stopped Safari loading them at all.
