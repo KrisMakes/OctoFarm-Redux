@@ -73,9 +73,12 @@ bringing dependencies that have since gone end-of-life back up to date.
 actual state, and it tells you when the light cannot come on because the printer's PSU is off, instead of
 claiming success.
 
-**Maintenance Mode** - mark a printer as under maintenance from its command panel, with a farm-wide banner
-showing which printers are down and a settings toggle to control it. The banner updates as soon as you toggle it
-rather than on the next 30-second poll.
+**Maintenance Mode** - suspends PSU Control's automatic power-off from the printer's command panel, so a printer
+stays powered while you calibrate it, level the bed, or work on it, instead of the PSU cutting out on you
+mid-task because the printer counts as idle. A farm-wide banner names every printer currently left that way, so
+one does not sit powered up overnight because somebody forgot, and it appears the moment you toggle it rather
+than on the next 30-second poll. Needs the "PSU Control - Maintenance Mode" OctoPrint plugin, so it stays off
+until switched on under System > Server > Features.
 
 **Spool numbers** - every spool carries a short number you can write on a sticker and put on the physical spool.
 Blank takes the next free number, duplicates are refused, and the number shows in the spool manager, the overview
