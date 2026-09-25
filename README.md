@@ -67,12 +67,26 @@ bringing dependencies that have since gone end-of-life back up to date.
 - Thumbnail hover preview, a density slider (normal/compact/ultra) to fit more files on screen, search that
   matches multiple words in any order, and a "Hide Folders" toggle.
 - Copy a file directly to another printer - select one or more targets, with per-printer success/failure reporting.
+- The list resyncs itself after a file or folder is added, removed, or bulk-updated.
+
+**Torch** - turn a printer's light on and off from the command panel. A real toggle that reflects the light's
+actual state, and it tells you when the light cannot come on because the printer's PSU is off, instead of
+claiming success.
+
+**Maintenance Mode** - mark a printer as under maintenance from its command panel, with a farm-wide banner
+showing which printers are down and a settings toggle to control it. The banner updates as soon as you toggle it
+rather than on the next 30-second poll.
+
+**Spool numbers** - every spool carries a short number you can write on a sticker and put on the physical spool.
+Blank takes the next free number, duplicates are refused, and the number shows in the spool manager, the overview
+and every spool picker, with search and sort to match.
+
+**Camera streaming** - camera feeds stream through OctoFarm itself (a same-origin proxy) instead of the browser
+connecting to every printer directly, which is also what stopped Safari loading them at all.
 
 **Everything else:**
 - Corrected, actionable error messages when OctoPrint's own reported state contradicts itself (e.g. "already
   printing" while the printer shows disconnected), instead of a generic conflict message.
-- Camera feeds now stream through OctoFarm itself (same-origin proxy) instead of the browser hitting each printer
-  directly.
 - Health check failures now name the specific check that failed (printer settings, required API, websocket,
   connection defaults, webcam settings, or history collection) instead of one generic "Failed health check!".
 - Replaced the toilet-roll filament icon with a real spool.
@@ -80,7 +94,11 @@ bringing dependencies that have since gone end-of-life back up to date.
 ### Improvements
 
 - Cameras recover automatically after a stalled stream or after switching browser tabs away and back, instead of
-  needing a manual page refresh.
+  needing a manual page refresh - and a camera showing an unchanging picture (a dark enclosure overnight) is no
+  longer mistaken for a dead one and reconnected all night.
+- The whole interface stays responsive after leaving a tab in the background. Buttons could previously go dead
+  with no error at all, because abandoned live connections used up every socket the browser allows per site and
+  new requests simply queued forever behind them.
 - Print-finish time now displays in full (was silently truncated) and is now actually correct (was silently off by
   hours due to a container timezone bug).
 - Panel/camera view cards stay a consistent height regardless of printer state.
@@ -93,6 +111,18 @@ bringing dependencies that have since gone end-of-life back up to date.
 
 - Alerts never actually worked - a data bug meant a configured alert never matched any printer, so nothing ever
   fired regardless of configuration.
+- Opening a spool in the Spool Manager and saving it, without changing anything, silently marked the spool as
+  fully used: the "Used" column was showing what was left, and the editor wrote that back into used.
+- Every error message in the app rendered grey instead of red, so failures looked like ordinary notices.
+- A lingering websocket handshake from a printer being reconnected could crash the entire server, taking
+  monitoring for the whole farm down with it.
+- A camera that failed to reconnect when returning to a tab never tried again, and a partially delivered frame
+  left the picture half grey with nothing to recover it.
+- The camera proxy dropped healthy cameras 30 seconds after a tab was backgrounded, mistaking the browser having
+  stopped reading for the printer having gone quiet.
+- Quick Connect's state could stop syncing entirely if one button was missing from the page.
+- The Torch and Maintenance Mode toggles could double-fire and flip straight back, or deadlock a button
+  permanently.
 - Spool cost was being silently under-reported on cancelled/failed prints (double-applied completion-ratio bug).
 - Thumbnails could silently fail to save for any printer with API access control enabled.
 - Printer setup could hang forever on "Setting Up" and never appear in the dashboard.
