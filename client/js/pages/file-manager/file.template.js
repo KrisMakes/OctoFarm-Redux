@@ -48,6 +48,17 @@ export const getFolderTemplate = (folder, id) => {
     `;
 };
 
+// A file the assigned spool may not have enough left for. Sits next to the
+// usage figure it contradicts, so the warning arrives while you are still
+// choosing what to print rather than at the moment you click Start.
+export const getFilamentWarningTemplate = (file) => {
+  if (!file?.filamentWarning) {
+    return '';
+  }
+  const colour = file.filamentWarning.level === 'short' ? 'text-danger' : 'text-warning';
+  return `<br><span class="${colour}" title="${file.filamentWarning.message}"><i class="fas fa-exclamation-triangle"></i> ${file.filamentWarning.message}</span>`;
+};
+
 export const getFileTemplate = (file, printerURL, id) => {
   let toolInfo = '';
   if (file.toolUnits.length === 0) {
@@ -56,6 +67,7 @@ export const getFileTemplate = (file, printerURL, id) => {
     file.toolUnits.forEach((unit, index) => {
       toolInfo += `<i class="fas fa-weight"></i> ${unit} / <i class="fas fa-dollar-sign"></i> Cost: ${file.toolCosts[index]}<br>`;
     });
+    toolInfo += getFilamentWarningTemplate(file);
   }
 
   let thumbnail = '<span class="text-center"><i class="fas fa-file-code fa-2x"></i></span>';

@@ -33,6 +33,13 @@ const ServerSettingsSchema = new mongoose.Schema({
       default: false,
       required: true,
     },
+    // Warn before starting a print the assigned spool may not have enough
+    // filament left for. Default on -- it only ever warns, never blocks.
+    preflightCheck: {
+      type: Boolean,
+      default: true,
+      required: true,
+    },
     downDateSuccess: {
       type: Boolean,
       default: false,

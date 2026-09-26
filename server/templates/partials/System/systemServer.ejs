@@ -339,7 +339,7 @@
                             </div>
                             <form class="was-validated">
                                 <div class="custom-control custom-checkbox mb-3">
-                                    <input type="checkbox" class="custom-control-input"%>
+                                    <input type="checkbox" class="custom-control-input"
                                            id="downDateSuccess" required <%= (serverSettings?.filament?.downDateSuccess) ? "checked" : "" %>>
                                     <label class="custom-control-label"
                                            for="downDateSuccess">Downdate Successful</label>
@@ -369,6 +369,24 @@
                             </div>
                         </form>
                     </div>
+                        <div class="col-lg-2">
+                            <h5>Warn When A Spool May Run Out?</h5>
+                            <div class="alert alert-info small" role="alert">
+                                Before a print starts, compare what the file needs against what is left on the spool assigned to that tool, and warn if it will not fit. Only applies when a spool is actually assigned, and it never stops a print &mdash; both numbers are estimates, so you always get the choice.
+                            </div>
+                            <form class="was-validated">
+                                <div class="custom-control custom-checkbox mb-3">
+                                    <input type="checkbox" class="custom-control-input"
+                                           id="preflightCheck" required <%= (serverSettings?.filament?.preflightCheck !== false) ? "checked" : "" %>>
+                                    <label class="custom-control-label"
+                                           for="preflightCheck">Warn before printing</label>
+                                    <div class="valid-feedback">Warn when short
+                                    </div>
+                                    <div class="invalid-feedback">Never warn
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                         <div class="col-lg-2">
                             <h5>Allow Single Spools on Multiple Printers?</h5>
                             <div class="alert alert-info small" role="alert">

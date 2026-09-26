@@ -28,6 +28,10 @@ import {
 } from '../../../services/octoprint/octoprint-printer-commands.actions';
 import { setupOctoPrintForVirtualPrinter } from '../../../services/octoprint/octoprint-settings.actions';
 import CustomGenerator from '../../../services/custom-gcode-scripts.service';
+import {
+  confirmEnoughFilamentForPrinters,
+  lengthsForFile,
+} from '../../../services/filament-preflight.service';
 import { setupPluginSearch } from './plugin-search.function';
 import {
   returnPluginListTemplate,
@@ -424,6 +428,22 @@ export async function bulkPrintFileSetup() {
   });
 
   async function runUpload() {
+    // One dialog for the whole batch rather than an interruption per printer.
+    // A file that still has to be uploaded has no analysis on this printer yet,
+    // so there is nothing to check for it and it passes without comment.
+    const plannedJobs = printersToControl.map((printer, index) => {
+      const chosen = selectedFiles.length === 1 ? selectedFiles[0] : selectedFiles[index];
+      const fullPath =
+        selectedFiles.length === 1 ? `${selectedFolder}${chosen?.name}` : chosen?.name;
+      return {
+        printer,
+        lengths: chosen ? lengthsForFile(printer, fullPath) : null,
+      };
+    });
+    if (!(await confirmEnoughFilamentForPrinters(plannedJobs))) {
+      return;
+    }
+
     // Setup the tracking modal...
     showBulkActionsModal();
     updateBulkActionsProgress(0, printersToControl.length);

@@ -5,6 +5,12 @@ const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const { getMaintenanceCosts, getElectricityCosts } = require('../utils/print-cost.util');
 
 const { getDefaultFileCleanStatistics } = require('../constants/cleaner.constants');
+const {
+  gramsOfFilament,
+  spoolRemainingGrams,
+  FILAMENT_TIGHT_MARGIN,
+} = require('../utils/filament-weight.util');
+const { SettingsClean } = require('./settings-cleaner.service');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_FILE_CLEANER);
 const cleanFileList = [];
@@ -115,6 +121,7 @@ class FileCleanerService {
           thumbnail: file.thumbnail,
           toolUnits: '',
           toolCosts: '',
+          filamentWarning: null,
           success: file.success,
           failed: file.failed,
           last: file.last,
@@ -129,6 +136,10 @@ class FileCleanerService {
           sortedFile.filamentLength
         );
         sortedFile.toolCosts = FileCleanerService.getCost(selectedFilament, sortedFile.toolUnits);
+        sortedFile.filamentWarning = FileCleanerService.getFilamentWarning(
+          selectedFilament,
+          sortedFile.filamentLength
+        );
         if (!!file?.date && typeof file.date === 'number') {
           sortedFileList.push(sortedFile);
         }
@@ -164,6 +175,7 @@ class FileCleanerService {
       thumbnail: file.thumbnail,
       toolUnits: '',
       toolCosts: '',
+      filamentWarning: null,
       success: file.success,
       failed: file.failed,
       last: file.last,
@@ -175,6 +187,10 @@ class FileCleanerService {
     };
     sortedFile.toolUnits = FileCleanerService.getUnits(selectedFilament, sortedFile.filamentLength);
     sortedFile.toolCosts = FileCleanerService.getCost(selectedFilament, sortedFile.toolUnits);
+    sortedFile.filamentWarning = FileCleanerService.getFilamentWarning(
+      selectedFilament,
+      sortedFile.filamentLength
+    );
 
     return sortedFile;
   }
@@ -193,16 +209,14 @@ class FileCleanerService {
         const length = fileLength[l] / 1000;
         if (typeof filamentSelection !== 'undefined' && Array.isArray(filamentSelection)) {
           if (filamentSelection[l] === null) {
-            const radius = 1.75 / 2;
-            const volume = length * Math.PI * radius * radius;
-            const usage = volume * 1.24;
+            // No spool on this tool, so the figure is an estimate against
+            // generic 1.75mm PLA rather than against anything real.
+            const usage = gramsOfFilament(length, null);
             lengthArray.push(length);
             weightArray.push(usage);
             strings.push(`<b>Tool ${l}:</b> ${length.toFixed(2)}m / ${usage.toFixed(2)}g`);
           } else if (typeof filamentSelection[l] !== 'undefined') {
-            const radius = parseFloat(filamentSelection[l].spools.profile.diameter) / 2;
-            const volume = length * Math.PI * radius * radius;
-            const usage = volume * parseFloat(filamentSelection[l].spools.profile.density);
+            const usage = gramsOfFilament(length, filamentSelection[l]);
             lengthArray.push(length);
             weightArray.push(usage);
             strings.push(`<b>Tool ${l}:</b> ${length.toFixed(2)}m / ${usage.toFixed(2)}g`);
@@ -225,6 +239,70 @@ class FileCleanerService {
       return strings;
     }
     return [];
+  }
+
+  /**
+   * Whether the spools assigned to this printer look too light to finish this
+   * file. Null when there is nothing to say, which is the usual answer: no
+   * spool on the tool, no gcode analysis yet, an unweighed spool, or simply
+   * enough filament left. The pre-flight dialog shown on print start works
+   * from the same numbers, so the file list warns about exactly what the
+   * dialog will.
+   *
+   * @param filamentSelection the printer's assigned spools, per tool
+   * @param fileLength per-tool filament lengths in millimetres
+   * @returns {{level: string, message: string}|null}
+   */
+  static getFilamentWarning(filamentSelection, fileLength) {
+    if (SettingsClean.returnSystemSettings()?.filament?.preflightCheck === false) {
+      return null;
+    }
+    if (!Array.isArray(fileLength) || !Array.isArray(filamentSelection)) {
+      return null;
+    }
+
+    const messages = [];
+    let short = false;
+
+    for (let l = 0; l < fileLength.length; l++) {
+      const spool = filamentSelection[l];
+      if (!spool) {
+        continue;
+      }
+      const needed = gramsOfFilament(fileLength[l] / 1000, spool);
+      const remaining = spoolRemainingGrams(spool);
+      if (!Number.isFinite(needed) || needed <= 0 || remaining === null) {
+        continue;
+      }
+      if (remaining >= needed * (1 + FILAMENT_TIGHT_MARGIN)) {
+        continue;
+      }
+
+      const label =
+        [spool.spools.spoolNumber ? `#${spool.spools.spoolNumber}` : '', spool.spools.name]
+          .filter(Boolean)
+          .join(' ') || 'the assigned spool';
+      const tool = l > 0 ? ` (tool ${l})` : '';
+      if (remaining < needed) {
+        short = true;
+        messages.push(
+          `${label}${tool} has ${remaining.toFixed(1)}g left, this needs ${needed.toFixed(
+            1
+          )}g \u2014 about ${(needed - remaining).toFixed(1)}g short.`
+        );
+      } else {
+        messages.push(
+          `${label}${tool} has ${remaining.toFixed(1)}g left, this needs ${needed.toFixed(
+            1
+          )}g. That is cutting it fine.`
+        );
+      }
+    }
+
+    if (messages.length === 0) {
+      return null;
+    }
+    return { level: short ? 'short' : 'tight', message: messages.join(' ') };
   }
 
   /**

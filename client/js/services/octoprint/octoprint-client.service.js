@@ -4,6 +4,11 @@ import { ClientErrors } from '../../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../../exceptions/application-error.handler';
 import { printActionStatusResponse } from './octoprint.helpers-commands.actions';
 import { printStartSequence } from './octoprint-helpers.service';
+import {
+  confirmEnoughFilament,
+  lengthsForCurrentJob,
+  lengthsForFile,
+} from '../filament-preflight.service';
 
 export default class OctoPrintClient {
   static validatePrinter(printer) {
@@ -240,6 +245,9 @@ export default class OctoPrintClient {
         command: 'select',
         print: true,
       };
+      if (!(await confirmEnoughFilament(printer, lengthsForFile(printer, fullPath)))) {
+        return { status: null, cancelled: true };
+      }
       await printStartSequence(printer);
 
       const post = await OctoPrintClient.post(printer, encodeURIComponent(url), opt);
@@ -314,6 +322,18 @@ export default class OctoPrintClient {
   }
 
   static async jobAction(printer, opts, element) {
+    if (opts.command === 'start') {
+      // The Print button reprints whatever is loaded, so the estimate comes
+      // from the loaded file rather than from one being picked.
+      if (!(await confirmEnoughFilament(printer, lengthsForCurrentJob(printer)))) {
+        if (element) {
+          element.target.disabled = false;
+        }
+        // Callers destructure this, so it has to be an object either way.
+        return { status: null, cancelled: true };
+      }
+    }
+
     let checkSettings = await OctoFarmClient.get('settings/server/get');
 
     let filamentCheck = false;

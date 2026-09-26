@@ -70,6 +70,7 @@ const settingsElements = {
   },
   filament: {
     filamentCheck: document.getElementById('checkFilament'),
+    preflightCheck: document.getElementById('preflightCheck'),
     hideEmpty: document.getElementById('hideEmpty'),
     downDateFailed: document.getElementById('downDateFailed'),
     downDateSuccess: document.getElementById('downDateSuccess'),

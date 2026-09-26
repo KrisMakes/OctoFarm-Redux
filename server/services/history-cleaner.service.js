@@ -2,12 +2,8 @@
 
 const { arrayCounts, checkNested, checkNestedIndex } = require('../utils/array.util');
 const { getElectricityCosts, getMaintenanceCosts } = require('../utils/print-cost.util');
-const {
-  getDefaultHistoryStatistics,
-  ALL_MONTHS,
-  DEFAULT_SPOOL_RATIO,
-  DEFAULT_SPOOL_DENSITY,
-} = require('../constants/cleaner.constants');
+const { getDefaultHistoryStatistics, ALL_MONTHS } = require('../constants/cleaner.constants');
+const { gramsOfFilament } = require('../utils/filament-weight.util');
 const historyService = require('./history.service');
 const Logger = require('../handlers/logger.js');
 const { stateToHtml } = require('../utils/html.util');
@@ -53,16 +49,7 @@ class HistoryCleanerService {
     if (!length) {
       return length === 0 ? 0 : length;
     }
-
-    let density = DEFAULT_SPOOL_DENSITY;
-    let radius = DEFAULT_SPOOL_RATIO;
-    if (!!filament?.spools?.profile) {
-      radius = parseFloat(filament.spools.profile.diameter) / 2;
-      density = parseFloat(filament.spools.profile.density);
-    }
-
-    const volume = length * Math.PI * radius * radius; // Repeated 4x across server
-    return (completionRatio * volume * density).toFixed(2);
+    return gramsOfFilament(length, filament, completionRatio).toFixed(2);
   }
 
   static getSpoolLabel(id) {

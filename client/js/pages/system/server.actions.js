@@ -279,6 +279,7 @@ async function updateServerSettings() {
     },
     filament: {
       filamentCheck: settingsElements.filament.filamentCheck.checked,
+      preflightCheck: settingsElements.filament.preflightCheck.checked,
       hideEmpty: settingsElements.filament.hideEmpty.checked,
       downDateFailed: settingsElements.filament.downDateFailed.checked,
       downDateSuccess: settingsElements.filament.downDateSuccess.checked,

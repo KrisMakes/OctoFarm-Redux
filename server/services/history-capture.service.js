@@ -8,7 +8,7 @@ const Spool = require('../models/Filament.js');
 const MjpegDecoder = require('mjpeg-decoder');
 const { downloadImage, downloadFromOctoPrint } = require('../utils/download.util');
 const { getHistoryCache } = require('../cache/history.cache');
-const { DEFAULT_SPOOL_DENSITY, DEFAULT_SPOOL_RATIO } = require('../constants/cleaner.constants');
+const { gramsOfFilament } = require('../utils/filament-weight.util');
 const { OctoprintApiClientService } = require('./octoprint/octoprint-api-client.service');
 const { clonePayloadDataForHistory } = require('../utils/mapping.utils');
 const { sleep } = require('../utils/promise.utils');
@@ -483,19 +483,7 @@ class HistoryCaptureService {
 
   // repeated... could have imported I suppose...
   generateWeightOfJobForASpool(length, filament, completionRatio) {
-    if (!length) {
-      return length === 0 ? 0 : length;
-    }
-
-    let density = DEFAULT_SPOOL_DENSITY;
-    let radius = DEFAULT_SPOOL_RATIO;
-    if (!!filament?.spools?.profile) {
-      radius = parseFloat(filament.spools.profile.diameter) / 2;
-      density = parseFloat(filament.spools.profile.density);
-    }
-
-    const volume = length * Math.PI * radius * radius; // Repeated 4x across server
-    return completionRatio * volume * density;
+    return gramsOfFilament(length, filament, completionRatio);
   }
 
   async downDateWeight() {

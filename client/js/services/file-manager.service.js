@@ -14,6 +14,7 @@ import {
 import { allowedFileTypes } from '../constants/file-types.constants';
 import { getFileRowID } from '../pages/file-manager/upload-queue.templates';
 import {
+  getFilamentWarningTemplate,
   getFileTemplate,
   getFolderTemplate,
   noFilesToShow,
@@ -674,6 +675,7 @@ export default class FileManagerService {
                 file.toolUnits.forEach((unit, index) => {
                   toolInfo += `<i class="fas fa-weight"></i> ${unit} / <i class="fas fa-dollar-sign"></i> Cost: ${file.toolCosts[index]}<br>`;
                 });
+                toolInfo += getFilamentWarningTemplate(file);
               }
 
               let thumbnail = '<i class="fas fa-file-code fa-2x text-center"></i>';
