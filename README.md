@@ -89,6 +89,11 @@ until switched on under System > Server > Features.
 - "Used (g)" now shows what has been used. It used to show what was left, and opening a spool for editing copied
   that figure into the used field, so a spool could be marked empty just by opening and saving it.
 - Remaining has a read-only column of its own beside it, and sorting by Remaining now really sorts by remaining.
+- A pre-flight check before printing: what the file needs is compared against what is left on the spool assigned
+  to that tool, and you are told before the print starts rather than when it runs dry. The file list flags a file
+  the spool cannot finish, and Multi-Print asks once for the whole batch. It only warns and always offers "print
+  anyway" - both numbers are estimates - it says nothing at all unless a spool is actually assigned and the file
+  has been analysed, and it can be switched off under System > Server > Filament.
 - Filament accounting corrected throughout: cost on cancelled prints, totals on a non-zero tool, spool
   assignments surviving a history edit, and the weight bookkeeping guards (see the fixes below).
 
@@ -124,6 +129,8 @@ connecting to every printer directly, which is also what stopped Safari loading 
   fired regardless of configuration.
 - Opening a spool in the Spool Manager and saving it, without changing anything, silently marked the spool as
   fully used: the "Used" column was showing what was left, and the editor wrote that back into used.
+- Saving any filament setting, while "allow single spools on multiple printers" happened to be off, detached
+  every spool from every printer - even though spools can still be assigned one at a time when it is off.
 - Every error message in the app rendered grey instead of red, so failures looked like ordinary notices.
 - A lingering websocket handshake from a printer being reconnected could crash the entire server, taking
   monitoring for the whole farm down with it.
