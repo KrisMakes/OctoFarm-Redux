@@ -364,8 +364,15 @@ router.post('/server/update', ensureAuthenticated, ensureAdministrator, async (r
     // "the filament settings DID change". Name them for what they hold.
     const serverUnchanged = isEqual(actualOnline.server, sentOnline.server);
     const timeoutUnchanged = isEqual(actualOnline.timeout, sentOnline.timeout);
-    const filamentUnchanged = isEqual(actualOnline.filament, sentOnline.filament);
     const hideEmptyChanged = actualOnline.filament.hideEmpty !== sentOnline.filament.hideEmpty;
+    // Detaching every spool is only ever the right answer at the moment this
+    // toggle is switched off. The condition used to be "any filament setting
+    // changed AND multi-select is currently off", so saving an unrelated
+    // filament setting while it was already off wiped every assignment on the
+    // farm -- spools can still be assigned one printer at a time when it is off.
+    const multiSelectTurnedOff =
+      actualOnline.filament.allowMultiSelect !== sentOnline.filament.allowMultiSelect &&
+      sentOnline.filament.allowMultiSelect === false;
     const cameraIntervalUnchanged =
       parseInt(actualOnline.cameras.updateInterval) === parseInt(sentOnline.cameras.updateInterval);
     const cameraProxyUnchanged =
@@ -387,7 +394,7 @@ router.post('/server/update', ensureAuthenticated, ensureAdministrator, async (r
       TaskManager.forceRunTask('FILAMENT_CLEAN_TASK');
     }
 
-    if (!filamentUnchanged && checked[0].filament.allowMultiSelect === false) {
+    if (multiSelectTurnedOff) {
       const spoolList = FilamentClean.getSpools();
       spoolList.forEach((spool) => {
         getPrinterStoreCache().deattachSpoolFromAllPrinters(`${spool._id}`);
