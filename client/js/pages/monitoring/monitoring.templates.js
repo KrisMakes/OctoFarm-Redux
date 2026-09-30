@@ -1,11 +1,5 @@
 import { sortAlphaNum } from '../system/utils/array.utils';
-import {
-  checkPrinterRows,
-  checkCameraState,
-  imageOrCamera,
-  checkGroupColumns,
-  isHidden,
-} from '../../utils/octofarm.utils';
+import { checkCameraState, imageOrCamera, isHidden } from '../../utils/octofarm.utils';
 import { getPrinterNameBadge } from '../../templates/printer.templates';
 import { returnMiniFilamentSelectorTemplate } from '../../services/printer-filament-selector.service';
 
@@ -219,7 +213,7 @@ export function drawPanelView(printer, clientSettings) {
   }
 
   return `
-        <div class="col-sm-12 col-md-4 col-lg-4 col-xl-3 ${hidden}" id="panel-${printer._id}">
+        <div class="${hidden}" id="panel-${printer._id}">
         <div class="card mt-1 mb-1 ml-1 mr-1 text-center">
           <div class="card-header dashHeader">
           <div class="row">
@@ -405,8 +399,6 @@ export function drawCameraView(printer, clientSettings) {
     hidden = 'hidden';
   }
 
-  const printerRows = checkPrinterRows(clientSettings);
-
   let cameraElement = imageOrCamera(printer);
 
   let toolList = '';
@@ -431,7 +423,7 @@ export function drawCameraView(printer, clientSettings) {
   return `
   <div
       id="panel-${printer._id}"
-      class="col-md-4 col-lg-${printerRows} col-xl-${printerRows} ${hidden}"
+      class="${hidden}"
     >
       <div class="card text-center mb-0 mt-0 ml-0 mr-0">
         <div
@@ -851,7 +843,6 @@ export function drawCombinedView(printer, clientSettings) {
 export function drawGroupViewContainers(printers, printerArea, clientSettings) {
   const uniqueGroupList = [...new Set(printers.map((printer) => printer.group))];
   const sortedUniqueGroupList = uniqueGroupList.sort(sortAlphaNum);
-  const groupColumns = checkGroupColumns(clientSettings);
   sortedUniqueGroupList.forEach((group) => {
     if (group !== '') {
       const cleanGroup = encodeURIComponent(group);
@@ -860,7 +851,7 @@ export function drawGroupViewContainers(printers, printerArea, clientSettings) {
         printerArea.insertAdjacentHTML(
           'beforeend',
           `
-            <div id="dropPanel-${cleanGroup}" class="col-sm-12 col-lg-${groupColumns}">
+            <div id="dropPanel-${cleanGroup}">
               <div class="card">
                 <div class="card-header dashHeader">
                   ${group}
@@ -953,7 +944,7 @@ export function drawGroupViewContainers(printers, printerArea, clientSettings) {
                     </div>
 
                 </div>
-                <div class="row" id="Group-${cleanGroup}">
+                <div class="row of-card-grid-nested" id="Group-${cleanGroup}">
       
                 </div>
               </div> 
@@ -971,35 +962,11 @@ export function drawGroupViewPrinters(printers, clientSettings) {
       const cleanGroup = encodeURIComponent(printer.group);
       const groupContainer = document.getElementById(`Group-${cleanGroup}`);
       const skipElement = document.getElementById(`panel-${printer._id}`);
-      const groupColumns = checkGroupColumns(clientSettings);
-      let panelColumns;
-      switch (groupColumns) {
-        case 12:
-          panelColumns = 1;
-          break;
-        case 6:
-          panelColumns = 2;
-          break;
-        case 4:
-          panelColumns = 3;
-          break;
-        case 3:
-          panelColumns = 4;
-          break;
-        case 5:
-          panelColumns = 2;
-          break;
-        case 2:
-          panelColumns = 6;
-          break;
-        default:
-          panelColumns = 6;
-      }
       if (!skipElement) {
         groupContainer.insertAdjacentHTML(
           'beforeend',
           `
-        <div id="panel-${printer._id}" class="col-sm-12 col-md-6 col-lg-${panelColumns}">
+        <div id="panel-${printer._id}">
           <div  class="card text-white bg-dark">
             <div class="card-header dashHeader text-truncate">
                 ${getPrinterNameBadge(printer._id, printer.settingsAppearance.color, 'center')}

@@ -146,15 +146,15 @@ const ClientSettingsSchema = new mongoose.Schema({
       required: true,
       default: true,
     },
-    cameraColumns: {
-      type: Number,
+    // Replaces the old cameraColumns/groupColumns counts. A column count
+    // cannot adapt to the screen it is displayed on - six per row is
+    // comfortable on a 4K monitor and unreadable on a laptop - so the stored
+    // preference is a card size, and the column count is derived from it.
+    cardSize: {
+      type: String,
       required: true,
-      default: 3,
-    },
-    groupColumns: {
-      type: Number,
-      required: true,
-      default: 4,
+      enum: ['compact', 'default', 'large'],
+      default: 'default',
     },
   },
   fileManager: {

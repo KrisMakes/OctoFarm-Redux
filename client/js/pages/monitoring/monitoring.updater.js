@@ -26,6 +26,7 @@ import PrinterTerminalManagerService from './services/printer-terminal-manager.s
 import { findIndex, groupBy } from 'lodash';
 import { printActionStatusResponse } from '../../services/octoprint/octoprint.helpers-commands.actions';
 import {
+  checkCardSize,
   printerIsAvailableToView,
   printerIsOnline,
   printerIsPrintingOrComplete,
@@ -969,7 +970,18 @@ function removeDepartedPrinters(printers) {
   }
 }
 
+// The card grid and its size live on the container, so the cards themselves
+// carry no width classes at all and the column count follows the viewport.
+const applyCardGrid = (view, clientSettings) => {
+  if (!printerArea) return;
+  // List view rows are full width by design, and combined view manages its own
+  // layout, so only the card based views get the grid.
+  printerArea.classList.toggle('of-card-grid', ['panel', 'camera', 'group'].includes(view));
+  printerArea.dataset.cardSize = checkCardSize(clientSettings);
+};
+
 const drawPrinterPanels = async (view, printers, clientSettings) => {
+  applyCardGrid(view, clientSettings);
   for (const p of printers) {
     if (printerIsAvailableToView(p)) {
       let printerHTML;
@@ -1053,6 +1065,7 @@ export async function initMonitoring(printers, clientSettings, view) {
           }
         });
         if (!actionButtonsInitialised) {
+          applyCardGrid('group', clientSettings);
           drawGroupViewContainers(groupViewPrinterList, printerArea, clientSettings);
           drawGroupViewPrinters(groupViewPrinterList, clientSettings);
           //Setup Action Buttons

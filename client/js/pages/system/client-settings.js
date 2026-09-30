@@ -16,17 +16,7 @@ export default class ClientSettings {
     document.getElementById('filamentManagerCurrentOp').checked =
       clientSettings.filamentManager.currentOperations;
 
-    if (clientSettings.views.cameraColumns) {
-      document.getElementById('selectCameraGrid').value = clientSettings.views.cameraColumns;
-    } else {
-      document.getElementById('selectCameraGrid').value = 2;
-    }
-
-    if (clientSettings.views.groupColumns) {
-      document.getElementById('selectGroupGrid').value = clientSettings.views.groupColumns;
-    } else {
-      document.getElementById('selectGroupGrid').value = 2;
-    }
+    document.getElementById('selectCardSize').value = clientSettings.views.cardSize || 'default';
 
     if (clientSettings.dashboard) {
       document.getElementById('panelCurrentOpOn').checked =
@@ -76,8 +66,7 @@ export default class ClientSettings {
         currentOperations: document.getElementById('panelCurrentOpOn').checked,
         showOffline: document.getElementById('panelHideOffline').checked,
         showDisconnected: document.getElementById('panelHideClosed').checked,
-        cameraColumns: document.getElementById('selectCameraGrid').value,
-        groupColumns: document.getElementById('selectGroupGrid').value,
+        cardSize: document.getElementById('selectCardSize').value,
       },
       dashboard: {
         defaultLayout: [

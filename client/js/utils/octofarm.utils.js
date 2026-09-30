@@ -65,12 +65,9 @@ export function isHidden(state, clientSettings) {
  * @param clientSettings
  * @returns {number|{default: number, type: Number | NumberConstructor, required: boolean}|*}
  */
-export function checkPrinterRows(clientSettings) {
-  if (clientSettings) {
-    return clientSettings.views.cameraColumns;
-  } else {
-    return 2;
-  }
+export function checkCardSize(clientSettings) {
+  const size = clientSettings?.views?.cardSize;
+  return ['compact', 'default', 'large'].includes(size) ? size : 'default';
 }
 
 /**
@@ -78,13 +75,6 @@ export function checkPrinterRows(clientSettings) {
  * @param clientSettings
  * @returns {number|{default: number, type: Number | NumberConstructor, required: boolean}|*}
  */
-export function checkGroupColumns(clientSettings) {
-  if (clientSettings) {
-    return clientSettings.views.groupColumns;
-  } else {
-    return 2;
-  }
-}
 
 /**
  *

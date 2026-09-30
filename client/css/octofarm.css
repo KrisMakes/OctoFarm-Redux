@@ -949,3 +949,63 @@ label {
   }
 }
 
+
+/* Card sizing for the monitoring views.
+   Bootstrap's twelve column grid can only express one fixed fraction per
+   breakpoint, so it cannot say "no narrower than this, no wider than that" -
+   which is exactly what these views need. Few printers wanted a maximum, or
+   the cards ballooned; many printers wanted a minimum, or they shrank into
+   unreadable slivers. auto-fit with a bounded minmax gives both, and derives
+   the column count from the viewport rather than from a stored number that
+   cannot know the screen it is on. */
+:root {
+  --of-card-min: 18rem;
+  --of-card-max: 24rem;
+}
+
+[data-card-size='compact'] {
+  --of-card-min: 14rem;
+  --of-card-max: 18rem;
+}
+
+[data-card-size='large'] {
+  --of-card-min: 24rem;
+  --of-card-max: 32rem;
+}
+
+@supports (display: grid) {
+  .of-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(var(--of-card-min), var(--of-card-max)));
+    gap: 0.5rem;
+    justify-content: start;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  /* Bootstrap's col-* max-width would otherwise cap the grid items back to
+     their old widths, and its flex-basis fights the track sizing. */
+  .of-card-grid > * {
+    max-width: none;
+    width: auto;
+    flex: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* Printers nested inside a group card, which is itself already a grid item
+     and so much narrower than the viewport. */
+  .of-card-grid-nested {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.25rem;
+  }
+
+  .of-card-grid-nested > * {
+    max-width: none;
+    width: auto;
+    flex: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
