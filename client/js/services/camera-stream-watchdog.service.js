@@ -28,6 +28,25 @@ const REATTACH_DELAY_MS = 50;
 const BROKEN_RETRY_INITIAL_MS = 15000;
 const BROKEN_RETRY_MAX_MS = 300000;
 
+// A screensaver, a sleeping display or a closed lid freezes the page's timers.
+// While it is frozen the browser stops reading the camera stream and the
+// response is cut partway through a JPEG, so the <img> is left holding a
+// half-decoded frame -- the received rows drawn, the rest blank. (These cameras
+// are flipped in CSS, so the blank band appears at the TOP, which is what it
+// looks like on screen.)
+//
+// Nothing recovered that. A partial frame is not a broken image -- it has a
+// real naturalWidth -- so `isBroken` is false and the retry loop above ignores
+// it forever. And a screensaver does not reliably fire `visibilitychange`,
+// because the tab never becomes hidden; only the screen goes away.
+//
+// The freeze itself is the signal worth acting on. A one-second heartbeat that
+// comes back late means the page was not running, which means every stream it
+// was holding is suspect. Reconnect them all, once, on wake -- not on a timer,
+// which is what previously burned a socket per camera every 20s all night.
+const HEARTBEAT_INTERVAL_MS = 1000;
+const FREEZE_THRESHOLD_MS = 10000;
+
 const isSafari = () => /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
 
 const isPlaceholderSrc = (src) => !src || src.endsWith('noCamera.jpg');
@@ -95,16 +114,63 @@ const recoverBrokenCameras = ({ immediate }) => {
   });
 };
 
+// Unconditional: after a freeze the picture on screen cannot be trusted
+// whether or not the image looks broken, so the backoff does not apply and is
+// reset -- this is a fresh start, not another failed retry.
+const reconnectEveryCamera = () => {
+  const now = Date.now();
+  document.querySelectorAll('.camImg').forEach((img) => {
+    if (isPlaceholderSrc(img.src)) {
+      return;
+    }
+    const entry = trackedEntry(img, now);
+    entry.lastReconnectAt = now;
+    entry.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
+    forceReconnect(img);
+  });
+};
+
+// Reconnecting into a tab that is still hidden spends the sockets and gets
+// nothing drawn, so a wake that happens out of sight waits for the tab to come
+// back rather than firing blind.
+let reconnectWhenVisible = false;
+
 const handleVisibilityChange = () => {
-  if (document.visibilityState === 'visible') {
-    recoverBrokenCameras({ immediate: true });
+  if (document.visibilityState !== 'visible') {
+    return;
   }
+  if (reconnectWhenVisible) {
+    reconnectWhenVisible = false;
+    reconnectEveryCamera();
+    return;
+  }
+  recoverBrokenCameras({ immediate: true });
+};
+
+const startFreezeDetector = () => {
+  let lastTick = Date.now();
+  setInterval(() => {
+    const now = Date.now();
+    const sinceLastTick = now - lastTick;
+    lastTick = now;
+    if (sinceLastTick < FREEZE_THRESHOLD_MS) {
+      return;
+    }
+    if (document.visibilityState === 'visible') {
+      reconnectEveryCamera();
+    } else {
+      reconnectWhenVisible = true;
+    }
+  }, HEARTBEAT_INTERVAL_MS);
 };
 
 export const startCameraStreamWatchdog = () => {
   // Applies to every browser -- backgrounding a tab is what causes this, not
   // a Safari-specific quirk.
   document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  // Same reasoning: a display going to sleep is not a Safari quirk either.
+  startFreezeDetector();
 
   if (!isSafari()) {
     return;
