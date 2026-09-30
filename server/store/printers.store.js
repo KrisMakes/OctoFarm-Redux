@@ -1406,8 +1406,14 @@ class PrinterStore {
     // listPrintersInformation(), which deep-clones every printer and re-cleans
     // every file list, and then wrote those clones back to the database.
     for (const entry of printerIDs) {
-      // No tool is a de-attach request
-      if (!entry?.tool) {
+      // An entry with no tool on it is a de-attach request. This used to be
+      // `if (!entry?.tool)`, and tool 0 -- the first extruder, the only one
+      // most printers have -- is falsy, so a request to ASSIGN a spool to
+      // tool 0 took this branch and stripped that spool off every printer on
+      // the farm instead, then broke out of the loop and reported success. It
+      // never bit only because the client builds `tool` by splitting a string,
+      // so it arrives as "0" rather than 0. Ask whether a tool was given.
+      if (entry?.tool === undefined || entry?.tool === null || entry?.tool === '') {
         this.deattachSpoolFromAllPrinters(spoolID);
         break;
       }
@@ -1469,6 +1475,75 @@ class PrinterStore {
       if (changed) {
         this.updatePrinterDatabase(printer._id, { selectedFilament: printer.selectedFilament });
       }
+    }
+  }
+
+  /**
+   * Re-copy a spool's current figures onto every printer holding it.
+   *
+   * `assignSpoolToPrinters` gives the printer a deep copy of the spool, and
+   * until now nothing ever refreshed it. Printing does not: `downDateWeight`
+   * reads the spool from the database and writes the new total back there, but
+   * the object it then updates in memory belongs to a deep clone made for the
+   * history record, not to the live printer. So a printer's idea of how much
+   * filament was left froze at the moment the spool was attached -- observed
+   * five days out of date, reading 99g used against a real 1108g.
+   *
+   * That snapshot is what the file list's per-file weights are costed against
+   * and what the pre-flight check measures a job against, so a stale one meant
+   * the warning could believe a spool was nearly full while it was empty.
+   */
+  async refreshSpoolOnPrinters(spoolID) {
+    const spool = await Filament.findById(spoolID).lean();
+    if (!spool) {
+      return;
+    }
+    spool.spools.profile = await attachProfileToSpool(spool.spools.profile);
+
+    for (const printer of this.#printersList) {
+      if (!Array.isArray(printer.selectedFilament)) {
+        continue;
+      }
+      let changed = false;
+      printer.selectedFilament.forEach((held, index) => {
+        if (!held || `${held._id}` !== `${spoolID}`) {
+          return;
+        }
+        const fresh = JSON.parse(JSON.stringify(spool));
+        // Runs on a timer as well as after each print, so skip the write when
+        // nothing actually moved.
+        if (JSON.stringify(held) === JSON.stringify(fresh)) {
+          return;
+        }
+        printer.selectedFilament[index] = fresh;
+        changed = true;
+      });
+      if (changed) {
+        this.updatePrinterDatabase(printer._id, { selectedFilament: printer.selectedFilament });
+      }
+    }
+  }
+
+  /**
+   * The same for every spool currently attached to something. Runs on the
+   * filament clean task, so an edit made through any route -- or straight in
+   * the database -- reaches the printers without needing each caller to
+   * remember to ask.
+   */
+  async refreshAllAssignedSpools() {
+    const assigned = new Set();
+    for (const printer of this.#printersList) {
+      if (!Array.isArray(printer.selectedFilament)) {
+        continue;
+      }
+      printer.selectedFilament.forEach((held) => {
+        if (held?._id) {
+          assigned.add(`${held._id}`);
+        }
+      });
+    }
+    for (const spoolID of assigned) {
+      await this.refreshSpoolOnPrinters(spoolID);
     }
   }
 

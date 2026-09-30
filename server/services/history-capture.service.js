@@ -517,56 +517,58 @@ class HistoryCaptureService {
           currentSpool,
           completionRatio
         );
-        await Spool.findById(currentSpool._id)
-          .then((spool) => {
-            const currentUsed = parseFloat(spool.spools.used);
-            logger.warning('Previous spool amount', currentUsed);
-            spool.spools.used = currentUsed + parseFloat(currentGram);
-            logger.warning('New spool amount', spool.spools.used);
-            spool.markModified('spools.used');
-            spool
-              .save()
-              .then((res) => {
-                logger.info('Successfully downdated spool data!', res);
-              })
-              .catch((e) => {
-                logger.error('Unable to update spool data!', e.toString());
-              });
-            currentSpool.spools.used = currentUsed + parseFloat(currentGram);
-            getInfluxCleanerCache().cleanAndWriteMaterialsInformationForInflux(
-              currentSpool,
-              {
-                printerName: this.#printerName,
-                printerID: this.#printerID,
-                printerGroup: this.#printerGroup,
-              },
-              {
-                printerName: this.#printerName,
-                printerID: this.#printerID,
-                printerGroup: this.#printerGroup,
-                costSettings: this.#costSettings,
-                success: this.#success,
-                reason: this.#reason,
-                fileName: this.#fileName,
-                filePath: this.#filePath,
-                startDate: this.#startDate,
-                endDate: this.#endDate,
-                printTime: this.#printTime,
-                filamentSelection: this.#filamentSelection,
-                job: this.#job,
-                notes: this.#notes,
-                snapshot: this.#snapshot,
-                timelapse: this.#timelapse,
-                thumbnail: this.#thumbnail,
-                resends: this.#resends,
-                activeControlUser: this.#activeControlUser,
-              },
-              currentGram
-            );
-          })
-          .finally(async () => {
-            await FilamentClean.start();
-          });
+        // The save used to be launched and not waited for, so everything below
+        // ran whether or not the new total ever reached the database.
+        try {
+          const spool = await Spool.findById(currentSpool._id);
+          const currentUsed = parseFloat(spool.spools.used);
+          logger.warning('Previous spool amount', currentUsed);
+          spool.spools.used = currentUsed + parseFloat(currentGram);
+          logger.warning('New spool amount', spool.spools.used);
+          spool.markModified('spools.used');
+          await spool.save();
+          logger.info('Successfully downdated spool data!');
+          currentSpool.spools.used = currentUsed + parseFloat(currentGram);
+          getInfluxCleanerCache().cleanAndWriteMaterialsInformationForInflux(
+            currentSpool,
+            {
+              printerName: this.#printerName,
+              printerID: this.#printerID,
+              printerGroup: this.#printerGroup,
+            },
+            {
+              printerName: this.#printerName,
+              printerID: this.#printerID,
+              printerGroup: this.#printerGroup,
+              costSettings: this.#costSettings,
+              success: this.#success,
+              reason: this.#reason,
+              fileName: this.#fileName,
+              filePath: this.#filePath,
+              startDate: this.#startDate,
+              endDate: this.#endDate,
+              printTime: this.#printTime,
+              filamentSelection: this.#filamentSelection,
+              job: this.#job,
+              notes: this.#notes,
+              snapshot: this.#snapshot,
+              timelapse: this.#timelapse,
+              thumbnail: this.#thumbnail,
+              resends: this.#resends,
+              activeControlUser: this.#activeControlUser,
+            },
+            currentGram
+          );
+        } catch (e) {
+          logger.error('Unable to update spool data!', e.toString());
+        } finally {
+          await FilamentClean.start();
+          // Each printer holds its own copy of the spool, taken when it was
+          // attached. Nothing refreshed it, so the figure the file list costs
+          // against and the pre-flight check measures against stayed at
+          // whatever it was on the day the spool went on.
+          await getPrinterStoreCache().refreshSpoolOnPrinters(`${currentSpool._id}`);
+        }
       } else {
         logger.error('Unable to downdate spool weight, non selected...');
       }

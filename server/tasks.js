@@ -178,6 +178,12 @@ const CHECK_MAINTENANCE_MODE_STATES = async () => {
 };
 
 const FILAMENT_CLEAN_TASK = async () => {
+  // Each printer holds a copy of the spool attached to it, taken at the moment
+  // it was attached. Refresh those first so the spool figures the file list
+  // costs against, and the pre-flight check measures a job against, match the
+  // spools themselves -- an edit made through any route, or straight in the
+  // database, reaches the printers here without every caller having to ask.
+  await getPrinterStoreCache().refreshAllAssignedSpools();
   await FilamentClean.start();
 };
 
