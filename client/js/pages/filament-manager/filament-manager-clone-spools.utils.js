@@ -4,8 +4,34 @@ import {
   reRenderPageInformation,
 } from './filament-manager-ui.utils';
 import { addSpool } from './filament-manager.actions';
-import { findDigitsInString } from '../../constants/regex.constants';
 import { pageElements } from './filament-manager.utils';
+
+// A copy counter is a number at the END of the name, not the first digits that
+// happen to appear in it. This used to increment the first run of digits
+// anywhere in the string, so cloning "3DJake ecoPLA Black" produced "4DJake
+// ecoPLA Black" -- it counted up the brand. Names that do not end in a number
+// get a "(2)" suffix instead of having their contents rewritten.
+const CLONE_COUNTER_IN_BRACKETS = /^(.*?)\((\d+)\)\s*$/;
+const CLONE_COUNTER_AT_END = /^(.*\s)(\d+)\s*$/;
+
+// "09" -> "10", "007" -> "008": whatever padding the original used, keep it.
+const keepPadding = (original, value) => String(value).padStart(original.length, '0');
+
+export const nameForClone = (name, step) => {
+  const bracketed = name.match(CLONE_COUNTER_IN_BRACKETS);
+  if (bracketed) {
+    const next = parseInt(bracketed[2], 10) + step;
+    return `${bracketed[1]}(${keepPadding(bracketed[2], next)})`;
+  }
+
+  const trailing = name.match(CLONE_COUNTER_AT_END);
+  if (trailing) {
+    const next = parseInt(trailing[2], 10) + step;
+    return `${trailing[1]}${keepPadding(trailing[2], next)}`;
+  }
+
+  return `${name} (${step + 1})`;
+};
 
 export const cloneSpool = async (e) => {
   const row = e.parentElement.parentElement;
@@ -15,36 +41,12 @@ export const cloneSpool = async (e) => {
     spool.push(edit.placeholder);
   });
 
-  let spoolName = spool[0];
   const nextSpoolIndex = pageElements.spoolsManagerTable.rows.length;
   const spoolClonedId = row.id;
   const clonedRowID = `clonedRow-${spoolClonedId}-`;
   const currentSpoolsClonedCount = document.querySelectorAll(`[id^=${clonedRowID}]`).length + 1;
 
-  if (findDigitsInString.test(spoolName)) {
-    const detectedDigits = findDigitsInString.exec(spoolName);
-    const firstDetectedDigit = detectedDigits[0];
-    const digitsLength = firstDetectedDigit.length;
-    if (firstDetectedDigit.toString()[0] === '0') {
-      const noZeros = firstDetectedDigit.replaceAll('0', '');
-      const zeroesToAddBack = digitsLength - noZeros.length;
-      let numberParse = parseFloat(noZeros) + currentSpoolsClonedCount;
-      let zeroString = '';
-      if (zeroesToAddBack > 0) {
-        for (let z = 0; z < zeroesToAddBack; z++) {
-          zeroString += '0';
-        }
-      }
-      spoolName = spoolName.replace(firstDetectedDigit, `${zeroString}${numberParse}`);
-    } else {
-      const increment = parseFloat(firstDetectedDigit) + currentSpoolsClonedCount;
-      spoolName = spoolName.replace(firstDetectedDigit, increment);
-    }
-
-    // const removeZer
-  } else {
-    spoolName = `${spoolName} (${currentSpoolsClonedCount + 1})`;
-  }
+  let spoolName = nameForClone(spool[0], currentSpoolsClonedCount);
 
   document.getElementById(row.id).insertAdjacentHTML(
     'afterend',
