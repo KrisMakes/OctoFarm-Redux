@@ -949,28 +949,3 @@ label {
   }
 }
 
-/* Panel view cards were fixed at col-xl-2, so the grid always laid out for six
-   printers per row no matter how many existed - a two printer farm got two
-   narrow cards and four cards' worth of dead space. auto-fit collapses the
-   empty tracks, so the cards grow to fill the row instead, and the camera
-   previews grow with them. Bootstrap's col-* max-width has to be cleared or it
-   caps the grid items at their old width. */
-@supports (display: grid) {
-  @media (min-width: 768px) {
-    #printerArea.printer-panel-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-      gap: 0.25rem;
-      margin-left: 0;
-      margin-right: 0;
-    }
-
-    #printerArea.printer-panel-grid > [id^='panel-'] {
-      max-width: none;
-      width: auto;
-      flex: none;
-      padding-left: 0;
-      padding-right: 0;
-    }
-  }
-}
