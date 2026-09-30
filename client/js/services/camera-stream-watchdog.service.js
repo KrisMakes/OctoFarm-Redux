@@ -47,11 +47,25 @@ const BROKEN_RETRY_MAX_MS = 300000;
 const HEARTBEAT_INTERVAL_MS = 1000;
 const FREEZE_THRESHOLD_MS = 10000;
 
+// Backgrounding a tab in Safari does not fail the stream, it abandons it. The
+// multipart response is never ended and never errored, so the <img> is left
+// `complete === false` with a `naturalWidth` of 0 -- no frame ever arrived, but
+// nothing says one never will. `isBroken` is false, so every check above skips
+// it, forever, and the pane stays grey until the user reloads by hand.
+//
+// A request that has delivered nothing cannot be distinguished from a first
+// connect that is merely slow, so this is decided on time rather than state: an
+// <img> with no pixels and no resolution after this long is not loading, it is
+// abandoned. Long enough that a genuinely slow first frame is never cut off.
+const STALLED_TIMEOUT_MS = 8000;
+
 const isSafari = () => /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
 
 const isPlaceholderSrc = (src) => !src || src.endsWith('noCamera.jpg');
 
-const isBroken = (img) => img.complete && img.naturalWidth === 0;
+const hasPixels = (img) => img.naturalWidth > 0;
+
+const isBroken = (img) => img.complete && !hasPixels(img);
 
 const watchState = new WeakMap();
 
@@ -77,6 +91,9 @@ const trackedEntry = (img, now) => {
   entry = {
     lastReconnectAt: now,
     retryBackoffMs: BROKEN_RETRY_INITIAL_MS,
+    // When this <img> was first seen holding an unresolved request with nothing
+    // drawn. Null whenever it has pixels or has finished one way or the other.
+    pendingSince: null,
   };
   // A broken image is already `complete`, so if it broke before this entry
   // existed its `error` event has already been and gone and will never fire
@@ -86,10 +103,29 @@ const trackedEntry = (img, now) => {
     if (tracked) {
       // A frame arrived, so whatever went wrong before is over.
       tracked.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
+      tracked.pendingSince = null;
     }
   });
   watchState.set(img, entry);
   return entry;
+};
+
+// An unresolved request with nothing drawn is only a failure once it has been
+// that way for a while, so the clock starts on the first sighting rather than
+// on the reconnect -- a first connect gets the full timeout before being cut.
+//
+// Except on returning to the tab, where no wait is warranted: the tab was just
+// in the background, which is the one moment Safari is known to abandon these
+// streams, so a request that has delivered nothing by now is that abandoned
+// request rather than a slow one. Waiting out the timeout here would leave the
+// pane grey for another eight seconds after the user is already looking at it,
+// when a manual reload would have fixed it at once.
+const isStalled = (entry, now, immediate) => {
+  if (entry.pendingSince === null) {
+    entry.pendingSince = now;
+    return !!immediate;
+  }
+  return immediate || now - entry.pendingSince >= STALLED_TIMEOUT_MS;
 };
 
 const recoverBrokenCameras = ({ immediate }) => {
@@ -99,7 +135,13 @@ const recoverBrokenCameras = ({ immediate }) => {
       return;
     }
     const entry = trackedEntry(img, now);
-    if (!isBroken(img)) {
+    if (hasPixels(img)) {
+      // Drawing something, even a frozen last frame, is not a failure this
+      // recovers from -- see the note at the top about unchanging pictures.
+      entry.pendingSince = null;
+      return;
+    }
+    if (!isBroken(img) && !isStalled(entry, now, immediate)) {
       return;
     }
     // On returning to the tab, retry once straight away: the stream was torn
@@ -109,6 +151,7 @@ const recoverBrokenCameras = ({ immediate }) => {
       return;
     }
     entry.lastReconnectAt = now;
+    entry.pendingSince = null;
     entry.retryBackoffMs = Math.min(entry.retryBackoffMs * 2, BROKEN_RETRY_MAX_MS);
     forceReconnect(img);
   });
@@ -126,6 +169,7 @@ const reconnectEveryCamera = () => {
     const entry = trackedEntry(img, now);
     entry.lastReconnectAt = now;
     entry.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
+    entry.pendingSince = null;
     forceReconnect(img);
   });
 };
