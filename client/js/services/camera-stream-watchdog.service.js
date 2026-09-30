@@ -179,16 +179,48 @@ const reconnectEveryCamera = () => {
 // back rather than firing blind.
 let reconnectWhenVisible = false;
 
-const handleVisibilityChange = () => {
-  if (document.visibilityState !== 'visible') {
-    return;
-  }
+const resumeCameras = () => {
   if (reconnectWhenVisible) {
     reconnectWhenVisible = false;
     reconnectEveryCamera();
     return;
   }
   recoverBrokenCameras({ immediate: true });
+};
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState !== 'visible') {
+    return;
+  }
+  resumeCameras();
+};
+
+// Switching to another application is not a visibility change. On macOS a tab
+// sitting behind another app is still the frontmost tab of a visible window, so
+// `visibilityState` stays 'visible' and `visibilitychange` never fires -- while
+// the streams are abandoned exactly as they are when the tab is hidden. That is
+// the case these panes are actually found grey in, and only window focus sees
+// it.
+//
+// Focus also fires on an ordinary click into a window that never went
+// anywhere, so a return only counts once the window has been away long enough
+// to be a return: otherwise clicking about the page would restart first
+// connects that are merely still in flight.
+const MIN_BLUR_FOR_RECOVERY_MS = 2000;
+
+let blurredAt = null;
+
+const handleWindowBlur = () => {
+  blurredAt = Date.now();
+};
+
+const handleWindowFocus = () => {
+  const awayFor = blurredAt === null ? 0 : Date.now() - blurredAt;
+  blurredAt = null;
+  if (awayFor < MIN_BLUR_FOR_RECOVERY_MS) {
+    return;
+  }
+  resumeCameras();
 };
 
 const startFreezeDetector = () => {
@@ -212,6 +244,10 @@ export const startCameraStreamWatchdog = () => {
   // Applies to every browser -- backgrounding a tab is what causes this, not
   // a Safari-specific quirk.
   document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  // Covers coming back from another application, which the line above does not.
+  window.addEventListener('blur', handleWindowBlur);
+  window.addEventListener('focus', handleWindowFocus);
 
   // Same reasoning: a display going to sleep is not a Safari quirk either.
   startFreezeDetector();
