@@ -388,6 +388,31 @@
                             </form>
                         </div>
                         <div class="col-lg-2">
+                            <h5>Allow Single Spools on Multiple Printers?</h5>
+                            <div class="alert alert-info small" role="alert">
+                                Allow the selection of single spools on multiple printers. Great if your only tracking filament by type.. you can have 1 spool attached to multiple printers to get more accurate grams calculations this way.
+                            </div>
+                            <% let multiSelectOff = "d-none"; %>
+                            <% if(serverSettings?.filament?.allowMultiSelect) { %>
+                                <% multiSelectOff = "" %>
+                            <% }%>
+                            <div class="alert alert-warning small text-dark <%= multiSelectOff %>" role="alert">
+                                Turning this off will remove all your current filament assignments.
+                            </div>
+                            <form class="was-validated">
+                                <div class="custom-control custom-checkbox mb-3">
+                                    <input type="checkbox" class="custom-control-input"
+                                           id="allowMultiSelect" required <%= (serverSettings?.filament?.allowMultiSelect) ? "checked" : "" %>>
+                                    <label class="custom-control-label"
+                                           for="allowMultiSelect">Allow Multiple Select</label>
+                                    <div class="valid-feedback">Select multiple
+                                    </div>
+                                    <div class="invalid-feedback">Select single
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-lg-2">
                             <h5>Include Electricity Cost?</h5>
                             <div class="alert alert-info small" role="alert">
                                 Include the electricity your printer draws in every cost shown. Turn it off to leave it out of the file manager, the current job and the history.
@@ -419,31 +444,6 @@
                                     <div class="valid-feedback">Counted in costs
                                     </div>
                                     <div class="invalid-feedback">Excluded from costs
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="col-lg-2">
-                            <h5>Allow Single Spools on Multiple Printers?</h5>
-                            <div class="alert alert-info small" role="alert">
-                                Allow the selection of single spools on multiple printers. Great if your only tracking filament by type.. you can have 1 spool attached to multiple printers to get more accurate grams calculations this way.
-                            </div>
-                            <% let multiSelectOff = "d-none"; %>
-                            <% if(serverSettings?.filament?.allowMultiSelect) { %>
-                                <% multiSelectOff = "" %>
-                            <% }%>
-                            <div class="alert alert-warning small text-dark <%= multiSelectOff %>" role="alert">
-                                Turning this off will remove all your current filament assignments.
-                            </div>
-                            <form class="was-validated">
-                                <div class="custom-control custom-checkbox mb-3">
-                                    <input type="checkbox" class="custom-control-input"
-                                           id="allowMultiSelect" required <%= (serverSettings?.filament?.allowMultiSelect) ? "checked" : "" %>>
-                                    <label class="custom-control-label"
-                                           for="allowMultiSelect">Allow Multiple Select</label>
-                                    <div class="valid-feedback">Select multiple
-                                    </div>
-                                    <div class="invalid-feedback">Select single
                                     </div>
                                 </div>
                             </form>
