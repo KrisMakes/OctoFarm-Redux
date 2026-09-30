@@ -986,11 +986,28 @@ label {
   /* Bootstrap's col-* max-width would otherwise cap the grid items back to
      their old widths, and its flex-basis fights the track sizing. */
   .of-card-grid > * {
+    /* Grid items default to min-width:auto, which stops percentage sized
+       children resolving against the track. */
+    min-width: 0;
     max-width: none;
     width: auto;
     flex: none;
     padding-left: 0;
     padding-right: 0;
+  }
+
+  /* .camImg carries max-height:100%. Inside a Bootstrap column the height
+     chain was definite so that resolved fine, but a grid item's height is
+     indefinite during layout and Safari resolves the percentage against it as
+     zero - collapsing the stream to an empty box while Chrome renders it. The
+     image is given a definite box here instead, and the img's width="100%"
+     attribute is overridden in CSS for the same reason. */
+  .of-card-grid .camImg,
+  .of-card-grid-nested .camImg {
+    max-height: none;
+    width: 100%;
+    height: auto;
+    display: block;
   }
 
   /* Printers nested inside a group card, which is itself already a grid item
