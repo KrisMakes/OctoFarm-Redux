@@ -1,23 +1,16 @@
+import { aspectRatioClass, getCameraAspectRatio } from '../services/camera-aspect.service';
 const hideMe = 'd-none';
 
 export const drawCamera = (
   id,
   { url, flipV, flipH, rotate90, hidden, aspectRatio, modal = '' }
 ) => {
-  let changeAspect = '';
-  switch (aspectRatio) {
-    case '16x9':
-      changeAspect = ' sixteen-by-nine';
-      break;
-    case '4x3':
-      changeAspect = ' four-by-three';
-      break;
-    case '1x1':
-      changeAspect = ' one-by-one';
-      break;
-    default:
-      break;
-  }
+  // Falls back to the server-wide setting: the per-printer value is an override
+  // that nothing currently writes, and reading it alone meant the System ->
+  // Settings aspect ratio was saved but never applied to anything.
+  const resolved = aspectRatio || getCameraAspectRatio();
+  const aspectClass = aspectRatioClass(resolved);
+  const changeAspect = aspectClass ? ` ${aspectClass}` : '';
 
   return `<img
         class="camImg ${hidden ? hideMe : ''}${changeAspect}"
