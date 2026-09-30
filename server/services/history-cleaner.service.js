@@ -1,7 +1,11 @@
 'use strict';
 
 const { arrayCounts, checkNested, checkNestedIndex } = require('../utils/array.util');
-const { getElectricityCosts, getMaintenanceCosts } = require('../utils/print-cost.util');
+const {
+  getElectricityCosts,
+  getMaintenanceCosts,
+  getPrinterCost,
+} = require('../utils/print-cost.util');
 const { getDefaultHistoryStatistics, ALL_MONTHS } = require('../constants/cleaner.constants');
 const { gramsOfFilament } = require('../utils/filament-weight.util');
 const historyService = require('./history.service');
@@ -686,7 +690,7 @@ class HistoryCleanerService {
         printHistory.printTime,
         printHistory.costSettings
       );
-      const printCost = electricityCosts + maintenanceCosts;
+      const printCost = getPrinterCost(electricityCosts, maintenanceCosts);
       const printSummary = {
         _id: hist._id,
         state: stateToHtml(printHistory.success, printHistory?.reason),
@@ -696,7 +700,7 @@ class HistoryCleanerService {
         endDate: printHistory.endDate,
         printTime: printHistory.printTime,
         notes: printHistory.notes,
-        printerCost: printCost?.toFixed(2),
+        printerCost: floatOrZero(printCost).toFixed(2),
         maintenanceCosts,
         electricityCosts,
         spools: HistoryCleanerService.getSpool(
@@ -730,7 +734,7 @@ class HistoryCleanerService {
           }
         }
       }
-      printSummary.totalCost = (printCost + printSummary.spoolCost).toFixed(2);
+      printSummary.totalCost = (floatOrZero(printCost) + printSummary.spoolCost).toFixed(2);
       printSummary.costPerHour = floatOrZero(
         parseFloat(printSummary.totalCost) / ((100 * parseFloat(printHistory.printTime)) / 360000)
       ).toFixed(2);

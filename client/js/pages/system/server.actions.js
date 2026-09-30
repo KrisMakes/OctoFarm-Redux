@@ -284,6 +284,8 @@ async function updateServerSettings() {
       downDateFailed: settingsElements.filament.downDateFailed.checked,
       downDateSuccess: settingsElements.filament.downDateSuccess.checked,
       allowMultiSelect: settingsElements.filament.allowMultiSelect.checked,
+      includeElectricityCost: settingsElements.filament.includeElectricityCost.checked,
+      includeMaintenanceCost: settingsElements.filament.includeMaintenanceCost.checked,
     },
     history: {
       snapshot: {

@@ -388,6 +388,42 @@
                             </form>
                         </div>
                         <div class="col-lg-2">
+                            <h5>Include Electricity Cost?</h5>
+                            <div class="alert alert-info small" role="alert">
+                                Include the electricity your printer draws in every cost shown. Turn it off to leave it out of the file manager, the current job and the history.
+                            </div>
+                            <form class="was-validated">
+                                <div class="custom-control custom-checkbox mb-3">
+                                    <input type="checkbox" class="custom-control-input"
+                                           id="includeElectricityCost" required <%= (serverSettings?.filament?.includeElectricityCost !== false) ? "checked" : "" %>>
+                                    <label class="custom-control-label"
+                                           for="includeElectricityCost">Include electricity</label>
+                                    <div class="valid-feedback">Counted in costs
+                                    </div>
+                                    <div class="invalid-feedback">Excluded from costs
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-lg-2">
+                            <h5>Include Maintenance Cost?</h5>
+                            <div class="alert alert-info small" role="alert">
+                                Include printer wear &mdash; the hourly maintenance figure plus purchase price spread over the estimated lifespan &mdash; in every cost shown. Turn both of these off to see the filament cost on its own.
+                            </div>
+                            <form class="was-validated">
+                                <div class="custom-control custom-checkbox mb-3">
+                                    <input type="checkbox" class="custom-control-input"
+                                           id="includeMaintenanceCost" required <%= (serverSettings?.filament?.includeMaintenanceCost !== false) ? "checked" : "" %>>
+                                    <label class="custom-control-label"
+                                           for="includeMaintenanceCost">Include maintenance</label>
+                                    <div class="valid-feedback">Counted in costs
+                                    </div>
+                                    <div class="invalid-feedback">Excluded from costs
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-lg-2">
                             <h5>Allow Single Spools on Multiple Printers?</h5>
                             <div class="alert alert-info small" role="alert">
                                 Allow the selection of single spools on multiple printers. Great if your only tracking filament by type.. you can have 1 spool attached to multiple printers to get more accurate grams calculations this way.

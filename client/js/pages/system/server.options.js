@@ -75,6 +75,8 @@ const settingsElements = {
     downDateFailed: document.getElementById('downDateFailed'),
     downDateSuccess: document.getElementById('downDateSuccess'),
     allowMultiSelect: document.getElementById('allowMultiSelect'),
+    includeElectricityCost: document.getElementById('includeElectricityCost'),
+    includeMaintenanceCost: document.getElementById('includeMaintenanceCost'),
   },
   history: {
     snapshot: {

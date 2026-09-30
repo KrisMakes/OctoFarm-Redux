@@ -23,13 +23,17 @@ export const updateFilePrintTime = (id, expectedPrintTime) => {
     UI.doesElementNeedUpdating(`${Calc.generateTime(expectedPrintTime)}`, fileTime, 'innerHTML');
   }
 };
+// These three rewrite the whole span, so they have to carry the same label the
+// template rendered -- otherwise the first live tick left a bare number behind.
+// A line the user excluded arrives as null and its element does not exist, so
+// nothing is written; a genuine 0 still is.
 export const updateFileTotalCost = (id, printCost) => {
   if (!id) {
     return;
   }
-  if (!!printCost) {
+  if (typeof printCost === 'number') {
     const fileCost = document.getElementById(`fileCost-${id}`);
-    UI.doesElementNeedUpdating(`Print Cost: ${printCost?.toFixed(2)}`, fileCost, 'innerHTML');
+    UI.doesElementNeedUpdating(`Printer Cost: ${printCost.toFixed(2)}`, fileCost, 'innerHTML');
   }
 };
 export const updateFileToolUnits = (id, toolUnits, toolCosts) => {
@@ -85,9 +89,13 @@ export const updateMaintenanceCost = (id, maintainenceCost) => {
   if (!id) {
     return;
   }
-  if (!!maintainenceCost) {
+  if (typeof maintainenceCost === 'number') {
     const fileMainEl = document.getElementById(`fileMaintainenceCost-${id}`);
-    UI.doesElementNeedUpdating(maintainenceCost.toFixed(2), fileMainEl, 'innerHTML');
+    UI.doesElementNeedUpdating(
+      `Maintainence Cost: ${maintainenceCost.toFixed(2)}`,
+      fileMainEl,
+      'innerHTML'
+    );
   }
 };
 
@@ -95,8 +103,12 @@ export const updateElectricityCost = (id, electricityCost) => {
   if (!id) {
     return;
   }
-  if (!!electricityCost) {
+  if (typeof electricityCost === 'number') {
     const fileElectEl = document.getElementById(`fileElectricityCost-${id}`);
-    UI.doesElementNeedUpdating(electricityCost.toFixed(2), fileElectEl, 'innerHTML');
+    UI.doesElementNeedUpdating(
+      `Electricity Cost: ${electricityCost.toFixed(2)}`,
+      fileElectEl,
+      'innerHTML'
+    );
   }
 };

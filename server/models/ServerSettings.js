@@ -60,6 +60,18 @@ const ServerSettingsSchema = new mongoose.Schema({
       default: true,
       required: true,
     },
+    // Cost display. Turn either off to strip that line out of every cost shown
+    // in the interfaces, leaving the filament cost on its own.
+    includeElectricityCost: {
+      type: Boolean,
+      default: true,
+      required: true,
+    },
+    includeMaintenanceCost: {
+      type: Boolean,
+      default: true,
+      required: true,
+    },
   },
   history: {
     snapshot: {

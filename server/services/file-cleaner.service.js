@@ -2,7 +2,11 @@
 
 const Logger = require('../handlers/logger.js');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
-const { getMaintenanceCosts, getElectricityCosts } = require('../utils/print-cost.util');
+const {
+  getMaintenanceCosts,
+  getElectricityCosts,
+  getPrinterCost,
+} = require('../utils/print-cost.util');
 
 const { getDefaultFileCleanStatistics } = require('../constants/cleaner.constants');
 const {
@@ -110,7 +114,7 @@ class FileCleanerService {
       for (let file of fileList.fileList) {
         const electricityCosts = getElectricityCosts(file.time, costSettings);
         const maintenanceCosts = getMaintenanceCosts(file.time, costSettings);
-        const printCost = electricityCosts + maintenanceCosts;
+        const printCost = getPrinterCost(electricityCosts, maintenanceCosts);
         const sortedFile = {
           path: file.path,
           fullPath: file.fullPath,
@@ -163,7 +167,7 @@ class FileCleanerService {
     const electricityCosts = getElectricityCosts(file.time, costSettings);
 
     const maintenanceCosts = getMaintenanceCosts(file.time, costSettings);
-    const printCost = electricityCosts + maintenanceCosts;
+    const printCost = getPrinterCost(electricityCosts, maintenanceCosts);
 
     const sortedFile = {
       path: file.path,

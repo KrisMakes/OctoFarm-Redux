@@ -1,7 +1,11 @@
 'use strict';
 
 const { DateTime } = require('luxon');
-const { getElectricityCosts, getMaintenanceCosts } = require('../utils/print-cost.util');
+const {
+  getElectricityCosts,
+  getMaintenanceCosts,
+  getPrinterCost,
+} = require('../utils/print-cost.util');
 const { HistoryClean } = require('./history-cleaner.service.js');
 const { floatOrZero } = require('../utils/number.util');
 const Logger = require('../handlers/logger');
@@ -81,8 +85,10 @@ class JobCleanerService {
         printerJob.estimatedPrintTime,
         costSettings
       );
-      currentJob.expectedPrinterCosts =
-        currentJob.expectedElectricityCosts + currentJob.expectedMaintenanceCosts;
+      currentJob.expectedPrinterCosts = getPrinterCost(
+        currentJob.expectedElectricityCosts,
+        currentJob.expectedMaintenanceCosts
+      );
 
       currentJob.expectedFilamentCosts = HistoryClean.getSpool(
         selectedFilament,
@@ -110,7 +116,7 @@ class JobCleanerService {
       }
       spoolCost = floatOrZero(spoolCost);
       currentJob.expectedTotals = {
-        totalCost: (parseFloat(currentJob.expectedPrinterCosts) + spoolCost).toFixed(2),
+        totalCost: (floatOrZero(currentJob.expectedPrinterCosts) + spoolCost).toFixed(2),
         totalVolume,
         totalLength,
         totalWeight,

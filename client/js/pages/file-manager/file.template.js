@@ -59,6 +59,18 @@ export const getFilamentWarningTemplate = (file) => {
   return `<br><span class="${colour}" title="${file.filamentWarning.message}"><i class="fas fa-exclamation-triangle"></i> ${file.filamentWarning.message}</span>`;
 };
 
+// One printer cost line. The server sends null for a line the user has
+// excluded in the filament settings, which is why an excluded line is dropped
+// altogether rather than printed as 0.00 -- and why a genuine zero still
+// renders instead of spinning forever on a falsy check.
+const getCostLineTemplate = (icon, title, id, label, value) => {
+  if (value === null) {
+    return '';
+  }
+  const shown = typeof value === 'number' ? value.toFixed(2) : getSpinnerElement();
+  return `<i class="${icon}"></i> <span title="${title}" class="cost" id="${id}">${label}: ${shown}</span><br>`;
+};
+
 export const getFileTemplate = (file, printerURL, id) => {
   let toolInfo = '';
   if (file.toolUnits.length === 0) {
@@ -69,6 +81,30 @@ export const getFileTemplate = (file, printerURL, id) => {
     });
     toolInfo += getFilamentWarningTemplate(file);
   }
+
+  const costLines = [
+    getCostLineTemplate(
+      'fas fa-dollar-sign',
+      'Expected Printer Cost',
+      `fileCost-${file.fullPath}`,
+      'Printer Cost',
+      file.printCost
+    ),
+    getCostLineTemplate(
+      'fa-solid fa-bolt',
+      'Expected Electricity Cost',
+      `fileElectricityCost-${file.fullPath}`,
+      'Electricity Cost',
+      file.electricityCosts
+    ),
+    getCostLineTemplate(
+      'fa-solid fa-wrench',
+      'Expected Maintainence Cost',
+      `fileMaintainenceCost-${file.fullPath}`,
+      'Maintainence Cost',
+      file.maintenanceCosts
+    ),
+  ].join('');
 
   let thumbnail = '<span class="text-center"><i class="fas fa-file-code fa-2x"></i></span>';
   if (typeof file.thumbnail !== 'undefined' && file.thumbnail !== null) {
@@ -123,32 +159,7 @@ export const getFileTemplate = (file, printerURL, id) => {
                 <i class="fas fa-stopwatch"></i> 
                 <span class="time" id="fileTime-${file.fullPath}">
                     ${Calc.generateTime(file.expectedPrintTime)}</span> <br> 
-                <i class="fas fa-dollar-sign"></i> 
-                <span title="Expected Printer Cost" class="cost" id="fileCost-${
-                  file.fullPath
-                }"> Printer Cost: ${
-    !!file.printCost ? file.printCost.toFixed(2) : getSpinnerElement()
-  } </span>    <br> 
-                <i class="fa-solid fa-bolt"></i> 
-                <span title="Expected Electricity Cost" class="cost" id="fileElectricityCost-${
-                  file.fullPath
-                }">
-               
-                Electricity Cost: ${
-                  typeof file?.electricityCosts !== 'undefined'
-                    ? file.electricityCosts.toFixed(2)
-                    : getSpinnerElement()
-                } </span>    <br> 
-                <i class="fa-solid fa-wrench"></i>
-                <span title="Expected Maintainence Cost" class="cost" id="fileMaintainenceCost-${
-                  file.fullPath
-                }"> 
-               
-                Maintainence Cost: ${
-                  typeof file?.maintenanceCosts !== 'undefined'
-                    ? file.maintenanceCosts.toFixed(2)
-                    : getSpinnerElement()
-                } </span>    <br> 
+                ${costLines}
                 <span title="Expected Filament Cost"> </span>
 
                 </p>
