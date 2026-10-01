@@ -69,21 +69,82 @@ const isBroken = (img) => img.complete && !hasPixels(img);
 
 const watchState = new WeakMap();
 
+const loadWired = new WeakSet();
+
+// Wired per element rather than per entry, because an entry outlives the <img>
+// it was created for -- see forceReconnect.
+const wireLoadListener = (img) => {
+  if (loadWired.has(img)) {
+    return;
+  }
+  loadWired.add(img);
+  // A broken image is already `complete`, so if it broke before this listener
+  // existed its `error` event has already been and gone and will never fire
+  // again. `isBroken` is checked directly rather than relying on the event.
+  img.addEventListener('load', () => {
+    const tracked = watchState.get(img);
+    if (tracked) {
+      // A frame arrived, so whatever went wrong before is over.
+      tracked.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
+      tracked.pendingSince = null;
+    }
+  });
+};
+
+// The element is replaced, not re-pointed. Clearing `src` does not abort a
+// multipart response WebKit has already abandoned: the request stays open and
+// keeps holding one of the origin's handful of sockets. Reconnecting on top of
+// that spends another, and once they are gone every request to the server
+// queues behind streams that never end -- the cameras stay blank no matter how
+// often they are reconnected, and every button in the UI goes dead with no
+// error to explain it. Observed directly: both panes sitting at
+// `complete: false, naturalWidth: 0` with a `_reconnect` parameter already on
+// their src, while `fetch(location.href)` from the same page never settled.
+//
+// Detaching the element is what actually makes WebKit drop the connection.
+//
+// (Not `img.src = ''` either: an empty src resolves against the document, so
+// WebKit treats it as a request for the page's own URL and fetches the whole
+// HTML document into an <img> -- a socket spent to load something that can
+// never render.)
 const forceReconnect = (img) => {
   const url = new URL(img.src, window.location.href);
   url.searchParams.set('_reconnect', Date.now().toString());
   const freshSrc = url.toString();
-  // Not `img.src = ''`: an empty src resolves against the document, so WebKit
-  // treats it as a request for the page's own URL and fetches the whole HTML
-  // document into an <img>. That spends one of the origin's few sockets to
-  // load something that can never render.
+
+  if (!img.parentNode) {
+    // Nothing to detach from, so the connection is already going nowhere.
+    img.removeAttribute('src');
+    setTimeout(() => {
+      img.src = freshSrc;
+    }, REATTACH_DELAY_MS);
+    return;
+  }
+
+  // cloneNode(false) carries the id, classes and inline transform, which is
+  // everything the camera templates and the aspect-ratio service set.
+  const replacement = img.cloneNode(false);
+  replacement.removeAttribute('src');
+
+  const entry = watchState.get(img);
+  if (entry) {
+    // The backoff belongs to the camera, not to the element currently showing
+    // it, so it has to survive the swap -- otherwise a printer that is simply
+    // off would be retried at the initial interval forever.
+    watchState.set(replacement, entry);
+  }
+  wireLoadListener(replacement);
+
+  img.replaceWith(replacement);
   img.removeAttribute('src');
+
   setTimeout(() => {
-    img.src = freshSrc;
+    replacement.src = freshSrc;
   }, REATTACH_DELAY_MS);
 };
 
 const trackedEntry = (img, now) => {
+  wireLoadListener(img);
   let entry = watchState.get(img);
   if (entry) {
     return entry;
@@ -95,17 +156,6 @@ const trackedEntry = (img, now) => {
     // drawn. Null whenever it has pixels or has finished one way or the other.
     pendingSince: null,
   };
-  // A broken image is already `complete`, so if it broke before this entry
-  // existed its `error` event has already been and gone and will never fire
-  // again. `isBroken` is checked directly rather than relying on the event.
-  img.addEventListener('load', () => {
-    const tracked = watchState.get(img);
-    if (tracked) {
-      // A frame arrived, so whatever went wrong before is over.
-      tracked.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
-      tracked.pendingSince = null;
-    }
-  });
   watchState.set(img, entry);
   return entry;
 };
