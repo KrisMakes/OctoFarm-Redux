@@ -70,7 +70,13 @@ const spoolLabel = (spool) => {
  */
 export const lengthsForFile = (printer, fullPath) => {
   const file = printer?.fileList?.fileList?.find((entry) => entry.fullPath === fullPath);
-  const lengths = file?.filamentLength;
+  // `length`, not `filamentLength`: the file record is built in
+  // create-octoprint.service.js from gcodeAnalysis.filament[tool].length, one
+  // entry per tool, in millimetres. `filamentLength` is a different, scalar
+  // field that only exists on history records -- reading it here silently
+  // yielded undefined for every file, so this returned null every time and the
+  // whole check short-circuited to "fine" without ever comparing anything.
+  const lengths = file?.length;
   return Array.isArray(lengths) && lengths.length ? lengths : null;
 };
 
