@@ -61,7 +61,37 @@ const STALLED_TIMEOUT_MS = 8000;
 
 const isSafari = () => /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
 
-const isPlaceholderSrc = (src) => !src || src.endsWith('noCamera.jpg');
+const isPlaceholderSrc = (src) => !src || src.endsWith('noCamera.jpg') || src.startsWith('data:');
+
+// A 1x1 transparent GIF. Pointing an <img> at this is what actually ends a
+// multipart stream in WebKit: removing the element from the document does not,
+// and neither does clearing `src`. Starting a new load on the same element
+// cancels the one in flight, and this one completes instantly from the string
+// itself, so the socket is handed back immediately instead of being kept by a
+// response that never ends.
+//
+// Measured, after the element-replacement change had supposedly fixed this:
+// three streams per camera sitting at 200 with the spinner still turning, and
+// every newer request queued behind them with no status at all. Each visit to
+// another application added another.
+const BLANK_PIXEL =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+// Ends whatever this element is still receiving. The caller is expected to be
+// finished with it, or about to point it somewhere new.
+const releaseStream = (img) => {
+  img.src = BLANK_PIXEL;
+};
+
+const RECONNECT_PARAM = '_reconnect';
+
+// The camera's URL without the cache-buster, so a reconnect never stacks one
+// parameter on top of the last.
+const cameraSrcOf = (img) => {
+  const url = new URL(img.src, window.location.href);
+  url.searchParams.delete(RECONNECT_PARAM);
+  return url.toString();
+};
 
 const hasPixels = (img) => img.naturalWidth > 0;
 
@@ -91,72 +121,50 @@ const wireLoadListener = (img) => {
   });
 };
 
-// The element is replaced, not re-pointed. Clearing `src` does not abort a
-// multipart response WebKit has already abandoned: the request stays open and
-// keeps holding one of the origin's handful of sockets. Reconnecting on top of
-// that spends another, and once they are gone every request to the server
-// queues behind streams that never end -- the cameras stay blank no matter how
-// often they are reconnected, and every button in the UI goes dead with no
-// error to explain it. Observed directly: both panes sitting at
-// `complete: false, naturalWidth: 0` with a `_reconnect` parameter already on
-// their src, while `fetch(location.href)` from the same page never settled.
+// Reconnecting reuses the element and leans on releaseStream to end the old
+// request first. Replacing the node was tried instead and did not work: the
+// discarded element's response stayed open, so each reconnect added a stream
+// rather than renewing one.
 //
-// Detaching the element is what actually makes WebKit drop the connection.
-//
-// (Not `img.src = ''` either: an empty src resolves against the document, so
-// WebKit treats it as a request for the page's own URL and fetches the whole
-// HTML document into an <img> -- a socket spent to load something that can
-// never render.)
-const forceReconnect = (img) => {
-  const url = new URL(img.src, window.location.href);
-  url.searchParams.set('_reconnect', Date.now().toString());
-  const freshSrc = url.toString();
-
-  if (!img.parentNode) {
-    // Nothing to detach from, so the connection is already going nowhere.
-    img.removeAttribute('src');
-    setTimeout(() => {
-      img.src = freshSrc;
-    }, REATTACH_DELAY_MS);
+// (Not `img.src = ''`: an empty src resolves against the document, so WebKit
+// treats it as a request for the page's own URL and fetches the whole HTML
+// document into an <img> -- a socket spent to load something that can never
+// render. The blank pixel costs nothing and settles at once.)
+const forceReconnect = (img, entry) => {
+  const base = entry?.streamSrc;
+  if (!base) {
     return;
   }
+  const url = new URL(base, window.location.href);
+  url.searchParams.set(RECONNECT_PARAM, Date.now().toString());
+  const freshSrc = url.toString();
 
-  // cloneNode(false) carries the id, classes and inline transform, which is
-  // everything the camera templates and the aspect-ratio service set.
-  const replacement = img.cloneNode(false);
-  replacement.removeAttribute('src');
-
-  const entry = watchState.get(img);
-  if (entry) {
-    // The backoff belongs to the camera, not to the element currently showing
-    // it, so it has to survive the swap -- otherwise a printer that is simply
-    // off would be retried at the initial interval forever.
-    watchState.set(replacement, entry);
-  }
-  wireLoadListener(replacement);
-
-  img.replaceWith(replacement);
-  img.removeAttribute('src');
-
+  releaseStream(img);
   setTimeout(() => {
-    replacement.src = freshSrc;
+    img.src = freshSrc;
   }, REATTACH_DELAY_MS);
 };
 
 const trackedEntry = (img, now) => {
   wireLoadListener(img);
   let entry = watchState.get(img);
-  if (entry) {
-    return entry;
+  if (!entry) {
+    entry = {
+      lastReconnectAt: now,
+      retryBackoffMs: BROKEN_RETRY_INITIAL_MS,
+      // When this <img> was first seen holding an unresolved request with
+      // nothing drawn. Null whenever it has pixels or has finished one way or
+      // the other.
+      pendingSince: null,
+      // The camera's own URL. Once `src` holds the blank pixel the original is
+      // gone from the DOM, so it has to be kept to point the element back.
+      streamSrc: null,
+    };
+    watchState.set(img, entry);
   }
-  entry = {
-    lastReconnectAt: now,
-    retryBackoffMs: BROKEN_RETRY_INITIAL_MS,
-    // When this <img> was first seen holding an unresolved request with nothing
-    // drawn. Null whenever it has pixels or has finished one way or the other.
-    pendingSince: null,
-  };
-  watchState.set(img, entry);
+  if (!isPlaceholderSrc(img.src)) {
+    entry.streamSrc = cameraSrcOf(img);
+  }
   return entry;
 };
 
@@ -203,7 +211,7 @@ const recoverBrokenCameras = ({ immediate }) => {
     entry.lastReconnectAt = now;
     entry.pendingSince = null;
     entry.retryBackoffMs = Math.min(entry.retryBackoffMs * 2, BROKEN_RETRY_MAX_MS);
-    forceReconnect(img);
+    forceReconnect(img, entry);
   });
 };
 
@@ -220,7 +228,42 @@ const reconnectEveryCamera = () => {
     entry.lastReconnectAt = now;
     entry.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
     entry.pendingSince = null;
-    forceReconnect(img);
+    forceReconnect(img, entry);
+  });
+};
+
+// Leaving the page is the moment to hand the sockets back, rather than trying
+// to clean up after a browser that has already abandoned the responses. WebKit
+// keeps an abandoned multipart response open indefinitely, so a page left and
+// returned to a few times accumulates one dead stream per camera per visit
+// until nothing new can start -- which is what the network panel showed: three
+// streams per camera still spinning, and every later request with no status at
+// all, queued behind them.
+const releaseAllCameras = () => {
+  const now = Date.now();
+  document.querySelectorAll('.camImg').forEach((img) => {
+    if (isPlaceholderSrc(img.src)) {
+      return;
+    }
+    const entry = trackedEntry(img, now);
+    entry.pendingSince = null;
+    releaseStream(img);
+  });
+};
+
+// The other half: everything released on the way out is pointed back at its
+// camera on the way in.
+const restoreAllCameras = () => {
+  const now = Date.now();
+  document.querySelectorAll('.camImg').forEach((img) => {
+    const entry = watchState.get(img);
+    if (!entry?.streamSrc || !isPlaceholderSrc(img.src)) {
+      return;
+    }
+    entry.lastReconnectAt = now;
+    entry.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
+    entry.pendingSince = null;
+    forceReconnect(img, entry);
   });
 };
 
@@ -229,7 +272,43 @@ const reconnectEveryCamera = () => {
 // back rather than firing blind.
 let reconnectWhenVisible = false;
 
+// Leaving is only worth acting on once it has lasted a moment. Focus and blur
+// also fire for a click into another window and straight back, and releasing
+// every stream for that would make the panes flicker for no reason. A return
+// inside this window cancels the release and nothing happens at all.
+const RELEASE_AFTER_LEAVING_MS = 1000;
+
+let releaseTimer = null;
+let streamsReleased = false;
+
+const cancelScheduledRelease = () => {
+  if (releaseTimer) {
+    clearTimeout(releaseTimer);
+    releaseTimer = null;
+  }
+};
+
+const leaveCameras = ({ immediate }) => {
+  cancelScheduledRelease();
+  const release = () => {
+    releaseTimer = null;
+    streamsReleased = true;
+    releaseAllCameras();
+  };
+  if (immediate) {
+    release();
+    return;
+  }
+  releaseTimer = setTimeout(release, RELEASE_AFTER_LEAVING_MS);
+};
+
 const resumeCameras = () => {
+  cancelScheduledRelease();
+  if (streamsReleased) {
+    streamsReleased = false;
+    restoreAllCameras();
+    return;
+  }
   if (reconnectWhenVisible) {
     reconnectWhenVisible = false;
     reconnectEveryCamera();
@@ -238,11 +317,13 @@ const resumeCameras = () => {
   recoverBrokenCameras({ immediate: true });
 };
 
+// A hidden tab is unambiguous, so its streams go straight away.
 const handleVisibilityChange = () => {
-  if (document.visibilityState !== 'visible') {
-    return;
+  if (document.visibilityState === 'visible') {
+    resumeCameras();
+  } else {
+    leaveCameras({ immediate: true });
   }
-  resumeCameras();
 };
 
 // Switching to another application is not a visibility change. On macOS a tab
@@ -251,25 +332,11 @@ const handleVisibilityChange = () => {
 // the streams are abandoned exactly as they are when the tab is hidden. That is
 // the case these panes are actually found grey in, and only window focus sees
 // it.
-//
-// Focus also fires on an ordinary click into a window that never went
-// anywhere, so a return only counts once the window has been away long enough
-// to be a return: otherwise clicking about the page would restart first
-// connects that are merely still in flight.
-const MIN_BLUR_FOR_RECOVERY_MS = 2000;
-
-let blurredAt = null;
-
 const handleWindowBlur = () => {
-  blurredAt = Date.now();
+  leaveCameras({ immediate: false });
 };
 
 const handleWindowFocus = () => {
-  const awayFor = blurredAt === null ? 0 : Date.now() - blurredAt;
-  blurredAt = null;
-  if (awayFor < MIN_BLUR_FOR_RECOVERY_MS) {
-    return;
-  }
   resumeCameras();
 };
 
