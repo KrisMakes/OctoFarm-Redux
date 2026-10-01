@@ -232,83 +232,18 @@ const reconnectEveryCamera = () => {
   });
 };
 
-// Leaving the page is the moment to hand the sockets back, rather than trying
-// to clean up after a browser that has already abandoned the responses. WebKit
-// keeps an abandoned multipart response open indefinitely, so a page left and
-// returned to a few times accumulates one dead stream per camera per visit
-// until nothing new can start -- which is what the network panel showed: three
-// streams per camera still spinning, and every later request with no status at
-// all, queued behind them.
-const releaseAllCameras = () => {
-  const now = Date.now();
-  document.querySelectorAll('.camImg').forEach((img) => {
-    if (isPlaceholderSrc(img.src)) {
-      return;
-    }
-    const entry = trackedEntry(img, now);
-    entry.pendingSince = null;
-    releaseStream(img);
-  });
-};
-
-// The other half: everything released on the way out is pointed back at its
-// camera on the way in.
-const restoreAllCameras = () => {
-  const now = Date.now();
-  document.querySelectorAll('.camImg').forEach((img) => {
-    const entry = watchState.get(img);
-    if (!entry?.streamSrc || !isPlaceholderSrc(img.src)) {
-      return;
-    }
-    entry.lastReconnectAt = now;
-    entry.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
-    entry.pendingSince = null;
-    forceReconnect(img, entry);
-  });
-};
-
 // Reconnecting into a tab that is still hidden spends the sockets and gets
 // nothing drawn, so a wake that happens out of sight waits for the tab to come
 // back rather than firing blind.
 let reconnectWhenVisible = false;
 
-// Leaving is only worth acting on once it has lasted a moment. Focus and blur
-// also fire for a click into another window and straight back, and releasing
-// every stream for that would make the panes flicker for no reason. A return
-// inside this window cancels the release and nothing happens at all.
-const RELEASE_AFTER_LEAVING_MS = 1000;
-
-let releaseTimer = null;
-let streamsReleased = false;
-
-const cancelScheduledRelease = () => {
-  if (releaseTimer) {
-    clearTimeout(releaseTimer);
-    releaseTimer = null;
-  }
-};
-
-const leaveCameras = ({ immediate }) => {
-  cancelScheduledRelease();
-  const release = () => {
-    releaseTimer = null;
-    streamsReleased = true;
-    releaseAllCameras();
-  };
-  if (immediate) {
-    release();
-    return;
-  }
-  releaseTimer = setTimeout(release, RELEASE_AFTER_LEAVING_MS);
-};
-
+// Releasing every stream on the way out was tried and reverted: the release
+// worked and the restore did not, so the panes went grey the instant you
+// switched away, every time, which is worse than the problem it was for. The
+// blank-pixel release stays where it is used on reconnect -- that part is what
+// cleared the queued, never-started requests -- but leaving the page no longer
+// triggers it.
 const resumeCameras = () => {
-  cancelScheduledRelease();
-  if (streamsReleased) {
-    streamsReleased = false;
-    restoreAllCameras();
-    return;
-  }
   if (reconnectWhenVisible) {
     reconnectWhenVisible = false;
     reconnectEveryCamera();
@@ -317,13 +252,11 @@ const resumeCameras = () => {
   recoverBrokenCameras({ immediate: true });
 };
 
-// A hidden tab is unambiguous, so its streams go straight away.
 const handleVisibilityChange = () => {
-  if (document.visibilityState === 'visible') {
-    resumeCameras();
-  } else {
-    leaveCameras({ immediate: true });
+  if (document.visibilityState !== 'visible') {
+    return;
   }
+  resumeCameras();
 };
 
 // Switching to another application is not a visibility change. On macOS a tab
@@ -332,11 +265,25 @@ const handleVisibilityChange = () => {
 // the streams are abandoned exactly as they are when the tab is hidden. That is
 // the case these panes are actually found grey in, and only window focus sees
 // it.
+//
+// Focus also fires on an ordinary click into a window that never went
+// anywhere, so a return only counts once the window has been away long enough
+// to be a return: otherwise clicking about the page would restart first
+// connects that are merely still in flight.
+const MIN_BLUR_FOR_RECOVERY_MS = 2000;
+
+let blurredAt = null;
+
 const handleWindowBlur = () => {
-  leaveCameras({ immediate: false });
+  blurredAt = Date.now();
 };
 
 const handleWindowFocus = () => {
+  const awayFor = blurredAt === null ? 0 : Date.now() - blurredAt;
+  blurredAt = null;
+  if (awayFor < MIN_BLUR_FOR_RECOVERY_MS) {
+    return;
+  }
   resumeCameras();
 };
 
