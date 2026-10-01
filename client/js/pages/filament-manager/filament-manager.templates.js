@@ -5,7 +5,16 @@ export const spoolNumberLabel = (spoolNumber) =>
   typeof spoolNumber === 'number' ? `#${spoolNumber}` : '';
 
 // How much is left, for the read-only column beside the editable used amount.
-export const spoolRemaining = (weight, used) => parseFloat(weight) - parseFloat(used);
+const spoolRemaining = (weight, used) => parseFloat(weight) - parseFloat(used);
+
+// Used is accumulated from per-print filament lengths, so it carries a long
+// fractional tail and the subtraction above lands on floating-point noise --
+// 36.811371464054105g in the column. Whole grams is as fine as anyone weighs a
+// spool anyway.
+export const formatSpoolRemaining = (weight, used) => {
+  const remaining = spoolRemaining(weight, used);
+  return Number.isFinite(remaining) ? Math.round(remaining) : remaining;
+};
 
 export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
   let multiple = '';
@@ -47,10 +56,10 @@ export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
         <td><input class="form-control" type="number" step="1" placeholder="${
           spool.used
         }" disabled></td>
-        <td><span class="d-none grams">${spoolRemaining(
+        <td><span class="d-none grams">${formatSpoolRemaining(
           spool.weight,
           spool.used
-        )}</span><span class="spool-remaining">${spoolRemaining(
+        )}</span><span class="spool-remaining">${formatSpoolRemaining(
     spool.weight,
     spool.used
   )}</span>g</td>
