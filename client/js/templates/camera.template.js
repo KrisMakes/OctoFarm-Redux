@@ -12,11 +12,19 @@ export const drawCamera = (
   const aspectClass = aspectRatioClass(resolved);
   const changeAspect = aspectClass ? ` ${aspectClass}` : '';
 
+  // A camera inside a modal is handed its URL rather than its src. A hidden
+  // <img> still loads, so every printer held a second live MJPEG connection for
+  // a modal nobody had opened -- with two printers that was four of the six
+  // connections a browser allows per origin, and the visible panes' own
+  // requests sat queued behind them, never starting. The camera watchdog fills
+  // this in when the modal opens and releases it when it closes.
+  const source = modal ? `data-camera-src="${url}"` : `src="${url}"`;
+
   return `<img
         class="camImg ${hidden ? hideMe : ''}${changeAspect}"
         id="camera${modal}-${id}"
         width="100%"
         style="transform: ${flipH} ${flipV} ${rotate90}"
-        src="${url}"
+        ${source}
      alt=""/>`;
 };

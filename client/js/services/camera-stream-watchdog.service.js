@@ -287,6 +287,25 @@ const handleWindowFocus = () => {
   resumeCameras();
 };
 
+// Cameras inside modals carry their URL in data-camera-src and only stream
+// while the modal is open -- see the note in camera.template.js. Bound on the
+// document rather than per modal, because the modal markup is rebuilt from the
+// templates every time a printer card is redrawn.
+const attachModalCameras = () => {
+  if (typeof window.$ !== 'function') {
+    return;
+  }
+  window.$(document).on('shown.bs.modal', (event) => {
+    event.target?.querySelectorAll?.('.camImg[data-camera-src]').forEach((img) => {
+      img.src = img.dataset.cameraSrc;
+    });
+  });
+  window.$(document).on('hidden.bs.modal', (event) => {
+    // The URL stays in the data attribute, so reopening starts it again.
+    event.target?.querySelectorAll?.('.camImg[data-camera-src]').forEach(releaseStream);
+  });
+};
+
 const startFreezeDetector = () => {
   let lastTick = Date.now();
   setInterval(() => {
@@ -315,6 +334,8 @@ export const startCameraStreamWatchdog = () => {
 
   // Same reasoning: a display going to sleep is not a Safari quirk either.
   startFreezeDetector();
+
+  attachModalCameras();
 
   if (!isSafari()) {
     return;
