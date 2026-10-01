@@ -306,6 +306,34 @@ const attachModalCameras = () => {
   });
 };
 
+// A camera that leaves the document keeps streaming. WebKit ends a multipart
+// response when the element starts a different load, not when it is detached --
+// which is the same thing that made replacing the element useless as a way of
+// reconnecting. The monitoring updater rebuilds a printer's card on every
+// change, so each rebuild threw away an <img> that went on holding its
+// connection and started another beside it. Streams accumulated until the
+// origin's handful of connections was gone and the visible panes' own requests
+// sat queued, never starting, which is the grey pane.
+//
+// Watching for removals catches every path that discards a camera, rather than
+// relying on each of them to remember.
+const releaseRemovedCameras = () => {
+  const observer = new MutationObserver((records) => {
+    records.forEach((record) => {
+      record.removedNodes.forEach((node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return;
+        }
+        if (node.classList?.contains('camImg')) {
+          releaseStream(node);
+        }
+        node.querySelectorAll?.('.camImg').forEach(releaseStream);
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+};
+
 const startFreezeDetector = () => {
   let lastTick = Date.now();
   setInterval(() => {
@@ -336,6 +364,8 @@ export const startCameraStreamWatchdog = () => {
   startFreezeDetector();
 
   attachModalCameras();
+
+  releaseRemovedCameras();
 
   if (!isSafari()) {
     return;
