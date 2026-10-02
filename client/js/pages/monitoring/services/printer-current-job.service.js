@@ -273,11 +273,15 @@ const loadPrintersJobStatus = (printer) => {
   let printStatusClass;
   let cameraClass;
   // let temperatureClass = "col-md-8 text-center";
-  if (printer?.currentJob?.thumbnail !== null) {
+  // Truthiness, not `!== null`: a job with no thumbnail leaves the field
+  // undefined rather than null, and `undefined !== null` is true -- so this
+  // took the thumbnail branch anyway and rendered src=".../undefined", which
+  // is the broken-image icon that appeared for every file without one.
+  if (printer?.currentJob?.thumbnail) {
     printStatusClass = 'col-lg-6 text-center';
     thumbnailClass = 'col-lg-2 text-center';
     // temperatureClass = "col-md-9 text-center";
-    thumbnailElement = `<img width="100%" src="${printer.printerURL}/${printer.currentJob.thumbnail}">`;
+    thumbnailElement = `<img width="100%" alt="" src="${printer.printerURL}/${printer.currentJob.thumbnail}">`;
     cameraClass = 'col-lg-4';
   } else {
     printStatusClass = 'col-lg-8 text-center';
@@ -666,10 +670,15 @@ const updateCurrentJobStatus = (printer, elements) => {
 };
 
 const percentOfDisplay = (value, percent) => {
-  return `${Calc.percentOf(parseFloat(value), parseFloat(percent))} / ${Calc.toFixed(
-    parseFloat(value),
-    2
-  )}`;
+  // Electricity and maintenance costs are only worked out when those options
+  // are switched on in the server settings, so with them off the figure never
+  // arrives and parseFloat(undefined) printed "NaN / NaN" in the costs row. A
+  // cost that was never calculated has no number to show.
+  const total = parseFloat(value);
+  if (!Number.isFinite(total)) {
+    return 'Not calculated';
+  }
+  return `${Calc.percentOf(total, parseFloat(percent))} / ${Calc.toFixed(total, 2)}`;
 };
 
 const applyTemps = (printer, elements) => {
