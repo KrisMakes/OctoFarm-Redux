@@ -78,6 +78,80 @@ const bandFor = (value, values, names) => {
   return names[Math.min(Math.floor((value - low) / step), names.length - 1)];
 };
 
+const escapeText = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+/**
+ * A top-down plan of the bed with every object drawn where it actually prints,
+ * numbered, and clickable to cancel.
+ *
+ * This is the part that makes the feature usable under pressure. Reading
+ * "Part4.STL (Instance 3)" off a list and working out which of four identical
+ * blobs that is, while the failed one is being dragged around, is not
+ * something anyone wants to do. Looking at a picture of the bed is.
+ *
+ * Bounds come from the plugin, which learns them as the object prints -- so an
+ * object that has not started yet has nothing to draw, and the first layer
+ * fills the plan in. Objects without bounds are left out rather than guessed at.
+ *
+ * @returns {string} SVG markup, or '' when there is nothing worth drawing.
+ */
+export const renderBedPlan = (objects, volume) => {
+  const width = parseFloat(volume?.width);
+  const depth = parseFloat(volume?.depth);
+  if (!Number.isFinite(width) || !Number.isFinite(depth) || width <= 0 || depth <= 0) {
+    return '';
+  }
+  const placed = objects.filter(hasExtent);
+  if (placed.length === 0) {
+    return '';
+  }
+
+  // Big enough to read the numbers on, small enough not to push the rest of
+  // the modal off the screen.
+  const label = Math.max(depth / 14, 6);
+
+  const shapes = placed
+    .map((object) => {
+      const x = object.min_x;
+      // Bed Y runs away from you; SVG Y runs down the screen. Without this the
+      // plan is a mirror of the bed, which is worse than no plan at all.
+      const y = depth - object.max_y;
+      const w = object.max_x - object.min_x;
+      const h = object.max_y - object.min_y;
+      const index = objects.indexOf(object) + 1;
+      const fill = object.cancelled ? '#6c757d' : object.active ? '#17a2b8' : '#495057';
+      const stroke = object.active ? '#17a2b8' : '#adb5bd';
+      return `
+        <g data-cancel-object="${escapeText(object.id)}" data-object-name="${escapeText(
+        object.object
+      )}"
+           style="cursor:${object.cancelled ? 'default' : 'pointer'}">
+          <title>${escapeText(object.object)}${object.cancelled ? ' (cancelled)' : ''}</title>
+          <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1"
+                fill="${fill}" fill-opacity="${object.cancelled ? 0.35 : 0.85}"
+                stroke="${stroke}" stroke-width="0.8"/>
+          <text x="${x + w / 2}" y="${y + h / 2}" fill="#fff" font-size="${label}"
+                text-anchor="middle" dominant-baseline="central"
+                style="pointer-events:none">${index}</text>
+        </g>`;
+    })
+    .join('');
+
+  return `
+    <svg viewBox="0 0 ${width} ${depth}" width="100%" style="max-height:260px" role="img"
+         aria-label="Top-down view of the bed with each object numbered">
+      <rect x="0" y="0" width="${width}" height="${depth}" fill="#212529" stroke="#495057"
+            stroke-width="1"/>
+      ${shapes}
+      <text x="2" y="${depth - 2}" fill="#6c757d" font-size="${label * 0.7}">front</text>
+    </svg>`;
+};
+
 /**
  * Where each object sits relative to the others, as words rather than
  * coordinates.

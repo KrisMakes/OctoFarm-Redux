@@ -15,6 +15,7 @@ import {
   cancelObject,
   describePositions,
   getCancellableObjects,
+  renderBedPlan,
 } from '../../../services/octoprint/octoprint-cancel-object.service';
 
 let chart = null;
@@ -429,23 +430,26 @@ const renderObjects = (printer, objects) => {
   }
 
   const positions = describePositions(objects);
-  list.innerHTML = objects
-    .map((object) => {
-      const where = positions.get(object.id);
-      const place = where ? `<span class="badge badge-secondary ml-2">${where}</span>` : '';
-      const printing = object.active
-        ? '<span class="badge badge-info ml-2">printing now</span>'
-        : '';
-      const action = object.cancelled
-        ? '<span class="badge badge-danger">cancelled</span>'
-        : `<button class="btn btn-sm btn-outline-danger" data-cancel-object="${object.id}">Cancel</button>`;
-      return `
+  const plan = renderBedPlan(objects, printer?.currentProfile?.volume);
+  list.innerHTML =
+    (plan ? `<div class="mb-2">${plan}</div>` : '') +
+    objects
+      .map((object, index) => {
+        const where = positions.get(object.id);
+        const place = where ? `<span class="badge badge-secondary ml-2">${where}</span>` : '';
+        const printing = object.active
+          ? '<span class="badge badge-info ml-2">printing now</span>'
+          : '';
+        const action = object.cancelled
+          ? '<span class="badge badge-danger">cancelled</span>'
+          : `<button class="btn btn-sm btn-outline-danger" data-cancel-object="${object.id}">Cancel</button>`;
+        return `
         <div class="d-flex align-items-center justify-content-between mb-1">
-          <span>${object.object}${place}${printing}</span>
+          <span><b>${index + 1}.</b> ${object.object}${place}${printing}</span>
           ${action}
         </div>`;
-    })
-    .join('');
+      })
+      .join('');
 
   // Bound once per printer rather than per render: the rows are rewritten on
   // every refresh, so a listener on each button would be re-added constantly.
@@ -457,8 +461,12 @@ const renderObjects = (printer, objects) => {
         return;
       }
       const id = button.dataset.cancelObject;
+      // Both the list rows and the shapes on the bed plan carry the name, which
+      // the plan needs: an SVG group has no text node to read it out of.
       const name =
-        button.closest('div')?.querySelector('span')?.textContent?.trim() ?? 'this object';
+        button.dataset.objectName ??
+        button.closest('div')?.querySelector('span')?.textContent?.trim() ??
+        'this object';
       bootbox.confirm({
         title: 'Cancel this object?',
         // With one object on the plate this ends the print in all but name, so
