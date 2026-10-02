@@ -11,6 +11,11 @@ import ApexCharts from 'apexcharts';
 import UI from '../../../utils/ui';
 import { setupModalSwitcher } from './modal-switcher.service';
 import { findIndex } from 'lodash';
+import {
+  cancelObject,
+  describePositions,
+  getCancellableObjects,
+} from '../../../services/octoprint/octoprint-cancel-object.service';
 
 let chart = null;
 let chartTimer = 0;
@@ -373,11 +378,108 @@ const loadPrintersJobStatus = (printer) => {
           <div class="col-md-4 col-lg-2 text-center"><b class="mb-1">Maintainance: </b><br><p class="tag mb-1" id="pmExpectedMaintainance">Loading...</p></div>
            <div class="col-md-4 col-lg-2 text-center"><b class="mb-1">Total Printer: </b><br><p class="tag mb-1" id="pmExpectedPrinterCost">Loading...</p></div>
           <div class="col-md-4 col-lg-1 text-center"><b>Total Job: </b><p class="mb-1" id="pmJobCosts">Loading...</p></center></div>
-           
+
+        </div>
+        <div class="row d-none" id="pmObjectsRow">
+          <div class="col-lg-12 text-center">
+             <h5>Objects On The Plate</h5><hr>
+             <div id="pmObjectList" class="text-left"></div>
+          </div>
         </div>
 
     `;
   setupModalSwitcher('info', printer);
+};
+
+// The object list is polled rather than pushed, and re-reading it on every
+// status tick would ask the printer to re-walk its file several times a second
+// for something that only changes when a print starts or an object is
+// cancelled.
+const OBJECT_REFRESH_MS = 5000;
+
+let objectsLastFetchedAt = 0;
+let objectListeningFor = null;
+
+const renderObjects = (printer, objects) => {
+  const row = document.getElementById('pmObjectsRow');
+  const list = document.getElementById('pmObjectList');
+  if (!row || !list) {
+    return;
+  }
+  // Nothing to offer: a single-object print, a printer without the Cancel
+  // Object plugin, or no file loaded. All three mean the same to the user, so
+  // the section simply is not there.
+  if (objects.length < 2) {
+    UI.addDisplayNoneToElement(row);
+    return;
+  }
+  UI.removeDisplayNoneFromElement(row);
+
+  const positions = describePositions(objects);
+  list.innerHTML = objects
+    .map((object) => {
+      const where = positions.get(object.id);
+      const place = where ? `<span class="badge badge-secondary ml-2">${where}</span>` : '';
+      const printing = object.active
+        ? '<span class="badge badge-info ml-2">printing now</span>'
+        : '';
+      const action = object.cancelled
+        ? '<span class="badge badge-danger">cancelled</span>'
+        : `<button class="btn btn-sm btn-outline-danger" data-cancel-object="${object.id}">Cancel</button>`;
+      return `
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <span>${object.object}${place}${printing}</span>
+          ${action}
+        </div>`;
+    })
+    .join('');
+
+  // Bound once per printer rather than per render: the rows are rewritten on
+  // every refresh, so a listener on each button would be re-added constantly.
+  if (objectListeningFor !== printer._id) {
+    objectListeningFor = printer._id;
+    list.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-cancel-object]');
+      if (!button) {
+        return;
+      }
+      const id = button.dataset.cancelObject;
+      const name =
+        button.closest('div')?.querySelector('span')?.textContent?.trim() ?? 'this object';
+      bootbox.confirm({
+        title: 'Cancel this object?',
+        message: `The rest of the plate carries on printing. What has already been laid down for <b>${name}</b> stays on the bed, and the nozzle still travels over it.`,
+        buttons: {
+          confirm: { label: 'Cancel the object', className: 'btn-danger' },
+          cancel: { label: 'Leave it printing', className: 'btn-secondary' },
+        },
+        callback: async (confirmed) => {
+          if (!confirmed) {
+            return;
+          }
+          button.disabled = true;
+          const accepted = await cancelObject(printer, id);
+          UI.createAlert(
+            accepted ? 'warning' : 'error',
+            accepted ? `Cancelled ${name}` : `Could not cancel ${name}`,
+            3000
+          );
+          // Show the result straight away rather than waiting for the poll.
+          objectsLastFetchedAt = 0;
+          refreshObjects(printer);
+        },
+      });
+    });
+  }
+};
+
+const refreshObjects = async (printer) => {
+  const now = Date.now();
+  if (now - objectsLastFetchedAt < OBJECT_REFRESH_MS) {
+    return;
+  }
+  objectsLastFetchedAt = now;
+  renderObjects(printer, await getCancellableObjects(printer));
 };
 
 const updateCurrentJobStatus = (printer, elements) => {
@@ -387,6 +489,11 @@ const updateCurrentJobStatus = (printer, elements) => {
   ) {
     return;
   }
+
+  // Deliberately not awaited: the rest of this paints from data already in
+  // hand, and the object list must not hold it up if the printer is slow to
+  // answer.
+  refreshObjects(printer);
 
   let dateComplete;
   if (typeof printer.currentJob !== 'undefined' && printer.currentJob.printTimeRemaining !== null) {
