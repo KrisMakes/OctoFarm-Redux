@@ -680,7 +680,7 @@ export default class FileManagerService {
 
               let thumbnail = '<i class="fas fa-file-code fa-2x text-center"></i>';
               if (!!file.thumbnail) {
-                thumbnail = `<img alt="Gcode Thumbnail" class="text-center" src='${printer.printerURL}/${file.thumbnail}' width="100%">`;
+                thumbnail = `<img alt="Gcode Thumbnail" class="text-center" src='/octoprint/${printer._id}/${file.thumbnail}' width="100%">`;
               }
 
               let fileDate = new Date(file.uploadDate * 1000);

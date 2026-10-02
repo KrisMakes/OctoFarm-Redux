@@ -275,13 +275,18 @@ const loadPrintersJobStatus = (printer) => {
   // let temperatureClass = "col-md-8 text-center";
   // Truthiness, not `!== null`: a job with no thumbnail leaves the field
   // undefined rather than null, and `undefined !== null` is true -- so this
-  // took the thumbnail branch anyway and rendered src=".../undefined", which
-  // is the broken-image icon that appeared for every file without one.
+  // took the thumbnail branch anyway and rendered src=".../undefined".
+  //
+  // The URL goes through OctoFarm's OctoPrint proxy rather than straight at
+  // the printer. OctoPrint serves thumbnails behind its access control and
+  // answers 403 without an API key, which the browser does not have and should
+  // not be given; the proxy adds it server-side. Pointed at the printer
+  // directly, no thumbnail has ever loaded.
   if (printer?.currentJob?.thumbnail) {
     printStatusClass = 'col-lg-6 text-center';
     thumbnailClass = 'col-lg-2 text-center';
     // temperatureClass = "col-md-9 text-center";
-    thumbnailElement = `<img width="100%" alt="" src="${printer.printerURL}/${printer.currentJob.thumbnail}">`;
+    thumbnailElement = `<img width="100%" alt="" src="/octoprint/${printer._id}/${printer.currentJob.thumbnail}">`;
     cameraClass = 'col-lg-4';
   } else {
     printStatusClass = 'col-lg-8 text-center';

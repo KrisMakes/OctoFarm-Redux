@@ -107,7 +107,7 @@ export function imageOrCamera(printer, doNotDisplay = false, modal = '') {
     } else {
       if (typeof printer.currentJob !== 'undefined' && printer.currentJob.thumbnail != null) {
         return drawCamera(printer._id, {
-          url: printer.printerURL + '/' + printer.currentJob.thumbnail,
+          url: '/octoprint/' + printer._id + '/' + printer.currentJob.thumbnail,
           flipV,
           flipH,
           rotate90,
@@ -128,7 +128,7 @@ export function imageOrCamera(printer, doNotDisplay = false, modal = '') {
   } else {
     if (typeof printer.currentJob !== 'undefined' && printer.currentJob.thumbnail != null) {
       return drawCamera(printer._id, {
-        url: printer.printerURL + '/' + printer.currentJob.thumbnail,
+        url: '/octoprint/' + printer._id + '/' + printer.currentJob.thumbnail,
         flipV,
         flipH,
         rotate90,
