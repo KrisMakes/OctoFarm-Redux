@@ -100,6 +100,21 @@ until switched on under System > Server > Features.
 **Camera streaming** - camera feeds stream through OctoFarm itself (a same-origin proxy) instead of the browser
 connecting to every printer directly, which is also what stopped Safari loading them at all.
 
+**Cancel a single object mid-print** - when one part of a multi-object plate lifts or turns into spaghetti, cancel
+just that one from the job modal and let the rest of the plate finish. The objects of the current file are listed
+with a Cancel button each, the one being printed right now is marked, and cancelling asks first and says plainly
+what it does and does not do - the rest carries on, but what is already printed stays on the bed and the nozzle
+still travels over it.
+
+Each object is described by where it sits *relative to the others* ("back left"), not by bed quadrant and not by
+the name the slicer gave it. Four copies of one STL are all "front left" in absolute terms, and
+"Part4.STL (Instance 2)" identifies nothing you can see while looking at a failed print.
+
+Goes through the Cancel Object OctoPrint plugin rather than sending `M486` directly, so it does not depend on the
+printer's firmware understanding object cancellation - the plugin suppresses the extrusion host-side as the file
+is streamed. The section is always present, and says why it is empty (file sliced without object labels, or the
+plugin not installed on that printer) rather than disappearing.
+
 **Everything else:**
 - Corrected, actionable error messages when OctoPrint's own reported state contradicts itself (e.g. "already
   printing" while the printer shows disconnected), instead of a generic conflict message.
@@ -109,12 +124,23 @@ connecting to every printer directly, which is also what stopped Safari loading 
 
 ### Improvements
 
-- Cameras recover automatically after a stalled stream or after switching browser tabs away and back, instead of
-  needing a manual page refresh - and a camera showing an unchanging picture (a dark enclosure overnight) is no
-  longer mistaken for a dead one and reconnected all night.
+- Cameras recover automatically after a stalled stream, after switching browser tabs, and after switching to
+  another application and back - the last of which is not a tab change at all, so nothing watching for one ever
+  saw it. A camera showing an unchanging picture (a dark enclosure overnight) is still not mistaken for a dead
+  one and reconnected all night.
 - The whole interface stays responsive after leaving a tab in the background. Buttons could previously go dead
   with no error at all, because abandoned live connections used up every socket the browser allows per site and
   new requests simply queued forever behind them.
+- Camera panes no longer leak a connection every time a printer card is redrawn. A discarded `<img>` keeps its
+  stream open in WebKit - detaching it from the page does not end the response - so streams accumulated until the
+  browser's per-site connection limit was gone, at which point the cameras went blank and no amount of
+  reconnecting could help, because the reconnect could not get a connection either.
+- A printer's camera only streams into its modal while that modal is open. Each printer used to hold a second
+  live stream for a modal nobody had opened, which on a two-printer farm was four of the six connections a
+  browser allows per site.
+- Monitoring cards are sized by how wide they should be rather than by a fixed column count, so the panel and
+  camera views fill the row properly at any window size.
+- The camera aspect-ratio setting is applied to the camera views, instead of being saved and then ignored.
 - Print-finish time now displays in full (was silently truncated) and is now actually correct (was silently off by
   hours due to a container timezone bug).
 - Panel/camera view cards stay a consistent height regardless of printer state.
@@ -143,6 +169,24 @@ connecting to every printer directly, which is also what stopped Safari loading 
   permanently.
 - Spool cost was being silently under-reported on cancelled/failed prints (double-applied completion-ratio bug).
 - Thumbnails could silently fail to save for any printer with API access control enabled.
+- Gcode thumbnails never actually displayed. The URL was built straight at the printer, from the browser, and
+  OctoPrint serves thumbnails behind its access control - so it answered 403, because the browser has no API key
+  and deliberately is not given one. They now go through the same proxy as every other OctoPrint call, which adds
+  the key server-side. Fixed in the job modal, the file manager, and both camera fallbacks.
+- The job modal rendered a broken image for any file with no thumbnail at all: the check was `!== null`, and a
+  job without one leaves the field `undefined`, which is not `null`.
+- The job modal showed "NaN / NaN" for electricity, maintenance and printer-total costs. Those are only worked
+  out when the matching options are enabled in server settings; with them off the figure never arrives and the
+  display parsed `undefined`. It now says the cost was not calculated.
+- The filament pre-flight check never fired, for any print, since it was written. It looked up `filamentLength`
+  on the file record, but the server stores the per-tool lengths as `length`, so the lookup always came back
+  empty and the check passed everything through without comparing anything. Found when a 189g print started
+  against a spool holding 36.8g and said nothing.
+- The spool Remaining column printed the full floating-point result of weight minus used -
+  "36.811371464054105g". Used is accumulated from per-print filament lengths, so the subtraction lands on
+  floating-point noise. It now shows whole grams, while the stored value keeps its precision so repeated small
+  deductions still accumulate correctly.
+- Camera streams rendered as empty boxes in Safari inside the card grid.
 - Printer setup could hang forever on "Setting Up" and never appear in the dashboard.
 - Old temperature history was never actually cleaned up - over 2 million stale records had piled up.
 - File-action errors (delete, move, select) showed the same vague message for every possible cause.
