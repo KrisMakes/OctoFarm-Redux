@@ -410,14 +410,18 @@ const renderObjects = (printer, objects) => {
   if (!row || !list) {
     return;
   }
-  // Nothing to offer: a single-object print, a printer without the Cancel
-  // Object plugin, or no file loaded. All three mean the same to the user, so
-  // the section simply is not there.
-  if (objects.length < 2) {
-    UI.addDisplayNoneToElement(row);
+  // Always shown, so the panel has the same shape for every printer and every
+  // file. A section that comes and goes is harder to trust than one that is
+  // always there and sometimes says it has nothing.
+  UI.removeDisplayNoneFromElement(row);
+
+  if (objects.length === 0) {
+    list.innerHTML =
+      '<p class="mb-0 text-muted">No object information for this file. Either it was ' +
+      'sliced without object labels, or this printer does not have the Cancel Object ' +
+      'plugin installed.</p>';
     return;
   }
-  UI.removeDisplayNoneFromElement(row);
 
   const positions = describePositions(objects);
   list.innerHTML = objects
@@ -452,7 +456,12 @@ const renderObjects = (printer, objects) => {
         button.closest('div')?.querySelector('span')?.textContent?.trim() ?? 'this object';
       bootbox.confirm({
         title: 'Cancel this object?',
-        message: `The rest of the plate carries on printing. What has already been laid down for <b>${name}</b> stays on the bed, and the nozzle still travels over it.`,
+        // With one object on the plate this ends the print in all but name, so
+        // say that rather than letting "the rest carries on" imply otherwise.
+        message:
+          objects.length < 2
+            ? `<b>${name}</b> is the only object in this file, so cancelling it leaves the printer running out the rest of the job with nothing being extruded. If you meant to stop the print, use Cancel instead.`
+            : `The rest of the plate carries on printing. What has already been laid down for <b>${name}</b> stays on the bed, and the nozzle still travels over it.`,
         buttons: {
           confirm: { label: 'Cancel the object', className: 'btn-danger' },
           cancel: { label: 'Leave it printing', className: 'btn-secondary' },
