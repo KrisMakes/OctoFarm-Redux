@@ -9,6 +9,7 @@ import {
   reconnectFrequency,
 } from '../js/services/amialive.service';
 import { startCameraStreamWatchdog } from '../js/services/camera-stream-watchdog.service';
+import { startReloadOnReturn } from '../js/services/reload-on-return.service';
 import { updateMaintenanceModeBanner } from '../js/services/maintenance-mode-banner.service';
 
 // reconnectFrequencySeconds doubles every retry
@@ -191,4 +192,10 @@ window.addEventListener('focus', () => {
 // unconditionally costs nothing on a page with no cameras: it's one
 // document-level listener, plus (Safari only) a 5s interval whose
 // querySelectorAll('.camImg') just returns empty.
+// Registered before the watchdog so a return is reloaded rather than patched
+// up: when this fires, everything below is replaced a moment later anyway. It
+// holds off while a dialog is open or something is being typed, and the
+// watchdog is what recovers the cameras in those cases.
+startReloadOnReturn();
+
 startCameraStreamWatchdog();
