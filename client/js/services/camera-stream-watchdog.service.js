@@ -106,6 +106,12 @@ const FROZEN_FRAME_POLL_MS = 100;
 // a copy -- no second connection, which matters when the origin only allows
 // about six.
 const freezeFrame = (img) => {
+  // Nothing to copy off an element that has already been released -- its
+  // content is the 1x1 blank pixel, and capturing that paints the pane a
+  // single stretched transparent dot.
+  if (isPlaceholderSrc(img.src)) {
+    return false;
+  }
   const rect = img.getBoundingClientRect();
   if (!rect.height || !img.naturalWidth) {
     return false;
@@ -140,7 +146,7 @@ const thawFrame = (img) => {
 // reported for a moment after `src` is changed. Treating that as the new
 // stream's first frame takes the frozen picture down again immediately, which
 // is the gap this exists to cover. No camera is one pixel wide.
-const thawOnFirstFrame = (img) => {
+const thawOnFirstFrame = (img, onSettled) => {
   const startedAt = Date.now();
   const poll = setInterval(() => {
     const done =
@@ -148,6 +154,7 @@ const thawOnFirstFrame = (img) => {
     if (done) {
       clearInterval(poll);
       thawFrame(img);
+      onSettled?.();
     }
   }, FROZEN_FRAME_POLL_MS);
 };
@@ -199,22 +206,23 @@ const wireLoadListener = (img) => {
 // treats it as a request for the page's own URL and fetches the whole HTML
 // document into an <img> -- a socket spent to load something that can never
 // render. The blank pixel costs nothing and settles at once.)
-const forceReconnect = (img, entry) => {
+const forceReconnect = (img, entry, onSettled) => {
   const base = entry?.streamSrc;
   if (!base) {
+    onSettled?.();
     return;
   }
   const url = new URL(base, window.location.href);
   url.searchParams.set(RECONNECT_PARAM, Date.now().toString());
   const freshSrc = url.toString();
 
-  const frozen = freezeFrame(img);
+  // A no-op when the stream was already released on the way out, which is the
+  // usual case -- the frame was captured then, while there was still one.
+  freezeFrame(img);
   releaseStream(img);
   setTimeout(() => {
     img.src = freshSrc;
-    if (frozen) {
-      thawOnFirstFrame(img);
-    }
+    thawOnFirstFrame(img, onSettled);
   }, REATTACH_DELAY_MS);
 };
 
@@ -280,14 +288,9 @@ const recoverBrokenCameras = () => {
   });
 };
 
-// Only here to collapse the two or three events that describe a single return
-// -- blur/focus and visibilitychange arrive within milliseconds of each other,
-// and a wake can land alongside either. It must stay well under the time a real
-// trip to another application and back takes, or it swallows the second of two
-// quick switches and leaves that one grey: at 1500ms it did exactly that.
-const RECONNECT_SWEEP_DEBOUNCE_MS = 400;
-
-let lastSweepAt = 0;
+// How long one camera is given to paint before the next one is started. Only a
+// backstop: the chain normally moves on as soon as a frame arrives.
+const RECONNECT_TURN_TIMEOUT_MS = FROZEN_FRAME_MAX_MS;
 
 // Unconditional, and the only thing a return to the page runs. Whatever is on
 // screen after the page has been away cannot be trusted, and crucially cannot
@@ -298,51 +301,96 @@ let lastSweepAt = 0;
 // each tried a different test and each left that case grey until a manual
 // reload, because there is no test that sees it.
 //
-// So nothing is tested. Every camera is released and restarted, once, on the
-// way back in. The old objection to this was cost: it used to point the <img>
-// at a fresh URL while WebKit still held the old response open, so each return
-// spent another of the handful of connections the origin allows and eventually
-// queued every request in the app behind streams that never end. forceReconnect
-// now ends the old response first (the blank pixel above), which makes a sweep
-// socket-neutral -- one stream per camera before, one after.
+// So nothing is tested: every camera is rebuilt on the way back in. Doing that
+// all at once was the mistake. Reconnecting while the old responses were still
+// open needed, for a moment, two connections per camera on top of the event
+// stream and the monitoring worker -- more than the six a browser will open to
+// one origin. Over the limit nothing fails: the new requests simply queue
+// behind streams that never end, so the panes stay as they were. That is "left
+// one frozen on its last frame, right one grey" -- the frozen frame still up
+// over a request that never started, beside a camera that had nothing to freeze.
 //
-// What it costs instead is a visible reconnect: the pane blanks and redraws
-// over roughly a second. That is the whole price, it is paid only on a return
-// the user just made, and it replaces a pane that stayed grey until they
-// reloaded by hand.
-const reconnectEveryCamera = () => {
-  const now = Date.now();
-  if (now - lastSweepAt < RECONNECT_SWEEP_DEBOUNCE_MS) {
+// So the two halves are separated and neither overlaps the other. The streams
+// are handed back on the way OUT, while nothing is being watched and the frame
+// to freeze is still there to copy, and the replacements are taken on the way
+// back IN, one at a time, each waiting for the one before it to paint. At no
+// point is more than one camera connection being opened.
+const reconnectInTurn = (imgs, index) => {
+  if (index >= imgs.length) {
     return;
   }
-  lastSweepAt = now;
+  const img = imgs[index];
+  const now = Date.now();
+  const entry = trackedEntry(img, now);
+  entry.lastReconnectAt = now;
+  entry.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
+  entry.pendingSince = null;
+  let moved = false;
+  const next = () => {
+    if (moved) {
+      return;
+    }
+    moved = true;
+    reconnectInTurn(imgs, index + 1);
+  };
+  setTimeout(next, RECONNECT_TURN_TIMEOUT_MS);
+  forceReconnect(img, entry, next);
+};
+
+const reconnectEveryCamera = () => {
+  const cameras = [...document.querySelectorAll('.camImg')].filter(
+    (img) => watchState.get(img)?.streamSrc || !isPlaceholderSrc(img.src)
+  );
+  reconnectInTurn(cameras, 0);
+};
+
+// Leaving the page hands every camera's connection straight back, which is what
+// makes the reconnect on return uncontended. Releasing on the way out was tried
+// once before and reverted because the panes went grey the instant you switched
+// away -- there was nothing to show in place of the stream. There is now: the
+// last frame is copied into the element first, while the stream is still live
+// and the frame is still good, and stays up until the replacement paints over
+// it. The pane looks the same the whole way through.
+const suspendCameras = () => {
+  const now = Date.now();
   document.querySelectorAll('.camImg').forEach((img) => {
     if (isPlaceholderSrc(img.src)) {
       return;
     }
-    const entry = trackedEntry(img, now);
-    entry.lastReconnectAt = now;
-    entry.retryBackoffMs = BROKEN_RETRY_INITIAL_MS;
-    entry.pendingSince = null;
-    forceReconnect(img, entry);
+    trackedEntry(img, now);
+    freezeFrame(img);
+    releaseStream(img);
   });
 };
 
-// Releasing every stream on the way out was tried and reverted: the release
-// worked and the restore did not, so the panes went grey the instant you
-// switched away, every time, which is worse than the problem it was for. The
-// blank-pixel release stays where it is used on reconnect -- that part is what
-// cleared the queued, never-started requests -- but leaving the page no longer
-// triggers it.
+// Both events describing one departure (blur, and visibilitychange on a tab
+// switch) set this, and both halves of the return clear it, so each return is
+// acted on exactly once without timing anything. A quick switch is no different
+// from a slow one: the flag is set, then cleared.
+let suspended = false;
+
+const suspendOnLeave = () => {
+  if (suspended) {
+    return;
+  }
+  suspended = true;
+  suspendCameras();
+};
+
 const resumeCameras = () => {
+  if (!suspended) {
+    return;
+  }
+  suspended = false;
   reconnectEveryCamera();
 };
 
 const handleVisibilityChange = () => {
-  if (document.visibilityState !== 'visible') {
-    return;
+  if (document.visibilityState === 'visible') {
+    resumeCameras();
+  } else {
+    suspendOnLeave();
   }
-  resumeCameras();
 };
 
 // Switching to another application is not a visibility change. On macOS a tab
@@ -352,27 +400,18 @@ const handleVisibilityChange = () => {
 // the case these panes are actually found grey in, and only window focus sees
 // it.
 //
-// Only to discard a focus that follows no real departure. This was two seconds,
-// on the theory that a short trip away is not a real one -- but a stream is
-// abandoned just as thoroughly by a one-second visit to another application as
-// by a one-minute one, and the pane came back grey from exactly those quick
-// switches with nothing willing to touch it. Reconnecting costs one connection
-// that is handed straight back, and the viewer no longer sees it happen, so
-// there is nothing left to be careful about.
-const MIN_BLUR_FOR_RECOVERY_MS = 200;
-
-let blurredAt = null;
-
+// How long a trip away lasted no longer matters. A one-second visit to another
+// application abandons a stream as thoroughly as a one-minute one, and both
+// halves are now symmetric -- the departure hands the connections back, the
+// return takes them again -- so there is nothing to wait and see about. The
+// thresholds that used to sit here (two seconds before a focus counted, and a
+// debounce wide enough to swallow the second of two quick switches) did nothing
+// but drop the quick switches on the floor.
 const handleWindowBlur = () => {
-  blurredAt = Date.now();
+  suspendOnLeave();
 };
 
 const handleWindowFocus = () => {
-  const awayFor = blurredAt === null ? 0 : Date.now() - blurredAt;
-  blurredAt = null;
-  if (awayFor < MIN_BLUR_FOR_RECOVERY_MS) {
-    return;
-  }
   resumeCameras();
 };
 
@@ -432,11 +471,13 @@ const startFreezeDetector = () => {
     if (sinceLastTick < FREEZE_THRESHOLD_MS) {
       return;
     }
-    // Reconnecting into a tab that is still hidden spends the sockets and gets
-    // nothing drawn. Nothing is remembered for later: coming back to the page
-    // reconnects everything anyway.
+    // Reconnecting into a tab that is still hidden spends the connections and
+    // gets nothing drawn. Nothing is remembered for later: coming back to the
+    // page rebuilds everything anyway. Goes out through the same release-then-
+    // retake path as a departure so the replacements are never contended.
     if (document.visibilityState === 'visible') {
-      reconnectEveryCamera();
+      suspendOnLeave();
+      resumeCameras();
     }
   }, HEARTBEAT_INTERVAL_MS);
 };
