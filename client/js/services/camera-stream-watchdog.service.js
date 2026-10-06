@@ -83,6 +83,75 @@ const releaseStream = (img) => {
   img.src = BLANK_PIXEL;
 };
 
+// How long a frozen frame may be left up before it is taken down whether or
+// not the replacement has painted. Without this a camera that is genuinely gone
+// would keep showing the last picture it ever sent, which is worse than showing
+// nothing -- it looks like a working camera.
+const FROZEN_FRAME_MAX_MS = 15000;
+const FROZEN_FRAME_POLL_MS = 100;
+
+// Holds the pane still across a reconnect.
+//
+// A camera <img> is sized by the image inside it (`height: auto`, `max-height:
+// 100%`), so an element between two streams has no content, collapses to
+// nothing, and the card's own background shows through -- which is the grey
+// flash. The element also cannot simply keep showing its last frame, because
+// pointing it at the new stream clears it until the first frame arrives.
+//
+// So the last frame is copied into the element's CSS background and the box is
+// pinned to the height it had. Background and content are different layers: the
+// background stays put while `src` is swapped out and the new stream warms up,
+// and the live picture draws straight over it the moment it exists. The proxy
+// put the cameras on this origin, so the canvas is not tainted and this is just
+// a copy -- no second connection, which matters when the origin only allows
+// about six.
+const freezeFrame = (img) => {
+  const rect = img.getBoundingClientRect();
+  if (!rect.height || !img.naturalWidth) {
+    return false;
+  }
+  img.style.height = `${rect.height}px`;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    img.style.backgroundImage = `url("${canvas.toDataURL('image/jpeg', 0.6)}")`;
+    img.style.backgroundSize = '100% 100%';
+  } catch (e) {
+    // A camera that does not go through the proxy taints the canvas. Holding
+    // the box is still worth doing on its own -- it stops the card jumping.
+  }
+  return true;
+};
+
+const thawFrame = (img) => {
+  img.style.height = '';
+  img.style.backgroundImage = '';
+  img.style.backgroundSize = '';
+};
+
+// The frozen frame comes down on the new stream's first frame, so the swap is
+// invisible. `load` cannot be used for this -- it does not fire per frame on
+// these streams -- so the element is asked whether it has pixels yet.
+//
+// Greater than one, not greater than zero: the element was just pointed at the
+// 1x1 blank pixel to end the old stream, and those dimensions can still be
+// reported for a moment after `src` is changed. Treating that as the new
+// stream's first frame takes the frozen picture down again immediately, which
+// is the gap this exists to cover. No camera is one pixel wide.
+const thawOnFirstFrame = (img) => {
+  const startedAt = Date.now();
+  const poll = setInterval(() => {
+    const done =
+      !img.isConnected || img.naturalWidth > 1 || Date.now() - startedAt >= FROZEN_FRAME_MAX_MS;
+    if (done) {
+      clearInterval(poll);
+      thawFrame(img);
+    }
+  }, FROZEN_FRAME_POLL_MS);
+};
+
 const RECONNECT_PARAM = '_reconnect';
 
 // The camera's URL without the cache-buster, so a reconnect never stacks one
@@ -139,9 +208,13 @@ const forceReconnect = (img, entry) => {
   url.searchParams.set(RECONNECT_PARAM, Date.now().toString());
   const freshSrc = url.toString();
 
+  const frozen = freezeFrame(img);
   releaseStream(img);
   setTimeout(() => {
     img.src = freshSrc;
+    if (frozen) {
+      thawOnFirstFrame(img);
+    }
   }, REATTACH_DELAY_MS);
 };
 
@@ -207,10 +280,12 @@ const recoverBrokenCameras = () => {
   });
 };
 
-// How long after one sweep another is ignored. Leaving one window for another
-// fires both blur/focus and visibilitychange, and a wake can arrive alongside
-// either; without this each return would reconnect two or three times over.
-const RECONNECT_SWEEP_DEBOUNCE_MS = 1500;
+// Only here to collapse the two or three events that describe a single return
+// -- blur/focus and visibilitychange arrive within milliseconds of each other,
+// and a wake can land alongside either. It must stay well under the time a real
+// trip to another application and back takes, or it swallows the second of two
+// quick switches and leaves that one grey: at 1500ms it did exactly that.
+const RECONNECT_SWEEP_DEBOUNCE_MS = 400;
 
 let lastSweepAt = 0;
 
@@ -277,11 +352,14 @@ const handleVisibilityChange = () => {
 // the case these panes are actually found grey in, and only window focus sees
 // it.
 //
-// Focus also fires on an ordinary click into a window that never went
-// anywhere, so a return only counts once the window has been away long enough
-// to be a return: otherwise clicking about the page would restart first
-// connects that are merely still in flight.
-const MIN_BLUR_FOR_RECOVERY_MS = 2000;
+// Only to discard a focus that follows no real departure. This was two seconds,
+// on the theory that a short trip away is not a real one -- but a stream is
+// abandoned just as thoroughly by a one-second visit to another application as
+// by a one-minute one, and the pane came back grey from exactly those quick
+// switches with nothing willing to touch it. Reconnecting costs one connection
+// that is handed straight back, and the viewer no longer sees it happen, so
+// there is nothing left to be careful about.
+const MIN_BLUR_FOR_RECOVERY_MS = 200;
 
 let blurredAt = null;
 
