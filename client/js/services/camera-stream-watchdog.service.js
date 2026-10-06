@@ -171,22 +171,17 @@ const trackedEntry = (img, now) => {
 // An unresolved request with nothing drawn is only a failure once it has been
 // that way for a while, so the clock starts on the first sighting rather than
 // on the reconnect -- a first connect gets the full timeout before being cut.
-//
-// Except on returning to the tab, where no wait is warranted: the tab was just
-// in the background, which is the one moment Safari is known to abandon these
-// streams, so a request that has delivered nothing by now is that abandoned
-// request rather than a slow one. Waiting out the timeout here would leave the
-// pane grey for another eight seconds after the user is already looking at it,
-// when a manual reload would have fixed it at once.
-const isStalled = (entry, now, immediate) => {
+const isStalled = (entry, now) => {
   if (entry.pendingSince === null) {
     entry.pendingSince = now;
-    return !!immediate;
+    return false;
   }
-  return immediate || now - entry.pendingSince >= STALLED_TIMEOUT_MS;
+  return now - entry.pendingSince >= STALLED_TIMEOUT_MS;
 };
 
-const recoverBrokenCameras = ({ immediate }) => {
+// Catches a camera that dies while the page is being watched. Returning to the
+// page does not come through here -- see reconnectEveryCamera.
+const recoverBrokenCameras = () => {
   const now = Date.now();
   document.querySelectorAll('.camImg').forEach((img) => {
     if (isPlaceholderSrc(img.src)) {
@@ -199,13 +194,10 @@ const recoverBrokenCameras = ({ immediate }) => {
       entry.pendingSince = null;
       return;
     }
-    if (!isBroken(img) && !isStalled(entry, now, immediate)) {
+    if (!isBroken(img) && !isStalled(entry, now)) {
       return;
     }
-    // On returning to the tab, retry once straight away: the stream was torn
-    // down while the tab was in the background, and making the user wait out a
-    // backoff they never saw start is pointless.
-    if (!immediate && now - entry.lastReconnectAt < entry.retryBackoffMs) {
+    if (now - entry.lastReconnectAt < entry.retryBackoffMs) {
       return;
     }
     entry.lastReconnectAt = now;
@@ -215,11 +207,40 @@ const recoverBrokenCameras = ({ immediate }) => {
   });
 };
 
-// Unconditional: after a freeze the picture on screen cannot be trusted
-// whether or not the image looks broken, so the backoff does not apply and is
-// reset -- this is a fresh start, not another failed retry.
+// How long after one sweep another is ignored. Leaving one window for another
+// fires both blur/focus and visibilitychange, and a wake can arrive alongside
+// either; without this each return would reconnect two or three times over.
+const RECONNECT_SWEEP_DEBOUNCE_MS = 1500;
+
+let lastSweepAt = 0;
+
+// Unconditional, and the only thing a return to the page runs. Whatever is on
+// screen after the page has been away cannot be trusted, and crucially cannot
+// be *checked*: the state this is here to fix -- a stream cut partway through a
+// JPEG, drawn as a grey pane with a band of real picture -- has a real
+// naturalWidth and a completed load, so it is indistinguishable from a healthy
+// camera to every test available in the browser. Previous versions of this file
+// each tried a different test and each left that case grey until a manual
+// reload, because there is no test that sees it.
+//
+// So nothing is tested. Every camera is released and restarted, once, on the
+// way back in. The old objection to this was cost: it used to point the <img>
+// at a fresh URL while WebKit still held the old response open, so each return
+// spent another of the handful of connections the origin allows and eventually
+// queued every request in the app behind streams that never end. forceReconnect
+// now ends the old response first (the blank pixel above), which makes a sweep
+// socket-neutral -- one stream per camera before, one after.
+//
+// What it costs instead is a visible reconnect: the pane blanks and redraws
+// over roughly a second. That is the whole price, it is paid only on a return
+// the user just made, and it replaces a pane that stayed grey until they
+// reloaded by hand.
 const reconnectEveryCamera = () => {
   const now = Date.now();
+  if (now - lastSweepAt < RECONNECT_SWEEP_DEBOUNCE_MS) {
+    return;
+  }
+  lastSweepAt = now;
   document.querySelectorAll('.camImg').forEach((img) => {
     if (isPlaceholderSrc(img.src)) {
       return;
@@ -232,11 +253,6 @@ const reconnectEveryCamera = () => {
   });
 };
 
-// Reconnecting into a tab that is still hidden spends the sockets and gets
-// nothing drawn, so a wake that happens out of sight waits for the tab to come
-// back rather than firing blind.
-let reconnectWhenVisible = false;
-
 // Releasing every stream on the way out was tried and reverted: the release
 // worked and the restore did not, so the panes went grey the instant you
 // switched away, every time, which is worse than the problem it was for. The
@@ -244,12 +260,7 @@ let reconnectWhenVisible = false;
 // cleared the queued, never-started requests -- but leaving the page no longer
 // triggers it.
 const resumeCameras = () => {
-  if (reconnectWhenVisible) {
-    reconnectWhenVisible = false;
-    reconnectEveryCamera();
-    return;
-  }
-  recoverBrokenCameras({ immediate: true });
+  reconnectEveryCamera();
 };
 
 const handleVisibilityChange = () => {
@@ -343,10 +354,11 @@ const startFreezeDetector = () => {
     if (sinceLastTick < FREEZE_THRESHOLD_MS) {
       return;
     }
+    // Reconnecting into a tab that is still hidden spends the sockets and gets
+    // nothing drawn. Nothing is remembered for later: coming back to the page
+    // reconnects everything anyway.
     if (document.visibilityState === 'visible') {
       reconnectEveryCamera();
-    } else {
-      reconnectWhenVisible = true;
     }
   }, HEARTBEAT_INTERVAL_MS);
 };
@@ -370,5 +382,5 @@ export const startCameraStreamWatchdog = () => {
   if (!isSafari()) {
     return;
   }
-  setInterval(() => recoverBrokenCameras({ immediate: false }), CHECK_INTERVAL_MS);
+  setInterval(recoverBrokenCameras, CHECK_INTERVAL_MS);
 };

@@ -140,15 +140,47 @@ setupEventSource();
 // like they've simply stopped responding, with no error toast to explain why.
 // Tearing down and reopening on return is cheap and doesn't gamble on
 // whether the browser will ever notice and report the stall itself.
+function reopenEventStream() {
+  window.serverOffline = false;
+  // setupEventSource() closes the previous connection and cancels any pending
+  // reconnect itself. Doing it here as well used to leave the retry timer
+  // armed, so the reconnect it had already scheduled fired a moment later and
+  // opened a second connection on top of this one.
+  setupEventSource();
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    window.serverOffline = false;
-    // setupEventSource() closes the previous connection and cancels any pending
-    // reconnect itself. Doing it here as well used to leave the retry timer
-    // armed, so the reconnect it had already scheduled fired a moment later and
-    // opened a second connection on top of this one.
-    setupEventSource();
+    reopenEventStream();
   }
+});
+
+// Switching to another application never fires the above: on macOS the tab
+// behind another app is still the frontmost tab of a visible window, so
+// `visibilityState` stays 'visible' -- while the connection is abandoned just
+// the same. camera-stream-watchdog.service.js covers the identical gap for the
+// camera streams; this is the same return, for the stream that carries
+// AM_I_ALIVE and so decides whether every button in the app reports its errors.
+//
+// Focus also fires on an ordinary click back into a window that never went
+// anywhere, so a return only counts once the window has been away long enough
+// to be a return -- otherwise clicking around the page would churn a healthy
+// connection.
+const MIN_BLUR_FOR_REOPEN_MS = 2000;
+
+let blurredAt = null;
+
+window.addEventListener('blur', () => {
+  blurredAt = Date.now();
+});
+
+window.addEventListener('focus', () => {
+  const awayFor = blurredAt === null ? 0 : Date.now() - blurredAt;
+  blurredAt = null;
+  if (awayFor < MIN_BLUR_FOR_REOPEN_MS) {
+    return;
+  }
+  reopenEventStream();
 });
 
 // This used to wait for DOMContentLoaded and only start when a `.camImg`
