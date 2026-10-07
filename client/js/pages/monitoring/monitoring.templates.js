@@ -580,7 +580,7 @@ export function drawCameraView(printer, clientSettings) {
                            >
                               <i class="fas fa-terminal"></i>
                         </button>
-   
+                          </small>
             </div>
           </div>
           <div class="camTemps">
