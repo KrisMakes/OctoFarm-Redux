@@ -836,7 +836,6 @@ export function drawCombinedView(printer, clientSettings) {
                 </div>
             </div>
         </div>
-     </div>   
     `;
 }
 
