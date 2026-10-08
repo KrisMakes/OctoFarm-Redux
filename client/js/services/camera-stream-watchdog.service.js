@@ -150,7 +150,7 @@ const thawOnFirstFrame = (img, onSettled) => {
   const startedAt = Date.now();
   const poll = setInterval(() => {
     const done =
-      !img.isConnected || img.naturalWidth > 1 || Date.now() - startedAt >= FROZEN_FRAME_MAX_MS;
+      !img.isConnected || hasRealFrame(img) || Date.now() - startedAt >= FROZEN_FRAME_MAX_MS;
     if (done) {
       clearInterval(poll);
       thawFrame(img);
@@ -171,6 +171,10 @@ const cameraSrcOf = (img) => {
 
 const hasPixels = (img) => img.naturalWidth > 0;
 
+// Distinguishes a camera frame from the 1x1 blank pixel the element is pointed
+// at to end a stream.
+const hasRealFrame = (img) => img.naturalWidth > 1;
+
 const isBroken = (img) => img.complete && !hasPixels(img);
 
 const watchState = new WeakMap();
@@ -188,6 +192,15 @@ const wireLoadListener = (img) => {
   // existed its `error` event has already been and gone and will never fire
   // again. `isBroken` is checked directly rather than relying on the event.
   img.addEventListener('load', () => {
+    // The blank pixel is a load like any other: it completes, and it fires
+    // this. Releasing a stream therefore looked exactly like a camera coming
+    // back, and reset the backoff below -- so the doubling in
+    // recoverBrokenCameras was undone the instant it was applied, and a camera
+    // that was simply switched off was retried every fifteen seconds all night
+    // instead of backing off to five minutes. No camera is one pixel wide.
+    if (!hasRealFrame(img)) {
+      return;
+    }
     const tracked = watchState.get(img);
     if (tracked) {
       // A frame arrived, so whatever went wrong before is over.
@@ -385,10 +398,21 @@ const resumeCameras = () => {
   reconnectEveryCamera();
 };
 
+// Rebuilding the streams by hand is no longer what normally happens on a
+// return -- reload-on-return.service.js replaces the whole page instead, which
+// is the only thing that reliably clears an abandoned connection. This is what
+// it falls back to in the cases it refuses to reload: a dialog open, something
+// being typed, or a page too freshly loaded to throw away.
+//
+// It is exported rather than wired to the same events, because listening here
+// too meant every switch away and back rebuilt both camera streams and then
+// immediately discarded them when the reload landed a moment later -- twice the
+// connection churn, and twice the work for the two Pis, for nothing visible.
+export const recoverCamerasNow = resumeCameras;
+
 const handleVisibilityChange = () => {
-  if (document.visibilityState === 'visible') {
-    resumeCameras();
-  } else {
+  // Only the leaving half. The return is the reload service's.
+  if (document.visibilityState !== 'visible') {
     suspendOnLeave();
   }
 };
@@ -409,10 +433,6 @@ const handleVisibilityChange = () => {
 // but drop the quick switches on the floor.
 const handleWindowBlur = () => {
   suspendOnLeave();
-};
-
-const handleWindowFocus = () => {
-  resumeCameras();
 };
 
 // Cameras inside modals carry their URL in data-camera-src and only stream
@@ -487,9 +507,10 @@ export const startCameraStreamWatchdog = () => {
   // a Safari-specific quirk.
   document.addEventListener('visibilitychange', handleVisibilityChange);
 
-  // Covers coming back from another application, which the line above does not.
+  // Covers leaving for another application, which the line above does not: on
+  // macOS a tab behind another app is still the frontmost tab of a visible
+  // window, so visibilityState stays 'visible' and nothing above fires.
   window.addEventListener('blur', handleWindowBlur);
-  window.addEventListener('focus', handleWindowFocus);
 
   // Same reasoning: a display going to sleep is not a Safari quirk either.
   startFreezeDetector();

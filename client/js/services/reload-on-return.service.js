@@ -20,6 +20,8 @@
 // It is held back in the few places where throwing the page away would throw
 // work away with it -- see shouldHoldOff.
 
+import { recoverCamerasNow } from './camera-stream-watchdog.service';
+
 // A reload loop would be far worse than the bug, so returns that arrive in
 // quick succession reload once.
 const MIN_RELOAD_INTERVAL_MS = 5000;
@@ -50,19 +52,22 @@ const shouldHoldOff = () => {
   return false;
 };
 
+// Returns whether it reloaded, so the caller knows whether anything still has
+// to be put right by hand.
 const reloadNow = () => {
   const now = Date.now();
   if (now - loadedAt < SETTLE_AFTER_LOAD_MS) {
-    return;
+    return false;
   }
   if (now - lastReloadRequestAt < MIN_RELOAD_INTERVAL_MS) {
-    return;
+    return false;
   }
   if (shouldHoldOff()) {
-    return;
+    return false;
   }
   lastReloadRequestAt = now;
   window.location.reload();
+  return true;
 };
 
 // Both events describing one departure set this, and either half of the return
@@ -80,7 +85,12 @@ const markBack = () => {
     return;
   }
   away = false;
-  reloadNow();
+  if (reloadNow()) {
+    return;
+  }
+  // Not reloading, so the camera streams released on the way out are still
+  // released and nothing else is going to take them back.
+  recoverCamerasNow();
 };
 
 export const startReloadOnReturn = () => {
