@@ -110,6 +110,11 @@ Each object is described by where it sits *relative to the others* ("back left")
 the name the slicer gave it. Four copies of one STL are all "front left" in absolute terms, and
 "Part4.STL (Instance 2)" identifies nothing you can see while looking at a failed print.
 
+Above the list is a top-down plan of the bed, with every object drawn where it actually prints, numbered to match
+the list and clickable to cancel. The one printing now is highlighted and cancelled ones are dimmed. Bounds come
+from the plugin, which learns them as each object prints, so the plan fills in over the first layer and anything
+not yet known is left out rather than guessed at.
+
 Goes through the Cancel Object OctoPrint plugin rather than sending `M486` directly, so it does not depend on the
 printer's firmware understanding object cancellation - the plugin suppresses the extrusion host-side as the file
 is streamed. The section is always present, and says why it is empty (file sliced without object labels, or the
@@ -124,13 +129,20 @@ plugin not installed on that printer) rather than disappearing.
 
 ### Improvements
 
-- Cameras recover automatically after a stalled stream, after switching browser tabs, and after switching to
-  another application and back - the last of which is not a tab change at all, so nothing watching for one ever
-  saw it. A camera showing an unchanging picture (a dark enclosure overnight) is still not mistaken for a dead
-  one and reconnected all night.
-- The whole interface stays responsive after leaving a tab in the background. Buttons could previously go dead
-  with no error at all, because abandoned live connections used up every socket the browser allows per site and
-  new requests simply queued forever behind them.
+- Coming back to the page after a tab or application switch reloads it, so the cameras are live and every button
+  works without touching refresh. Everything the page holds across a switch away is a long-lived connection - the
+  event stream, the monitoring worker's, and one per camera - and a browser allows about six to one site. WebKit
+  abandons them when the window goes behind another application without reporting it, and a request queued behind
+  an abandoned one never errors, it simply never happens: that is both the grey camera pane and the buttons that
+  stop responding with no message. Rebuilding those connections in place was tried from several angles and each
+  version fixed the case it was written for and left another one dead, because from inside the page an abandoned
+  stream cannot be told apart from a healthy one. Reloading has none of that uncertainty, which is why the
+  refresh button was always the thing that worked. It is held back while a dialog is open or something is being
+  typed, so it cannot take work with it, and the page comes back in the same scroll position.
+- Leaving the page hands every camera connection back, so a tab sitting behind another window no longer holds one
+  per camera, and the pane keeps showing its last frame rather than going blank while it is away.
+- A camera that dies while you are watching is recovered without any of the above, and one showing an unchanging
+  picture (a dark enclosure overnight) is still not mistaken for a dead one and reconnected all night.
 - Camera panes no longer leak a connection every time a printer card is redrawn. A discarded `<img>` keeps its
   stream open in WebKit - detaching it from the page does not end the response - so streams accumulated until the
   browser's per-site connection limit was gone, at which point the cameras went blank and no amount of
@@ -164,6 +176,12 @@ plugin not installed on that printer) rather than disappearing.
   left the picture half grey with nothing to recover it.
 - The camera proxy dropped healthy cameras 30 seconds after a tab was backgrounded, mistaking the browser having
   stopped reading for the printer having gone quiet.
+- The camera view spread its cards across the row with empty gaps between them - on a two-printer farm, one card
+  at each end. An unclosed tag in the template left an empty element after every card, which counted as a column
+  of its own once the monitoring views moved to a grid.
+- A camera that was simply switched off was retried every fifteen seconds indefinitely. Ending a stream points
+  the image at a blank pixel, which counts as a load, which was read as the camera coming back and reset the
+  back-off each time it was applied.
 - Quick Connect's state could stop syncing entirely if one button was missing from the page.
 - The Torch and Maintenance Mode toggles could double-fire and flip straight back, or deadlock a button
   permanently.
