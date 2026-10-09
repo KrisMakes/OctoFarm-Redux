@@ -323,11 +323,13 @@ The running instance is built from `monolithic.Dockerfile` (bundles MongoDB in o
 docker build -f monolithic.Dockerfile -t octofarm-redux:local .
 ```
 
-Redeploy on the unraid host with `docker/deploy-unraid.sh` (kept at
-`/mnt/user/appdata/octofarm-redux/deploy.sh` there) rather than a hand-typed `docker run`. The base image is
-`mongo:8.0`, which declares both `/data/db` **and** `/data/configdb` as volumes; a redeploy that maps only
-`/data/db` and removes the old container without `-v` strands an anonymous volume every single time. The script
-maps both, removes with `-v`, and preserves `SUPER_SECRET_KEY` so existing sessions survive the restart.
+Two things to get right when redeploying, both easy to miss:
+
+- The base image is `mongo:8.0`, which declares **both** `/data/db` and `/data/configdb` as volumes. Map only
+  `/data/db` and Docker invents an anonymous volume for `/data/configdb`; remove the old container without `-v`
+  and that volume is stranded, every single deploy. Map both paths, and remove with `docker rm -v`.
+- Pass `SUPER_SECRET_KEY` in explicitly. The container generates one when it is missing, so letting it do that
+  on each deploy invalidates every session and logs everyone out.
 
 Client-side changes need a client rebuild (`cd client && npm run build`) before committing - the prebuilt webpack
 output is committed under `server/assets/`, and a client-only edit without a rebuild ships stale JS.
