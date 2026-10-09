@@ -499,16 +499,34 @@ class HistoryCaptureService {
       // Last print time available, use this as it's more accurate
       printTime = this.#job.lastPrintTime;
     } else {
-      printTime = this.#job.estimatedPrintTime;
+      printTime = this.#job?.estimatedPrintTime;
     }
 
-    let printPercentage = 0;
+    let completionRatio = 1.0;
 
     if (!this.#success) {
-      printPercentage = (this.#payload.time / printTime) * 100;
+      // How far a failed print got is measured against its estimate, so
+      // without one there is nothing to measure against. This used to divide
+      // by it regardless: a job with neither a last nor an estimated print
+      // time gave Infinity, and the spool's used weight became NaN with
+      // nothing to bring it back. Two prints on this farm reached that line
+      // and were only saved by the filament check further down happening to
+      // skip them. Say so and leave the spool alone instead -- an uncounted
+      // print can be corrected by hand, a NaN cannot.
+      if (!(printTime > 0)) {
+        logger.warning('Not downdating failed print: no usable print time to measure it against', {
+          fileName: this.#fileName,
+          printerName: this.#printerName,
+        });
+        return;
+      }
+      // A print cannot use more filament than the whole file holds, however
+      // long it ran. Estimates are routinely optimistic -- successful prints
+      // here have been measured 25% over their own estimate -- so a failure
+      // late in a slow print produced a ratio above one and charged the spool
+      // more than the job contained.
+      completionRatio = Math.min(1, Math.max(0, (this.#payload?.time || 0) / printTime));
     }
-
-    let completionRatio = this.#success ? 1.0 : printPercentage / 100;
     for (let s = 0; s < this.#filamentSelection.length; s++) {
       const currentSpool = this.#filamentSelection[s];
       if (!!currentSpool && this.#job?.filament['tool' + s]) {
@@ -517,6 +535,18 @@ class HistoryCaptureService {
           currentSpool,
           completionRatio
         );
+        // Last line of defence for the spool's stored weight. Anything that is
+        // not a real number here -- a missing density or diameter on the
+        // profile, a length that arrived as a string, a ratio that got past
+        // the guards above -- would be added to `used` and leave the spool
+        // permanently unusable, because every later print adds to NaN.
+        if (!Number.isFinite(currentGram)) {
+          logger.error('Refusing to downdate a spool by a non-finite amount', {
+            spool: `${currentSpool._id}`,
+            fileName: this.#fileName,
+          });
+          continue;
+        }
         // The save used to be launched and not waited for, so everything below
         // ran whether or not the new total ever reached the database.
         try {
