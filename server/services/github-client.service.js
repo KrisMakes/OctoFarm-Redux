@@ -1,5 +1,6 @@
 const fetch = require('../utils/fetch.util');
 const Logger = require('../handlers/logger');
+const { LINKS } = require('../constants/links.constants');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_GITHUB_CLIENT);
@@ -18,7 +19,7 @@ async function getGithubReleasesPromise() {
     return Promise.resolve(null);
   }
 
-  return await fetch('https://api.github.com/repos/octofarm/octofarm/releases', {
+  return await fetch(LINKS.RELEASES_API_URL, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

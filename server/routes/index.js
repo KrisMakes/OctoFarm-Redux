@@ -8,6 +8,7 @@ const { SettingsClean } = require('../services/settings-cleaner.service.js');
 const { FileClean } = require('../services/file-cleaner.service.js');
 const { getSorting, getFilter } = require('../services/front-end-sorting.service.js');
 const { AppConstants } = require('../constants/app.constants');
+const { LINKS } = require('../constants/links.constants');
 const { getDefaultDashboardSettings } = require('../constants/settings.constants');
 const { getHistoryCache } = require('../cache/history.cache');
 const softwareUpdateChecker = require('../services/octofarm-update.service');
@@ -44,6 +45,9 @@ function baseRenderContext(req, page) {
     page,
     octoFarmPageTitle: process.env[AppConstants.OCTOFARM_SITE_TITLE_KEY],
     helpers: prettyHelpers,
+    // Every outbound link in a template comes from here - see
+    // server/constants/links.constants.js for why.
+    links: LINKS,
     printerCount: getPrinterStoreCache().getPrinterCount(),
     serverSettings: SettingsClean.returnSystemSettings(),
     clientSettings: req.user.clientSettings,

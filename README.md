@@ -255,9 +255,10 @@ plugin not installed on that printer) rather than disappearing.
 
 ## Getting Started
 
-Before installing, it's worth reading through upstream OctoFarm's own documentation for general usage - this fork
-doesn't change how the application works day-to-day, only fixes and small additions on top:
-[Getting Started](https://docs.octofarm.net/getting-started/)
+This fork doesn't change how the application works day-to-day, only fixes and small additions on top. Upstream's
+documentation site (`docs.octofarm.net`) is offline and its domain has lapsed, so what remains of the original
+documentation lives in [the original repository](https://github.com/OctoFarm/OctoFarm). Everything specific to this
+fork is in this README.
 
 ## Installation Development
 
@@ -348,9 +349,9 @@ sense - it is maintenance on something other people designed, wrote, and release
   without OctoPrint neither upstream nor this fork would exist.
 
 If you found your way here looking for OctoFarm itself, go to
-**[the original project](https://github.com/OctoFarm/OctoFarm)** first and read
-[its documentation](https://docs.octofarm.net/). This fork is a personal one, maintained for a single farm, and
-makes no claim to be its continuation.
+**[the original project](https://github.com/OctoFarm/OctoFarm)** first. This fork makes no claim to be its
+continuation. Note that upstream's website and documentation domains have lapsed - `octofarm.net` and
+`docs.octofarm.net` no longer resolve to the project - so the repository itself is all that is left of it.
 
 Like upstream, this fork stays under the same [AGPL-3.0 licence](LICENSE.txt) it was given under.
 
