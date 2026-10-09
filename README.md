@@ -139,6 +139,11 @@ plugin not installed on that printer) rather than disappearing.
   stream cannot be told apart from a healthy one. Reloading has none of that uncertainty, which is why the
   refresh button was always the thing that worked. It is held back while a dialog is open or something is being
   typed, so it cannot take work with it, and the page comes back in the same scroll position.
+- Printer cards on the panel, camera and group views are sized by width rather than by a column count, so the
+  number of columns follows the window and the printer count instead of a stored number that cannot know either.
+  A column count is wrong on at least one screen the moment it is saved - six per row is comfortable on a large
+  monitor and unreadable on a laptop - so the setting is now a card size (compact, default, large) that still
+  means the same thing on any display. Replaces the separate Camera and Group column settings.
 - Leaving the page hands every camera connection back, so a tab sitting behind another window no longer holds one
   per camera, and the pane keeps showing its last frame rather than going blank while it is away.
 - A camera that dies while you are watching is recovered without any of the above, and one showing an unchanging
