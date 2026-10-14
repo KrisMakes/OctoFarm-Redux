@@ -10,6 +10,26 @@ import {
   lengthsForFile,
 } from '../filament-preflight.service';
 
+// A cancelled print leaves the nozzle parked over the plate, in the way of
+// whatever has to come off it. The lift is relative, so it is ten centimetres
+// up from wherever the print stopped rather than a fixed height, and the
+// firmware's own soft limit clips the move if that would run past the top of
+// the Z axis - there is nothing to check for here.
+const CANCEL_LIFT_MM = 100;
+
+// mm/min. The MK3's Z axis tops out around 12mm/s, so this sits just under it:
+// quick enough not to wait around, slow enough that the firmware does not clamp
+// it to something slower anyway.
+const CANCEL_LIFT_FEEDRATE = 600;
+
+// A cancel is not instant. The printer finishes the moves it has already
+// buffered and OctoPrint runs its own afterPrintCancelled script first, and
+// OctoPrint refuses printer commands outright while a job is still running. So
+// the lift waits for the printer to come back to operational rather than firing
+// into a state that would reject it.
+const CANCEL_SETTLE_POLL_MS = 500;
+const CANCEL_SETTLE_TIMEOUT_MS = 30000;
+
 export default class OctoPrintClient {
   static validatePrinter(printer) {
     if (!printer._id) {
@@ -389,10 +409,75 @@ export default class OctoPrintClient {
       };
       await OctoFarmClient.updateUserActionsLog(printer._id, body);
 
+      if (opts.command === 'cancel' && post?.status === 204) {
+        // Deliberately not awaited: this waits for the printer to stop moving,
+        // and the cancel itself has already succeeded. Holding the caller here
+        // would leave the button disabled and the view waiting on a lift that
+        // is no part of whether the cancel worked.
+        OctoPrintClient.liftHeadAfterCancel(printer).catch((e) => {
+          console.error('Failed to raise the head after cancelling', e);
+        });
+      }
+
       return post;
     }
     if (element) {
       element.target.disabled = false;
+    }
+  }
+
+  // Resolves true once the printer is idle and able to take commands, false if
+  // it has not got there within the timeout. Never throws: a cancel that
+  // worked must not be reported as a failure because the lift after it did not.
+  static async waitUntilReadyForCommands(printer) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < CANCEL_SETTLE_TIMEOUT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, CANCEL_SETTLE_POLL_MS));
+      try {
+        const response = await OctoPrintClient.get(printer, 'api/printer');
+        if (!response?.ok) {
+          continue;
+        }
+        const flags = (await response.json())?.state?.flags;
+        if (flags?.operational && !flags.printing && !flags.cancelling && !flags.pausing) {
+          return true;
+        }
+      } catch (e) {
+        // Still cancelling, or briefly unreachable. Keep waiting.
+      }
+    }
+    return false;
+  }
+
+  // Lifts the head clear of the plate after a cancel. G91/G90 bracket the move
+  // so the printer is left in absolute positioning however it was set before,
+  // and all three go in one request so nothing can be interleaved between them.
+  static async liftHeadAfterCancel(printer) {
+    if (!(await OctoPrintClient.waitUntilReadyForCommands(printer))) {
+      UI.createAlert(
+        'warning',
+        `${printer.printerName}: cancelled, but it was still busy after ${
+          CANCEL_SETTLE_TIMEOUT_MS / 1000
+        }s so the head was left where it stopped`,
+        5000,
+        'click'
+      );
+      return;
+    }
+
+    const response = await OctoPrintClient.post(printer, 'printer/command', {
+      commands: ['G91', `G1 Z${CANCEL_LIFT_MM} F${CANCEL_LIFT_FEEDRATE}`, 'G90'],
+    });
+
+    if (response?.status !== 204) {
+      UI.createAlert(
+        'warning',
+        `${printer.printerName}: cancelled, but raising the head was refused (${
+          response?.status ?? 'no response'
+        })`,
+        5000,
+        'click'
+      );
     }
   }
 
