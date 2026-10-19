@@ -117,6 +117,7 @@ const settingsElements = {
   cameras: {
     aspectRatio: document.getElementById('cameraAspectRatio'),
     proxyEnabled: document.getElementById('cameraProxyActive'),
+    multiplexEnabled: document.getElementById('cameraMultiplexActive'),
     updateInterval: document.getElementById('cameraUpdateInterval'),
   },
   features: {

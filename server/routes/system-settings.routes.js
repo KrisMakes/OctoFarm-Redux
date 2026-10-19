@@ -23,6 +23,7 @@ const clientLogger = new Logger(LOGGER_ROUTE_KEYS.SERVER_CLIENT);
 const multer = require('multer');
 const { isEqual } = require('lodash');
 const { SettingsClean } = require('../services/settings-cleaner.service.js');
+const { refreshCameraSocketClients } = require('../services/camera-socket.service.js');
 const { Logs } = require('../services/server-logs.service.js');
 const { SystemCommands } = require('../services/server-commands.service.js');
 const { fetchUsers } = require('../services/users.service');
@@ -377,6 +378,12 @@ router.post('/server/update', ensureAuthenticated, ensureAdministrator, async (r
       parseInt(actualOnline.cameras.updateInterval) === parseInt(sentOnline.cameras.updateInterval);
     const cameraProxyUnchanged =
       actualOnline.cameras.proxyEnabled === sentOnline.cameras.proxyEnabled;
+    // Needs no restart: the socket is always listening and reads the setting
+    // live. The open clients do have to be told, though, and they are told by
+    // being asked to reconnect -- see refreshCameraSocketClients.
+    const cameraMultiplexChanged =
+      Boolean(actualOnline.cameras.multiplexEnabled) !==
+      Boolean(sentOnline.cameras.multiplexEnabled);
 
     for (const section of SERVER_SETTINGS_SECTIONS) {
       checked[0][section] = sentOnline[section];
@@ -424,9 +431,16 @@ router.post('/server/update', ensureAuthenticated, ensureAdministrator, async (r
         checked[0].markModified('influxExport');
       }
     }
-    await checked[0].save().then(() => {
-      SettingsClean.start();
-    });
+    // Awaited: the camera multiplexer refresh below asks every open client to
+    // reconnect, and a client that reconnects before the caches have been
+    // reloaded would be answered with the setting it just replaced.
+    await checked[0].save().then(() => SettingsClean.start());
+
+    // After the save and after SettingsClean.start(), so a client that
+    // reconnects immediately is answered with the setting it was just given.
+    if (cameraMultiplexChanged) {
+      refreshCameraSocketClients();
+    }
     if (shouldDisableInflux) {
       res.send({
         msg: returnMsg,

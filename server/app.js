@@ -20,6 +20,7 @@ const {
   setupExpressServer,
   serveOctoFarmNormally,
   ensureSystemSettingsInitiated,
+  getSessionMiddleware,
 } = require('./app-core');
 
 const mongoose = require('mongoose');
@@ -63,6 +64,7 @@ mongoose
     const app = await serveOctoFarmNormally(octoFarmServer);
 
     const { onShutdown } = require('./services/system-service-control.service');
+    const { attachCameraSocket } = require('./services/camera-socket.service');
 
     const applicationServer = app.listen(port, '0.0.0.0', () => {
       logger.info(`Server started... open it at http://127.0.0.1:${port}`);
@@ -71,6 +73,15 @@ mongoose
         process.send('ready');
       }
     });
+
+    // The cameras ride a WebSocket rather than one HTTP stream per camera per
+    // viewer -- see services/camera-hub.service.js for why. An upgrade is
+    // handled on the HTTP server, not by express, so it has to be attached to
+    // the listener itself and handed the session middleware to authenticate
+    // with. Harmless when the feature is switched off: the socket is accepted,
+    // told the multiplexer is disabled, and the client goes back to the direct
+    // streams.
+    attachCameraSocket(applicationServer, getSessionMiddleware());
 
     process.on('SIGINT', function () {
       logger.debug('SIGINT: Requesting shutdown of Application');

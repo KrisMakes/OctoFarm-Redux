@@ -326,6 +326,7 @@ async function updateServerSettings() {
     cameras: {
       aspectRatio: settingsElements.cameras.aspectRatio.value,
       proxyEnabled: settingsElements.cameras.proxyEnabled.checked,
+      multiplexEnabled: settingsElements.cameras.multiplexEnabled.checked,
       updateInterval: settingsElements.cameras.updateInterval.value * 1000,
     },
     features: {

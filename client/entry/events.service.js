@@ -10,6 +10,7 @@ import {
 } from '../js/services/amialive.service';
 import { startCameraStreamWatchdog } from '../js/services/camera-stream-watchdog.service';
 import { startReloadOnReturn } from '../js/services/reload-on-return.service';
+import { startCameraMultiplexer } from '../js/services/camera-socket.service';
 import { updateMaintenanceModeBanner } from '../js/services/maintenance-mode-banner.service';
 
 // reconnectFrequencySeconds doubles every retry
@@ -199,3 +200,11 @@ window.addEventListener('focus', () => {
 startReloadOnReturn();
 
 startCameraStreamWatchdog();
+
+// Asks the server whether the cameras should come over one WebSocket instead of
+// one HTTP stream each, and takes them over if so. Started last because it
+// adopts elements the watchdog above would otherwise own, and the handover is
+// one-way: an element it has claimed carries data-camera-mux and the watchdog
+// skips it from then on. If the server says the multiplexer is off, or the
+// socket cannot be opened at all, everything stays exactly as it was.
+startCameraMultiplexer();

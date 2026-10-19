@@ -32,6 +32,17 @@ const M_VALID = require('./constants/validate-mongo.constants');
 
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVER_CORE);
 
+// Kept so that the camera multiplexer's WebSocket upgrade can be authenticated
+// by the same session cookie the page already holds. An upgrade never reaches
+// the express middleware stack -- it is handled on the HTTP server itself --
+// so the one way to read the session there is to run this instance against the
+// upgrade request by hand. See services/camera-socket.service.js.
+let sessionMiddleware = null;
+
+function getSessionMiddleware() {
+  return sessionMiddleware;
+}
+
 /**
  *
  * @returns {*|Express}
@@ -149,29 +160,28 @@ function setupExpressServer() {
     }
     next();
   });
-  app.use(
-    session({
-      secret: fetchSuperSecretKey(),
-      resave: false,
-      // Was true, which wrote a session document to Mongo for every anonymous
-      // request -- assets, the unauthenticated /events stream, everything --
-      // each with a fourteen-day TTL.
-      saveUninitialized: false,
-      cookie: {
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 14 * 24 * 60 * 60 * 1000,
-      },
-      // connect-mongo 4 replaced the constructor with a static factory.
-      store: MongoStore.create({
-        mongoUrl: process.env[AppConstants.MONGO_KEY],
-        ttl: 14 * 24 * 60 * 60,
-        autoRemove: 'native',
-        // Without this an active session is rewritten on every single request.
-        touchAfter: 24 * 3600,
-      }),
-    })
-  );
+  sessionMiddleware = session({
+    secret: fetchSuperSecretKey(),
+    resave: false,
+    // Was true, which wrote a session document to Mongo for every anonymous
+    // request -- assets, the unauthenticated /events stream, everything --
+    // each with a fourteen-day TTL.
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 14 * 24 * 60 * 60 * 1000,
+    },
+    // connect-mongo 4 replaced the constructor with a static factory.
+    store: MongoStore.create({
+      mongoUrl: process.env[AppConstants.MONGO_KEY],
+      ttl: 14 * 24 * 60 * 60,
+      autoRemove: 'native',
+      // Without this an active session is rewritten on every single request.
+      touchAfter: 24 * 3600,
+    }),
+  });
+  app.use(sessionMiddleware);
   app.use(passport.initialize());
   app.use(passport.session());
   app.use(passport.authenticate('remember-me')); // Remember Me!
@@ -282,6 +292,7 @@ async function serveOctoFarmNormally(app, quick_boot = false) {
 }
 
 module.exports = {
+  getSessionMiddleware,
   setupExpressServer,
   ensureSystemSettingsInitiated,
   serveOctoFarmRoutes,

@@ -1015,6 +1015,30 @@
                             </div>
                             <small id="helpProxy" class="form-text text-muted">Requires
                                 a server restart</small>
+                            <h5 class="font-weight-bold">Multiplexer</h5>
+                            <hr>
+                            <div class="alert alert-info" role="alert">
+                                Carries every camera over a single WebSocket instead of one stream per camera per viewer. A browser only allows about six connections to one address and a camera stream holds one of them open for as long as it is on screen, which is what leaves buttons unresponsive and panes grey once a few cameras are open across a few tabs. With this on, OctoFarm connects to each camera once however many people are watching, and the cameras stop competing with the rest of the interface.
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    <form class="was-validated">
+                                        <div class="custom-control custom-checkbox mb-3">
+                                            <input type="checkbox" class="custom-control-input"
+                                                   id="cameraMultiplexActive" required <%= (serverSettings.cameras.multiplexEnabled) ? "checked" : "" %>>
+                                            <label class="custom-control-label"
+                                                   for="cameraMultiplexActive">Activated?</label>
+                                            <div class="valid-feedback">Cameras are multiplexed over one WebSocket
+                                            </div>
+                                            <div class="invalid-feedback">Cameras each open their own stream
+                                            </div>
+                                        </div>
+                                    </form>
+                                    <small id="helpCamMultiplex" class="form-text text-muted">Needs the camera proxy
+                                        above. Turning it off applies immediately; turning it on applies the next
+                                        time a page is loaded.</small>
+                                </div>
+                            </div>
                             </div>
                         </div>
                     </div>

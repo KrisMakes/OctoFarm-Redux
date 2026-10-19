@@ -181,6 +181,15 @@ const ServerSettingsSchema = new mongoose.Schema({
       required: true,
       default: false,
     },
+    // Carry every camera over one WebSocket instead of one HTTP stream per
+    // camera per viewer -- see services/camera-hub.service.js. Off by default:
+    // the direct streams work, and this changes how every camera on the farm
+    // is delivered, so it is opted into rather than inherited by an upgrade.
+    multiplexEnabled: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
     aspectRatio: {
       type: String,
       required: true,

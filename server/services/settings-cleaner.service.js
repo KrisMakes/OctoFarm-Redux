@@ -35,6 +35,10 @@ class SettingsCleanerService {
     return systemClean?.cameras?.proxyEnabled;
   }
 
+  static isCameraMultiplexEnabled() {
+    return systemClean?.cameras?.multiplexEnabled;
+  }
+
   static returnCameraSettings() {
     return {
       updateInterval: systemClean?.cameras?.updateInterval,

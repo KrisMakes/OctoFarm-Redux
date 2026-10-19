@@ -61,6 +61,19 @@ const STALLED_TIMEOUT_MS = 8000;
 
 const isSafari = () => /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
 
+// Every camera this file is responsible for, which is every camera that is
+// still an MJPEG stream.
+//
+// An element carrying data-camera-mux belongs to camera-socket.service.js: its
+// frames arrive over a WebSocket and are painted as object URLs, so it holds no
+// connection of its own and there is nothing here to release, freeze or
+// reconnect. Worse than nothing -- `src` on one of those is a blob: URL, which
+// every function below would happily take for the camera's address and try to
+// reconnect to. The two services never touch the same element, and the
+// attribute is the whole of the agreement.
+const OWNED_CAMERAS = '.camImg:not([data-camera-mux])';
+const MODAL_CAMERAS = '.camImg[data-camera-src]:not([data-camera-mux])';
+
 const isPlaceholderSrc = (src) => !src || src.endsWith('noCamera.jpg') || src.startsWith('data:');
 
 // A 1x1 transparent GIF. Pointing an <img> at this is what actually ends a
@@ -74,7 +87,9 @@ const isPlaceholderSrc = (src) => !src || src.endsWith('noCamera.jpg') || src.st
 // three streams per camera sitting at 200 with the spinner still turning, and
 // every newer request queued behind them with no status at all. Each visit to
 // another application added another.
-const BLANK_PIXEL =
+// Exported because camera-socket.service.js needs the same trick, for the same
+// reason, when it takes an element over.
+export const BLANK_PIXEL =
   'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
 // Ends whatever this element is still receiving. The caller is expected to be
@@ -277,7 +292,7 @@ const isStalled = (entry, now) => {
 // page does not come through here -- see reconnectEveryCamera.
 const recoverBrokenCameras = () => {
   const now = Date.now();
-  document.querySelectorAll('.camImg').forEach((img) => {
+  document.querySelectorAll(OWNED_CAMERAS).forEach((img) => {
     if (isPlaceholderSrc(img.src)) {
       return;
     }
@@ -351,7 +366,7 @@ const reconnectInTurn = (imgs, index) => {
 };
 
 const reconnectEveryCamera = () => {
-  const cameras = [...document.querySelectorAll('.camImg')].filter(
+  const cameras = [...document.querySelectorAll(OWNED_CAMERAS)].filter(
     (img) => watchState.get(img)?.streamSrc || !isPlaceholderSrc(img.src)
   );
   reconnectInTurn(cameras, 0);
@@ -366,7 +381,7 @@ const reconnectEveryCamera = () => {
 // it. The pane looks the same the whole way through.
 const suspendCameras = () => {
   const now = Date.now();
-  document.querySelectorAll('.camImg').forEach((img) => {
+  document.querySelectorAll(OWNED_CAMERAS).forEach((img) => {
     if (isPlaceholderSrc(img.src)) {
       return;
     }
@@ -444,13 +459,13 @@ const attachModalCameras = () => {
     return;
   }
   window.$(document).on('shown.bs.modal', (event) => {
-    event.target?.querySelectorAll?.('.camImg[data-camera-src]').forEach((img) => {
+    event.target?.querySelectorAll?.(MODAL_CAMERAS).forEach((img) => {
       img.src = img.dataset.cameraSrc;
     });
   });
   window.$(document).on('hidden.bs.modal', (event) => {
     // The URL stays in the data attribute, so reopening starts it again.
-    event.target?.querySelectorAll?.('.camImg[data-camera-src]').forEach(releaseStream);
+    event.target?.querySelectorAll?.(MODAL_CAMERAS).forEach(releaseStream);
   });
 };
 
@@ -465,6 +480,11 @@ const attachModalCameras = () => {
 //
 // Watching for removals catches every path that discards a camera, rather than
 // relying on each of them to remember.
+//
+// Not filtered to OWNED_CAMERAS, unlike everything else here: pointing a
+// detached element at the blank pixel is harmless whoever owned it, and this
+// way a camera removed from the document stops streaming even if the two
+// services ever disagree about who had it.
 const releaseRemovedCameras = () => {
   const observer = new MutationObserver((records) => {
     records.forEach((record) => {

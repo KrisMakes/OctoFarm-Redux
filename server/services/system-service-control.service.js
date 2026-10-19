@@ -5,6 +5,7 @@ const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_SYSTEM_CONTROL);
 const { TaskManager } = require('./task-manager.service');
 const { getPrinterManagerCache } = require('../cache/printer-manager.cache');
+const { stopCameraSocket } = require('./camera-socket.service');
 
 function killMongoDBConnection() {
   if (mongoose.connection.readyState === 1) {
@@ -22,6 +23,9 @@ function shutdownServer(app) {
     getPrinterManagerCache().killAllConnections(),
     getPrinterManagerCache().clearPrinterQueuesTimeout(),
     TaskManager.stopSchedulerTasks(),
+    // Closes the viewers' sockets and, with them, the upstream connection to
+    // every camera. Without this app.close() waits on sockets that never end.
+    stopCameraSocket(),
     app.close(),
   ]);
 }
