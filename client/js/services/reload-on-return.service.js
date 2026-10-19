@@ -1,26 +1,46 @@
-// Reloads the page when you come back to it after being somewhere else.
+// Reloads the page when you come back to it after being somewhere else, in the
+// cases where that is still the only way to put it right.
 //
-// Everything this page holds across a switch away is a long-lived connection:
-// the event stream, the monitoring worker's stream, and one per camera. A
-// browser allows about six to one origin and shares them across tabs, and
-// WebKit abandons them when the window goes behind another application without
-// ever reporting it. Rebuilding them by hand has been tried from every angle --
-// detect the dead ones, reconnect all of them, release them on the way out and
-// retake them one at a time -- and each version fixed the case it was written
-// for and left another one dead, because a stream that has been abandoned is
-// indistinguishable from a healthy one from inside the page, and a request that
-// is queued behind one never errors, it simply never happens. That is both the
-// grey camera and the buttons that stop responding with no message.
+// This was written when everything the page held across a switch away was a
+// long-lived HTTP connection: the event stream, the monitoring worker's stream,
+// and one per camera. A browser allows about six to one origin and shares them
+// across tabs, and WebKit abandons them when the window goes behind another
+// application without ever reporting it. Rebuilding them by hand was tried from
+// every angle -- detect the dead ones, reconnect all of them, release them on
+// the way out and retake them one at a time -- and each version fixed the case
+// it was written for and left another one dead, because a stream that has been
+// abandoned is indistinguishable from a healthy one from inside the page, and a
+// request queued behind one never errors, it simply never happens. That is both
+// the grey camera and the buttons that stop responding with no message. A
+// reload had none of that uncertainty, because it threw every connection away.
 //
-// A reload has none of that uncertainty. Every connection is torn down and
-// built again from nothing, which is exactly what reaching for the refresh
-// button was doing. It costs a second and the page comes back in the same
-// scroll position.
+// The live socket removed the premise. A page carrying its streams and its
+// cameras on the socket holds no long-lived HTTP connection at all, and unlike
+// a stream a socket can be asked whether it is still there: live-socket's own
+// return handler pings it and rebuilds it if nothing answers. So in that case
+// there is nothing for a reload to fix, and reloading is not free -- it is a
+// second of blank page and a full rebuild on every single tab switch, which is
+// what switching between tabs being slow actually was.
 //
-// It is held back in the few places where throwing the page away would throw
-// work away with it -- see shouldHoldOff.
+// Where the socket is not carrying everything -- it was refused, the server is
+// older, the camera multiplexer is switched off -- the old HTTP streams are
+// back, and so is the reload, because the reasoning above is unchanged for
+// them.
+//
+// It is also held back in the few places where throwing the page away would
+// throw work away with it -- see shouldHoldOff.
 
 import { recoverCamerasNow } from './camera-stream-watchdog.service';
+import { isSocketUp, socketCarries, socketFeature } from './live-socket.service';
+
+// Whether this page is holding anything a reload would be the only cure for.
+// All three have to hold: the socket has to be up, it has to be carrying the
+// event stream this page would otherwise have opened itself, and the cameras
+// have to be on it rather than on an MJPEG stream each. The monitoring worker
+// needs no condition -- it is terminated when the page is hidden and built
+// again on return, so it is never the stale one.
+const holdsNoAbandonableStreams = () =>
+  isSocketUp() && socketCarries('/events') && socketFeature('enabled') === true;
 
 // A reload loop would be far worse than the bug, so returns that arrive in
 // quick succession reload once.
@@ -85,11 +105,14 @@ const markBack = () => {
     return;
   }
   away = false;
-  if (reloadNow()) {
+  if (!holdsNoAbandonableStreams() && reloadNow()) {
     return;
   }
-  // Not reloading, so the camera streams released on the way out are still
-  // released and nothing else is going to take them back.
+  // Either nothing needed reloading, or a reload was held back. A camera
+  // pointed straight at its printer is still an MJPEG stream whatever the
+  // socket is carrying, and this is what takes those back -- it skips anything
+  // the multiplexer owns.
+
   recoverCamerasNow();
 };
 
