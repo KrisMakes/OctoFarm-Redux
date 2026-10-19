@@ -36,7 +36,7 @@ const logger = new Logger(LOGGER_ROUTE_KEYS.SERVER_CORE);
 // by the same session cookie the page already holds. An upgrade never reaches
 // the express middleware stack -- it is handled on the HTTP server itself --
 // so the one way to read the session there is to run this instance against the
-// upgrade request by hand. See services/camera-socket.service.js.
+// upgrade request by hand. See services/live-socket.service.js.
 let sessionMiddleware = null;
 
 function getSessionMiddleware() {

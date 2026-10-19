@@ -12,7 +12,7 @@
     "prettier": "prettier --write \"./**/*.js\"",
     "test:proxies": "node scripts/proxy-smoke-test.js",
     "test:transfer": "node scripts/file-transfer-smoke-test.js",
-    "test:cameras": "node scripts/camera-hub-smoke-test.js"
+    "test:live": "node scripts/live-socket-smoke-test.js"
   },
   "repository": {
     "type": "git",

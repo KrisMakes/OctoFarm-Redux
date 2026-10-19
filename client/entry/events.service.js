@@ -11,6 +11,7 @@ import {
 import { startCameraStreamWatchdog } from '../js/services/camera-stream-watchdog.service';
 import { startReloadOnReturn } from '../js/services/reload-on-return.service';
 import { startCameraMultiplexer } from '../js/services/camera-socket.service';
+import { listenToChannel, startLiveSocket } from '../js/services/live-socket.service';
 import { updateMaintenanceModeBanner } from '../js/services/maintenance-mode-banner.service';
 
 // reconnectFrequencySeconds doubles every retry
@@ -59,6 +60,9 @@ function scheduleReconnect() {
   const delay = reconnectFrequency.getSeconds * 1000;
   reconnectTimer = setTimeout(function () {
     reconnectTimer = null;
+    if (socketCarryingEvents) {
+      return;
+    }
     setupEventSource();
     // Double every attempt to avoid overwhelming client
     reconnectFrequency.setSeconds = reconnectFrequency.getSeconds * 2;
@@ -69,35 +73,43 @@ function scheduleReconnect() {
   }, delay);
 }
 
+// One handler, whichever transport delivered the frame -- the socket carries
+// the same serialised payloads the HTTP stream wrote, so nothing below knows or
+// cares which one it came from.
+async function handleEventPayload(data) {
+  const payload = parsePayload(data);
+  // parsePayload returns false on a malformed frame; destructuring that threw
+  // a TypeError out of the handler.
+  if (payload === false) {
+    return;
+  }
+  const { type, message, id } = payload;
+
+  if (type === MESSAGE_TYPES.AM_I_ALIVE) {
+    await setServerAlive(message);
+  }
+
+  if (type === MESSAGE_TYPES.FILE_UPDATE) {
+    await updateLiveFileInformation(id, message);
+  }
+
+  if (type === MESSAGE_TYPES.CURRENT_OPERATIONS) {
+    const { operations, count } = message;
+    await currentOperationsPanelService(operations, count);
+  }
+
+  if (type === MESSAGE_TYPES.MAINTENANCE_MODE) {
+    updateMaintenanceModeBanner(message);
+  }
+}
+
 function setupEventSource() {
   cancelPendingReconnect();
   closeEventSource();
   const source = new EventSource('/events');
   evtSource = source;
   source.onmessage = async function (e) {
-    const payload = parsePayload(e.data);
-    // parsePayload returns false on a malformed frame; destructuring that threw
-    // a TypeError out of the handler.
-    if (payload === false) {
-      return;
-    }
-    const { type, message, id } = payload;
-    if (type === MESSAGE_TYPES.AM_I_ALIVE) {
-      await setServerAlive(message);
-    }
-
-    if (type === MESSAGE_TYPES.FILE_UPDATE) {
-      await updateLiveFileInformation(id, message);
-    }
-
-    if (type === MESSAGE_TYPES.CURRENT_OPERATIONS) {
-      const { operations, count } = message;
-      await currentOperationsPanelService(operations, count);
-    }
-
-    if (type === MESSAGE_TYPES.MAINTENANCE_MODE) {
-      updateMaintenanceModeBanner(message);
-    }
+    await handleEventPayload(e.data);
   };
   source.onopen = function (e) {
     console.debug('Connected to servers event stream...');
@@ -130,7 +142,63 @@ function setupEventSource() {
   };
 }
 
-setupEventSource();
+// The socket decides which transport is live. When it is carrying /events the
+// HTTP stream is closed -- that is the entire point: a stream open here holds
+// one of the handful of connections a browser allows per origin, for as long as
+// the tab is open, and three tabs doing that spends the lot. When it is not,
+// this falls straight back to the stream, which is what every version of this
+// app before today used.
+let socketCarryingEvents = false;
+let fallbackTimer = null;
+
+// The socket has not answered yet when this first runs, so falling back
+// immediately would open the very HTTP stream this is here to avoid, keep it
+// for the fifty milliseconds the handshake takes, and close it again. Short
+// enough that a page which genuinely has no socket is barely delayed.
+const FIRST_FALLBACK_GRACE_MS = 2000;
+let everCarried = false;
+
+const fallBackToStream = () => {
+  if (fallbackTimer !== null) {
+    return;
+  }
+  const delay = everCarried ? 0 : FIRST_FALLBACK_GRACE_MS;
+  fallbackTimer = setTimeout(() => {
+    fallbackTimer = null;
+    if (socketCarryingEvents) {
+      return;
+    }
+    setupEventSource();
+  }, delay);
+};
+
+listenToChannel(
+  '/events',
+  (data) => {
+    handleEventPayload(data).catch((e) => console.debug('Could not handle an event', e));
+    // The socket delivering anything at all is proof the server is there, which
+    // is what the HTTP stream's own open event used to be.
+    window.serverOffline = false;
+  },
+  (carried) => {
+    socketCarryingEvents = carried;
+    if (carried) {
+      everCarried = true;
+      if (fallbackTimer !== null) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+      cancelPendingReconnect();
+      closeEventSource();
+      reconnectFrequency.setSeconds = 3;
+      window.serverOffline = false;
+      console.debug('Events are coming over the live socket');
+    } else {
+      console.debug('Events are coming over their own stream');
+      fallBackToStream();
+    }
+  }
+);
 
 // Safari can silently stall this connection while the tab is backgrounded
 // without ever firing 'onerror' -- the same silent-stall behaviour that
@@ -144,6 +212,12 @@ setupEventSource();
 // whether the browser will ever notice and report the stall itself.
 function reopenEventStream() {
   window.serverOffline = false;
+  // Nothing to reopen when the socket is carrying this: it does its own
+  // liveness check on return, and rebuilding an HTTP stream here would spend a
+  // connection on a transport nothing is reading.
+  if (socketCarryingEvents) {
+    return;
+  }
   // setupEventSource() closes the previous connection and cancels any pending
   // reconnect itself. Doing it here as well used to leave the retry timer
   // armed, so the reconnect it had already scheduled fired a moment later and
@@ -197,6 +271,10 @@ window.addEventListener('focus', () => {
 // up: when this fires, everything below is replaced a moment later anyway. It
 // holds off while a dialog is open or something is being typed, and the
 // watchdog is what recovers the cameras in those cases.
+// Opened before anything that rides on it, so the first `ready` finds its
+// listeners already registered.
+startLiveSocket();
+
 startReloadOnReturn();
 
 startCameraStreamWatchdog();

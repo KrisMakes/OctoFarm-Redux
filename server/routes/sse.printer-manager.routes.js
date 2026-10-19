@@ -10,6 +10,7 @@ const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const { getPrinterManagerCache } = require('../cache/printer-manager.cache');
 const { returnLast100Actions } = require('../services/user-actions-log.service');
 const { SseChannel } = require('../services/sse-channel.service');
+const { registerLiveChannel } = require('../services/live-channels.registry');
 
 async function sendData(channel) {
   // Every read below feeds the payload and nothing else, so with no attached
@@ -39,6 +40,18 @@ async function sendData(channel) {
 }
 
 const channel = new SseChannel('printer-manager', 500, sendData);
+
+// Also reachable over the live WebSocket, at the same path. Every tab holding
+// this open over HTTP spends one of the handful of connections a browser allows
+// per origin, and spends it for as long as the tab is open -- three tabs was the
+// whole budget, after which every request the page made queued behind a stream
+// that never ends. Coalescing: this re-sends the whole state on a timer, so a
+// payload a struggling client misses is replaced by the next one.
+registerLiveChannel(
+  '/printersInfo/get/',
+  (user, write) => channel.addSocketClient(user, write),
+  { coalescing: true }
+);
 
 // Called once for each new client. Note, this response is left open!
 router.get('/get/', ensureAuthenticated, ensureCurrentUserAndGroup, channel.handler);

@@ -1,4 +1,4 @@
-// Run with `npm run test:cameras` from server/.
+// Run with `npm run test:live` from server/.
 //
 // Drives the camera multiplexer end to end -- a real HTTP server, a real
 // WebSocket upgrade, real `ws` clients and a fake MJPEG printer -- because the
@@ -40,21 +40,59 @@ stub('cache/printer-store.cache.js', {
 
 let LOGIN_REQUIRED = false;
 let MULTIPLEX_ENABLED = true;
+const CLIENT_SETTINGS = { _id: 'settings-1', views: {} };
 stub('services/settings-cleaner.service.js', {
   SettingsClean: {
     returnSystemSettings: () => ({ server: { loginRequired: LOGIN_REQUIRED } }),
     isCameraMultiplexEnabled: () => MULTIPLEX_ENABLED,
+    returnClientSettings: () => CLIENT_SETTINGS,
   },
 });
+// The upgrade resolves req.user the same way the HTTP routes do, which reaches
+// for the first administrator when login is switched off.
+stub('services/users.service.js', {
+  fetchFirstAdministrator: async () => ({ _id: 'admin-1', name: 'Tester', username: 'tester' }),
+});
+
+// Two fake channels standing in for the real streams: one that re-sends state
+// on a timer and may be dropped, one that reports events and may not.
+const { registerLiveChannel } = require(path.join(ROOT, 'services/live-channels.registry.js'));
+const tickers = new Set();
+let tickSeq = 0;
+setInterval(() => {
+  tickSeq += 1;
+  tickers.forEach((write) => write(JSON.stringify({ tick: tickSeq })));
+}, 50).unref();
+registerLiveChannel(
+  '/monitoringInfo/get/',
+  (user, write) => {
+    const sink = (payload) => write(payload);
+    sink.user = user;
+    tickers.add(sink);
+    write(JSON.stringify({ hello: true, user: user?.name ?? null }));
+    return () => tickers.delete(sink);
+  },
+  { coalescing: true }
+);
+const eventSinks = new Set();
+registerLiveChannel(
+  '/events',
+  (user, write) => {
+    eventSinks.add(write);
+    return () => eventSinks.delete(write);
+  },
+  { coalescing: false }
+);
 
 const {
-  attachCameraSocket,
-  cameraSocketStats,
+  attachLiveSocket,
+  liveSocketStats,
   refreshCameraSocketClients,
-  stopCameraSocket,
+  stopLiveSocket,
   SOCKET_PATH,
   FRAME_OPCODE,
-} = require(path.join(ROOT, 'services/camera-socket.service.js'));
+  CHANNEL_OPCODE,
+} = require(path.join(ROOT, 'services/live-socket.service.js'));
 
 // --- the fake printer ----------------------------------------------------
 const BOUNDARY = 'octofarmboundary';
@@ -121,13 +159,25 @@ const printer = http.createServer((req, res) => {
 });
 
 // --- the app under test --------------------------------------------------
+// middleware/passport.js registers this against the real User collection; there
+// is no database here, so the same shape is registered by hand.
+const passport = require(path.join(ROOT, 'node_modules/passport'));
+passport.serializeUser((user, done) => done(null, user._id));
+passport.deserializeUser((id, done) =>
+  id === 'deleted-user'
+    ? done(null, false)
+    : done(null, { _id: id, name: 'Kris', username: 'kris', group: 'Administrator' })
+);
+
 const app = express();
 app.get('/health', (req, res) => res.send('ok'));
 
 // Stands in for express-session: the real thing is handed to
-// attachCameraSocket the same way, and all this path asks of it is that it
+// attachLiveSocket the same way, and all this path asks of it is that it
 // puts a session on the request and calls next.
-let SESSION = null;
+// express-session always leaves a session object behind, even for a caller it
+// has never seen; only `passport` inside it says who they are.
+let SESSION = {};
 const fakeSessionMiddleware = (req, res, next) => {
   // Asynchronous on purpose -- the real one goes to Mongo, which is what makes
   // the "client vanished mid-handshake" case reachable at all.
@@ -175,6 +225,8 @@ function connect(port, { cookie } = {}) {
     ws,
     ready: null,
     frames: [],
+    channelPayloads: [],
+    channelStates: [],
     states: [],
     pongs: 0,
     opened: false,
@@ -202,12 +254,14 @@ function connect(port, { cookie } = {}) {
       const bytes = new Uint8Array(
         data.buffer ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) : data
       );
-      const idLength = bytes[1];
-      client.frames.push({
-        opcode: bytes[0],
-        id: Buffer.from(bytes.subarray(2, 2 + idLength)).toString('ascii'),
-        jpeg: Buffer.from(bytes.subarray(2 + idLength)),
-      });
+      const nameLength = bytes[1];
+      const name = Buffer.from(bytes.subarray(2, 2 + nameLength)).toString('utf8');
+      const body = Buffer.from(bytes.subarray(2 + nameLength));
+      if (bytes[0] === CHANNEL_OPCODE) {
+        client.channelPayloads.push({ channel: name, text: body.toString('utf8') });
+        return;
+      }
+      client.frames.push({ opcode: bytes[0], id: name, jpeg: body });
       return;
     }
     const message = JSON.parse(data.toString());
@@ -215,6 +269,8 @@ function connect(port, { cookie } = {}) {
       client.ready = message;
     } else if (message.type === 'state') {
       client.states.push(message);
+    } else if (message.type === 'channel') {
+      client.channelStates.push(message);
     } else if (message.type === 'pong') {
       client.pongs += 1;
     }
@@ -236,7 +292,7 @@ async function main() {
   PRINTER = { _id: PRINTER_ID, camURL: `http://127.0.0.1:${printerPort}/webcam/?action=stream` };
 
   const server = http.createServer(app);
-  attachCameraSocket(server, fakeSessionMiddleware);
+  attachLiveSocket(server, fakeSessionMiddleware);
   await listen(server, 0);
   const port = server.address().port;
 
@@ -299,12 +355,12 @@ async function main() {
     frameSize = 180 * 1024;
     b.ws._socket.pause();
     const dropping = await waitFor(
-      () => cameraSocketStats().clients.some((client) => client.dropped > 0),
+      () => liveSocketStats().clients.some((client) => client.dropped > 0),
       8000,
       'the stalled client to start dropping frames'
     );
     ok('a viewer that stops reading has frames dropped', dropping);
-    const stats = cameraSocketStats();
+    const stats = liveSocketStats();
     const worst = Math.max(...stats.clients.map((client) => client.bufferedAmount));
     ok('nothing is queued behind it', worst < 4 * 1024 * 1024, `${worst} bytes buffered`);
     const aBefore = a.frames.length;
@@ -482,10 +538,91 @@ async function main() {
     );
   }
 
+  // --- the streams that used to need their own HTTP connection ---------
+  {
+    const a = connect(port);
+    await waitFor(() => a.ready, 2000, 'ready');
+    ok(
+      'the socket advertises the channels it can carry',
+      Array.isArray(a.ready?.channels) &&
+        a.ready.channels.includes('/monitoringInfo/get/') &&
+        a.ready.channels.includes('/events')
+    );
+
+    a.send({ action: 'listen', channel: '/monitoringInfo/get/' });
+    ok(
+      'a stream is delivered over the socket',
+      await waitFor(() => a.channelPayloads.length >= 3, 3000, 'payloads')
+    );
+    ok(
+      'it is confirmed open',
+      a.channelStates.some((s) => s.state === 'open')
+    );
+    ok(
+      'payloads arrive whole and tagged with the channel',
+      a.channelPayloads.every((p) => p.channel === '/monitoringInfo/get/' && JSON.parse(p.text))
+    );
+    ok(
+      'the first payload is sent at once, not on the next tick',
+      JSON.parse(a.channelPayloads[0].text).hello === true
+    );
+    ok(
+      'and it is resolved against the signed-in user',
+      JSON.parse(a.channelPayloads[0].text).user === 'Tester'
+    );
+
+    const before = a.channelPayloads.length;
+    a.send({ action: 'unlisten', channel: '/monitoringInfo/get/' });
+    await sleep(500);
+    ok(
+      'unlisten stops it',
+      a.channelPayloads.length - before <= 1,
+      `${a.channelPayloads.length - before} more`
+    );
+
+    a.send({ action: 'listen', channel: '/not-a-channel' });
+    ok(
+      'an unknown channel is refused rather than ignored',
+      await waitFor(
+        () => a.channelStates.some((s) => s.channel === '/not-a-channel' && s.state === 'refused'),
+        2000,
+        'a refusal'
+      )
+    );
+
+    const payloadsBefore = a.channelPayloads.length;
+    a.send({ action: 'listen', channel: '/monitoringInfo/get/' });
+    a.send({ action: 'subscribe', id: PRINTER_ID });
+    ok(
+      'cameras and streams run together on one socket',
+      await waitFor(
+        () => a.frames.length >= 2 && a.channelPayloads.length >= payloadsBefore + 3,
+        4000,
+        'both kinds of payload'
+      )
+    );
+    a.ws.close();
+    await waitFor(() => liveUpstreams === 0, 3000, 'release');
+  }
+
+  {
+    const a = connect(port);
+    await waitFor(() => a.ready, 2000, 'ready');
+    a.send({ action: 'listen', channel: '/monitoringInfo/get/' });
+    a.send({ action: 'listen', channel: '/events' });
+    await waitFor(() => a.channelPayloads.length >= 2, 3000, 'payloads');
+    ok('both channels are listening', tickers.size === 1 && eventSinks.size === 1);
+    a.ws.close();
+    ok(
+      'closing the socket releases every channel',
+      await waitFor(() => tickers.size === 0 && eventSinks.size === 0, 3000, 'release')
+    );
+  }
+
   // --- the upgrade -----------------------------------------------------
   {
     LOGIN_REQUIRED = true;
-    SESSION = null;
+    SESSION = {};
     const a = connect(port);
     await waitFor(() => a.httpStatus !== null || a.opened, 3000, 'a verdict');
     ok(
@@ -499,8 +636,19 @@ async function main() {
     await waitFor(() => b.ready, 3000, 'ready');
     ok('a logged-in upgrade is accepted', b.ready?.enabled === true);
     b.ws.close();
+
+    // A cookie naming someone who is no longer there.
+    SESSION = { passport: { user: 'deleted-user' } };
+    const c = connect(port, { cookie: 'octofarm.sid=whatever' });
+    await waitFor(() => c.httpStatus !== null || c.opened, 3000, 'a verdict');
+    ok(
+      'a session whose user has been deleted is signed out, not a server error',
+      c.httpStatus === 401 && !c.opened,
+      `status ${c.httpStatus}`
+    );
+
     LOGIN_REQUIRED = false;
-    SESSION = null;
+    SESSION = {};
   }
 
   {
@@ -538,11 +686,11 @@ async function main() {
       await waitFor(() => liveUpstreams === 0, 3000, 'all upstreams closed'),
       `${liveUpstreams} still open`
     );
-    const remaining = cameraSocketStats().cameras.filter((camera) => camera.connected);
+    const remaining = liveSocketStats().cameras.filter((camera) => camera.connected);
     ok('and the hub agrees', remaining.length === 0, JSON.stringify(remaining));
   }
 
-  stopCameraSocket();
+  stopLiveSocket();
   server.close();
   printer.close();
 

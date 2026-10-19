@@ -19,7 +19,7 @@
 // Two rules make this safe to run in front of a 3D printer's Pi:
 //   - Nothing here ever applies backpressure upstream. The camera is read as
 //     fast as it sends, always. A viewer that cannot keep up has frames
-//     dropped for it alone, by the socket layer -- see camera-socket.service.
+//     dropped for it alone, by the socket layer -- see live-socket.service.
 //   - A camera with nobody watching is disconnected, after a short linger so
 //     that redrawing a printer card does not close and reopen it.
 const { Readable } = require('stream');

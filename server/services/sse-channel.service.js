@@ -58,7 +58,16 @@ class SseChannel {
     res.write(RETRY_PREAMBLE);
 
     const id = ++this.#nextId;
-    const client = { id, req, res };
+    const client = {
+      id,
+      req,
+      res,
+      // How this particular client is written to. A subscriber arriving over
+      // the live WebSocket is the same kind of client with a different write --
+      // see addSocketClient -- which is what lets one tick serve both without
+      // the per-channel tick functions knowing there are two transports.
+      write: (payload) => res.write(`data: ${payload}\n\n`),
+    };
     this.#clients.set(id, client);
 
     const remove = () => this.#clients.delete(id);
@@ -81,7 +90,7 @@ class SseChannel {
    */
   send(client, serialisedPayload) {
     try {
-      client.res.write(`data: ${serialisedPayload}\n\n`);
+      client.write(serialisedPayload);
     } catch (e) {
       logger.warning(`${this.#name}: dropping a subscriber whose stream is gone`, e.toString());
       this.#clients.delete(client.id);
@@ -95,6 +104,30 @@ class SseChannel {
     for (const client of this.#clients.values()) {
       this.send(client, serialisedPayload);
     }
+  }
+
+  /**
+   * Registers a subscriber that is not an HTTP response -- today, one on the
+   * live WebSocket.
+   *
+   * The tick functions read `client.req.user` to decide what that client should
+   * be sent, so a synthetic req carrying the user is all they need; nothing in
+   * them touches the response.
+   *
+   * @param user  the resolved req.user, as ensureCurrentUserAndGroup builds it
+   * @param write (serialisedPayload) => void
+   * @returns a function that removes this subscriber
+   */
+  addSocketClient(user, write) {
+    const id = ++this.#nextId;
+    this.#clients.set(id, { id, req: { user }, write });
+    this.start();
+    // Same reasoning as the HTTP handler: send one frame now rather than
+    // leaving a freshly opened view blank until the next tick.
+    Promise.resolve(this.#onTick(this)).catch((e) => {
+      logger.error(`${this.#name}: initial send failed`, e.toString());
+    });
+    return () => this.#clients.delete(id);
   }
 
   start() {

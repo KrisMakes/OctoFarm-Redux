@@ -40,6 +40,9 @@ const addClientConnection = (req, res) => {
     id,
     connectedAt: Date.now(),
     res,
+    // How this client is written to. A subscriber on the live WebSocket is the
+    // same kind of client with a different write -- see addSocketClient.
+    write: (payload) => res.write(`data: ${payload}\n\n`),
     user: JSON.parse(JSON.stringify(req?.user)),
     endpoint: req.url || 'unknown endpoint',
     ip: req.socket.remoteAddress,
@@ -71,6 +74,34 @@ const addClientConnection = (req, res) => {
 
 const removeClient = (id) => {
   clientList = clientList.filter((client) => client.id !== id);
+};
+
+/**
+ * Registers a subscriber that is not an HTTP response -- one on the live
+ * WebSocket. Everything else here, including the active-clients listing, only
+ * reads the user and the endpoint, so a socket subscriber is indistinguishable
+ * from a stream one except in how it is written to.
+ *
+ * @returns a function that removes this subscriber
+ */
+const addSocketClient = (user, write, { endpoint = '/live', ip, forwardIp } = {}) => {
+  const id = ++clientIdCounter;
+  clientList.push({
+    id,
+    connectedAt: Date.now(),
+    write,
+    user: user ? JSON.parse(JSON.stringify(user)) : undefined,
+    endpoint,
+    ip,
+    forwardIp,
+  });
+  logger.info(`${user?.name ? user.name : UNKNOWN_USER} has connected over the live socket.`);
+  return () => {
+    logger.warning(
+      `${user?.name ? user.name : UNKNOWN_USER} has disconnected from the live socket.`
+    );
+    removeClient(id);
+  };
 };
 
 const listActiveClientsRes = (_req, res) => {
@@ -111,7 +142,7 @@ const notifySubscribers = (id, type, message, printerInfo = undefined) => {
 
     clientList.forEach((client) => {
       try {
-        client.res.write(`data: ${serialisedPayload}\n\n`);
+        client.write(serialisedPayload);
       } catch (e) {
         // Socket died between its 'close' event firing and this write.
         logger.warning('Dropping a subscriber whose stream is already gone', e.toString());
@@ -123,6 +154,7 @@ const notifySubscribers = (id, type, message, printerInfo = undefined) => {
 
 module.exports = {
   addClientConnection,
+  addSocketClient,
   notifySubscribers,
   listActiveClientsRes,
   listActiveClientsCount,
