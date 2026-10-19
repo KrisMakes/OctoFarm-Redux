@@ -92,7 +92,7 @@ const {
   SOCKET_PATH,
   FRAME_OPCODE,
   CHANNEL_OPCODE,
-  MAX_UNACKED_BYTES,
+  MAX_UNACKED_BYTES_PER_STREAM,
 } = require(path.join(ROOT, 'services/live-socket.service.js'));
 
 // --- the fake printer ----------------------------------------------------
@@ -750,7 +750,7 @@ async function main() {
     const outstanding = mine[0];
     ok(
       'and never has more than the budget outstanding',
-      outstanding.unackedBytes <= MAX_UNACKED_BYTES + frameSize * 2,
+      outstanding.unackedBytes <= MAX_UNACKED_BYTES_PER_STREAM * 2 + frameSize2 * 2,
       `${outstanding.unackedBytes} bytes outstanding`
     );
 
@@ -768,6 +768,32 @@ async function main() {
     const keptGoing = a.frames.length;
     await waitFor(() => a.frames.length > keptGoing + 5, 2000, 'frames to continue');
     ok('and the cameras keep running after it', a.frames.length > keptGoing + 5);
+
+    // Both cameras big at once, which is the farm's own case: two 111KB frames
+    // each is 444KB, and a budget that does not grow with the number of streams
+    // cannot hold that however it is tuned for one camera.
+    //
+    // Like the uneven pair above, this does not fail against the flat budget it
+    // was written for -- loopback acknowledges fast enough that the budget is
+    // never reached, whatever it is set to. It locks the property in; the
+    // evidence for the bug is the farm, where two cameras at 30fps measured
+    // 21fps each on the wire against the 28 they were producing.
+    frameSize = 192 * 1024;
+    frameSize2 = 192 * 1024;
+    await sleep(600);
+    const bigFrom = a.frames.length;
+    const bigStart = Date.now();
+    await sleep(1500);
+    const bigElapsed = (Date.now() - bigStart) / 1000;
+    const big = a.frames.slice(bigFrom);
+    const bigFirst = big.filter((f) => f.id === PRINTER_ID).length / bigElapsed;
+    const bigSecond = big.filter((f) => f.id === PRINTER_ID_2).length / bigElapsed;
+    ok(
+      'two large cameras each get their own budget, not a share of one',
+      bigFirst > 20 && bigSecond > 20,
+      `${bigFirst.toFixed(0)} and ${bigSecond.toFixed(0)} fps, both sending 50`
+    );
+    frameSize = 24 * 1024;
 
     a.send({ action: 'unsubscribe', id: PRINTER_ID });
     a.send({ action: 'unsubscribe', id: PRINTER_ID_2 });

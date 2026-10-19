@@ -91,21 +91,36 @@ const MAX_BUFFERED_BYTES = 512 * 1024;
 // were actually producing. Measured on the panel view: 6.0 and 6.4 fps per
 // camera through the socket, 12.4 and 11.0 with the window taken out.
 //
-// So the budget is in bytes, sized for about a tenth of a second at a camera's
-// bitrate, and there is a second limit per stream so that one camera cannot
-// spend the whole budget and starve the other -- which it did, measurably:
-// 5.4 fps against 10.6 for the camera beside it.
-const MAX_UNACKED_BYTES = 384 * 1024;
+// So the budget is in bytes, and there is a second limit per stream so that one
+// camera cannot spend the whole budget and starve the other -- which it did,
+// measurably: 5.4 fps against 10.6 for the camera beside it.
+//
+// The budget is per stream and not a flat total, which the first version got
+// wrong. A flat 384KB was sized for one camera's two frames at 126KB and left
+// nothing for the second camera's: the two then fought over a budget neither
+// could fit in, and the more of them there were the less each one got. Raising
+// the cameras from 15fps to 30 made it obvious -- the frames got smaller, 111KB,
+// but two cameras still wanted 444KB and the cap was still 384KB.
+//
+// A budget that does not grow with what is riding on the socket is not a budget,
+// it is a race. This one allows each stream its own share, so adding a camera
+// adds its own headroom rather than taking it from the cameras already there.
+const MAX_UNACKED_BYTES_PER_STREAM = 512 * 1024;
+
+// And in total, however many streams that is -- the backstop that stops a
+// client with a dozen cameras from being allowed megabytes of latency just
+// because it asked for a dozen cameras.
+const MAX_UNACKED_BYTES = 4 * 1024 * 1024;
 
 // Frames of one camera that may be outstanding. Two means a camera is paced by
 // its own acknowledgements rather than by whatever else shares the socket, and
 // bounds its own contribution to about two frame intervals.
 //
 // This, not the byte budget, is what normally limits a camera: two frames of
-// this farm's 126KB is 252KB, so two cameras sit under the budget above and
-// never meet it. The budget is there for the cases this cannot cover on its
-// own -- a dozen cameras on one socket, or frames far larger than these --
-// where something has to give and dropping is the right answer.
+// this farm's 111KB is 222KB against a 512KB share, so a camera meets this
+// first. The byte budget is there for the cases this cannot cover on its own --
+// frames far larger than these, or so many cameras that the backstop above is
+// reached -- where something has to give and dropping is the right answer.
 const MAX_UNACKED_PER_STREAM = 2;
 
 // A backstop for streams whose payloads are small enough that the byte budget
@@ -229,11 +244,15 @@ function handleConnection(ws, request) {
     if (!stats.everAcked) {
       return false;
     }
-    return (
-      (inFlight.get(stream) || 0) >= MAX_UNACKED_PER_STREAM ||
-      stats.unackedBytes > MAX_UNACKED_BYTES ||
-      stats.unacked >= MAX_UNACKED_PAYLOADS
-    );
+    if ((inFlight.get(stream) || 0) >= MAX_UNACKED_PER_STREAM) {
+      return true;
+    }
+    // Counted from what this client actually asked for rather than from what
+    // happens to be in flight, so a stream whose turn it is does not have its
+    // share withdrawn just because it is momentarily idle.
+    const streams = Math.max(1, subscriptions.size + listening.size);
+    const budget = Math.min(MAX_UNACKED_BYTES, MAX_UNACKED_BYTES_PER_STREAM * streams);
+    return stats.unackedBytes > budget || stats.unacked >= MAX_UNACKED_PAYLOADS;
   };
 
   // Sends one binary payload, counting it as outstanding until the client says
@@ -720,5 +739,6 @@ module.exports = {
   CHANNEL_OPCODE,
   MAX_BUFFERED_BYTES,
   MAX_UNACKED_BYTES,
+  MAX_UNACKED_BYTES_PER_STREAM,
   MAX_UNACKED_PER_STREAM,
 };
