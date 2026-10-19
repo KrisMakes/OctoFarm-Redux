@@ -79,11 +79,38 @@ const CHANNEL_OPCODE = 0x02;
 // -- which is the only measure that means anything.
 const MAX_BUFFERED_BYTES = 512 * 1024;
 
-// How many payloads may be outstanding before this client is treated as behind.
-// Acknowledgements are batched by the client every ACK_INTERVAL, so a healthy
-// viewer at fifteen frames a second always has one or two in flight; this has
-// to sit above that and well below a second's worth.
-const MAX_UNACKED_PAYLOADS = 4;
+// How much a client may have outstanding before it is treated as behind.
+//
+// The first version of this counted payloads, four of them, which was wrong in
+// a way that only measurement showed. A window is a latency budget, and the
+// thing that costs latency is bytes, not messages: four 500-byte monitoring
+// payloads are nothing, and four 126KB camera frames are half a megabyte. It
+// also sets the throughput ceiling -- a window drains no faster than one
+// windowful per round trip -- and four frames per acknowledgement interval cut
+// this farm's cameras to six frames a second against the twelve the cameras
+// were actually producing. Measured on the panel view: 6.0 and 6.4 fps per
+// camera through the socket, 12.4 and 11.0 with the window taken out.
+//
+// So the budget is in bytes, sized for about a tenth of a second at a camera's
+// bitrate, and there is a second limit per stream so that one camera cannot
+// spend the whole budget and starve the other -- which it did, measurably:
+// 5.4 fps against 10.6 for the camera beside it.
+const MAX_UNACKED_BYTES = 384 * 1024;
+
+// Frames of one camera that may be outstanding. Two means a camera is paced by
+// its own acknowledgements rather than by whatever else shares the socket, and
+// bounds its own contribution to about two frame intervals.
+//
+// This, not the byte budget, is what normally limits a camera: two frames of
+// this farm's 126KB is 252KB, so two cameras sit under the budget above and
+// never meet it. The budget is there for the cases this cannot cover on its
+// own -- a dozen cameras on one socket, or frames far larger than these --
+// where something has to give and dropping is the right answer.
+const MAX_UNACKED_PER_STREAM = 2;
+
+// A backstop for streams whose payloads are small enough that the byte budget
+// would never fire -- it cannot bind on cameras. Nothing legitimate reaches it.
+const MAX_UNACKED_PAYLOADS = 64;
 
 // Control messages are a few dozen bytes. Nothing legitimate is larger, and
 // refusing the rest means a client cannot make the server allocate.
@@ -164,32 +191,88 @@ const clientStats = new WeakMap();
 function handleConnection(ws, request) {
   const subscriptions = new Map();
   const listening = new Map();
-  const stats = { sent: 0, dropped: 0, unacked: 0, everAcked: false, since: Date.now() };
+  const stats = {
+    sent: 0,
+    dropped: 0,
+    unacked: 0,
+    unackedBytes: 0,
+    everAcked: false,
+    since: Date.now(),
+  };
   clientStats.set(ws, stats);
 
-  // True while this client is behind. The acknowledgement count is the real
-  // measure; bufferedAmount is kept as a second line for a client that stops
-  // reading so hard that even this server's own buffer fills.
+  // Payloads sent and not yet acknowledged, oldest first, as {stream, bytes}.
+  // A WebSocket delivers in order and the client acknowledges a count, so the
+  // nth acknowledgement covers the nth payload: popping the front of this is
+  // exact, with no sequence numbers in the protocol to keep in step. It holds
+  // the size and the stream name, never the payload, and the window above
+  // bounds its length.
+  const outstanding = [];
+  // stream name -> payloads of it in `outstanding`. Kept alongside rather than
+  // counted on demand because it is read on every single frame.
+  const inFlight = new Map();
+
+  // True while this client is behind on `stream`. What the client has
+  // acknowledged is the real measure; bufferedAmount is kept as a second line
+  // for a client that stops reading so hard that even this server's own buffer
+  // fills.
   //
   // A client that has never acknowledged anything is not counted as behind on
   // that basis -- a page still running a bundle from before acknowledgements
-  // existed would otherwise receive four payloads and then silence, which is a
+  // existed would otherwise receive a windowful and then silence, which is a
   // far worse failure than the latency this is here to prevent. It still has
   // the bufferedAmount check.
-  const isBehind = () =>
-    (stats.everAcked && stats.unacked >= MAX_UNACKED_PAYLOADS) ||
-    ws.bufferedAmount > MAX_BUFFERED_BYTES;
+  const isBehind = (stream) => {
+    if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+      return true;
+    }
+    if (!stats.everAcked) {
+      return false;
+    }
+    return (
+      (inFlight.get(stream) || 0) >= MAX_UNACKED_PER_STREAM ||
+      stats.unackedBytes > MAX_UNACKED_BYTES ||
+      stats.unacked >= MAX_UNACKED_PAYLOADS
+    );
+  };
 
   // Sends one binary payload, counting it as outstanding until the client says
   // otherwise. Returns whether it went.
-  const deliver = (message) => {
+  const deliver = (stream, message) => {
     try {
       ws.send(message, { binary: true, compress: false });
       stats.sent += 1;
       stats.unacked += 1;
+      stats.unackedBytes += message.length;
+      outstanding.push({ stream, bytes: message.length });
+      inFlight.set(stream, (inFlight.get(stream) || 0) + 1);
       return true;
     } catch (e) {
       return false;
+    }
+  };
+
+  // "I have received this many payloads since I last said so." The oldest that
+  // many stop being outstanding.
+  const acknowledge = (count) => {
+    stats.everAcked = true;
+    let remaining = Number.isFinite(count) && count > 0 ? Math.floor(count) : 1;
+    while (remaining > 0 && outstanding.length > 0) {
+      const entry = outstanding.shift();
+      stats.unackedBytes -= entry.bytes;
+      const left = (inFlight.get(entry.stream) || 1) - 1;
+      if (left > 0) {
+        inFlight.set(entry.stream, left);
+      } else {
+        inFlight.delete(entry.stream);
+      }
+      remaining -= 1;
+    }
+    stats.unacked = outstanding.length;
+    // An acknowledgement for more than was sent -- a buggy or hostile client --
+    // must not leave a byte count that no acknowledgement can ever pay off.
+    if (outstanding.length === 0) {
+      stats.unackedBytes = 0;
     }
   };
 
@@ -230,11 +313,11 @@ function handleConnection(ws, request) {
       // client that is behind -- the next tick replaces what was skipped. One
       // that reports events may not, because nothing repeats it; it is also
       // small and infrequent, so it cannot be what put the client behind.
-      if (channel.coalescing && isBehind()) {
+      if (channel.coalescing && isBehind(path)) {
         stats.dropped += 1;
         return;
       }
-      if (!deliver(channelMessage(path, payload))) {
+      if (!deliver(path, channelMessage(path, payload))) {
         logger.debug(`Could not write a ${path} payload`);
       }
     });
@@ -276,11 +359,11 @@ function handleConnection(ws, request) {
         return;
       }
       // The drop that makes the rest of this safe. Never queue.
-      if (isBehind()) {
+      if (isBehind(id)) {
         stats.dropped += 1;
         return;
       }
-      if (!deliver(frameMessage(id, event.data))) {
+      if (!deliver(id, frameMessage(id, event.data))) {
         logger.debug(`Could not write a frame for ${id}`);
       }
     });
@@ -326,12 +409,7 @@ function handleConnection(ws, request) {
     // "I have received this many payloads since I last said so." The one thing
     // that tells this side whether the client is keeping up.
     if (message.action === 'ack') {
-      stats.everAcked = true;
-      const count = Number(message.n);
-      stats.unacked = Math.max(
-        0,
-        stats.unacked - (Number.isFinite(count) && count > 0 ? count : 1)
-      );
+      acknowledge(Number(message.n));
       return;
     }
 
@@ -597,7 +675,13 @@ function liveSocketStats() {
   return {
     clients: wss
       ? [...wss.clients].map((ws) => ({
-          ...(clientStats.get(ws) || { sent: 0, dropped: 0, unacked: 0, everAcked: false }),
+          ...(clientStats.get(ws) || {
+            sent: 0,
+            dropped: 0,
+            unacked: 0,
+            unackedBytes: 0,
+            everAcked: false,
+          }),
           bufferedAmount: ws.bufferedAmount,
         }))
       : [],
@@ -635,4 +719,6 @@ module.exports = {
   FRAME_OPCODE,
   CHANNEL_OPCODE,
   MAX_BUFFERED_BYTES,
+  MAX_UNACKED_BYTES,
+  MAX_UNACKED_PER_STREAM,
 };

@@ -56,6 +56,21 @@ let enabled = null;
 let started = false;
 let handBackTimer = null;
 
+// Whether this page is the one being looked at. A camera in a tab behind
+// another tab is drawing nothing anyone can see, and streaming to it is not
+// free: at this farm's resolution each camera is about 126KB a frame, so four
+// tabs of two cameras was roughly 48Mbit/s off the server and ninety-six
+// two-megapixel JPEG decodes a second in one browser -- for three tabs' worth
+// of pictures nobody was looking at. That is what made opening a fourth tab
+// look like the cameras had stopped: not connections any more, but bandwidth
+// and decoding.
+//
+// So a hidden page unsubscribes, and asks again when it comes back. The last
+// frame is left on screen either way, so returning to a tab shows the old
+// picture for the moment it takes the first new one to arrive rather than a
+// gap.
+let pageVisible = true;
+
 // One entry per adopted <img>.
 const views = new Map();
 // printer id -> Set of adopted <img> for it, so a frame is dispatched without
@@ -161,6 +176,10 @@ const subscribedCountFor = (id) => {
   return count;
 };
 
+// Whether this element should be receiving frames: it has to be on screen, and
+// the page has to be one somebody is looking at.
+const shouldStream = (view) => view.onScreen && pageVisible;
+
 const subscribe = (view) => {
   if (view.subscribed) {
     return;
@@ -186,6 +205,19 @@ const unsubscribe = (view) => {
   // comes back, where leaving it means the picture is already there while the
   // first new frame is on its way.
 };
+
+// Brings one element's subscription into line with whether it should be
+// streaming. Every path that changes either input goes through here, so there
+// is one place that decides and no combination that can be missed.
+const applyStreaming = (view) => {
+  if (shouldStream(view)) {
+    subscribe(view);
+  } else {
+    unsubscribe(view);
+  }
+};
+
+const applyStreamingToAll = () => views.forEach(applyStreaming);
 
 // Anything subscribed has to be asked for again on a new socket, and the server
 // is told about each camera once however many elements are showing it.
@@ -221,8 +253,9 @@ const adopt = (img) => {
     pending: null,
     objectUrl: null,
     onSettled: null,
-    // Whether the viewport observer has said anything about this element yet,
-    // and the net that catches it if it never does.
+    // The viewport observer's verdict, whether it has said anything about this
+    // element yet, and the net that catches it if it never does.
+    onScreen: false,
     reported: false,
     fallbackTimer: null,
   };
@@ -246,13 +279,15 @@ const adopt = (img) => {
     view.fallbackTimer = setTimeout(() => {
       view.fallbackTimer = null;
       if (!view.reported) {
-        subscribe(view);
+        view.onScreen = true;
+        applyStreaming(view);
       }
     }, SUBSCRIBE_FALLBACK_MS);
   } else {
     // No way to tell what is on screen, so behave like the direct streams did:
     // stream everything that has been drawn.
-    subscribe(view);
+    view.onScreen = true;
+    applyStreaming(view);
   }
 };
 
@@ -332,11 +367,8 @@ const startViewportObserver = () => {
           clearTimeout(view.fallbackTimer);
           view.fallbackTimer = null;
         }
-        if (entry.isIntersecting) {
-          subscribe(view);
-        } else {
-          unsubscribe(view);
-        }
+        view.onScreen = entry.isIntersecting;
+        applyStreaming(view);
       });
     },
     { rootMargin: VIEWPORT_MARGIN }
@@ -447,11 +479,30 @@ const socketDown = () => {
   }, HAND_BACK_AFTER_MS);
 };
 
+// A tab going to the back, or the window being hidden behind another
+// application, is the same thing as far as this is concerned: nothing on this
+// page can be seen, so nothing on it needs frames.
+const startVisibilityWatch = () => {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  pageVisible = document.visibilityState !== 'hidden';
+  document.addEventListener('visibilitychange', () => {
+    const visible = document.visibilityState !== 'hidden';
+    if (visible === pageVisible) {
+      return;
+    }
+    pageVisible = visible;
+    applyStreamingToAll();
+  });
+};
+
 export const startCameraMultiplexer = () => {
   if (started) {
     return;
   }
   started = true;
+  startVisibilityWatch();
 
   onSocketUp(socketUp);
   onSocketDown(socketDown);
@@ -475,7 +526,9 @@ export const startCameraMultiplexer = () => {
 // For the console.
 export const cameraMultiplexerStatus = () => ({
   enabled,
+  pageVisible,
   cameras: [...byId.keys()],
   adopted: views.size,
+  onScreen: [...views.values()].filter((view) => view.onScreen).length,
   subscribed: [...views.values()].filter((view) => view.subscribed).length,
 });

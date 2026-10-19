@@ -31,10 +31,10 @@ function stub(relPath, exports) {
   require.cache[resolved] = { id: resolved, filename: resolved, loaded: true, exports };
 }
 
-let PRINTER = null;
+let PRINTERS = [];
 stub('cache/printer-store.cache.js', {
   getPrinterStoreCache: () => ({
-    getPrinter: (id) => (PRINTER && PRINTER._id === id ? PRINTER : undefined),
+    getPrinter: (id) => PRINTERS.find((printerDoc) => printerDoc._id === id),
   }),
 });
 
@@ -92,11 +92,15 @@ const {
   SOCKET_PATH,
   FRAME_OPCODE,
   CHANNEL_OPCODE,
+  MAX_UNACKED_BYTES,
 } = require(path.join(ROOT, 'services/live-socket.service.js'));
 
 // --- the fake printer ----------------------------------------------------
 const BOUNDARY = 'octofarmboundary';
 const PRINTER_ID = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+// A second camera, for the checks that are about two cameras sharing one
+// socket's window rather than about cameras working at all.
+const PRINTER_ID_2 = 'bbbbbbbbbbbbbbbbbbbbbbbb';
 
 // Distinguishable frames of a realistic size, so backpressure is reachable and
 // a mangled one is obvious.
@@ -108,10 +112,18 @@ const makeFrame = (seq, size) => {
 let upstreamConnections = 0;
 let liveUpstreams = 0;
 let frameSize = 24 * 1024;
+// The second camera's frames, when it is in use. Deliberately settable apart
+// from the first camera's: a big camera and a small one on one socket is the
+// case where a shared budget starves whichever is unlucky, and frames that are
+// all the same size cannot show that.
+let frameSize2 = 24 * 1024;
 let cameraMode = 'stream'; // 'stream' | 'refuse' | 'silent' | 'notmjpeg'
 let killUpstream = null;
 
 const printer = http.createServer((req, res) => {
+  // The two fake cameras differ only by path, so one server serves both and
+  // the hub still sees two distinct upstreams.
+  const sizeForThisCamera = () => (req.url.includes('two') ? frameSize2 : frameSize);
   if (cameraMode === 'refuse') {
     res.writeHead(503).end();
     return;
@@ -134,7 +146,7 @@ const printer = http.createServer((req, res) => {
       ? null
       : setInterval(() => {
           seq += 1;
-          const frame = makeFrame(seq, frameSize);
+          const frame = makeFrame(seq, sizeForThisCamera());
           res.write(
             `--${BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`
           );
@@ -249,26 +261,40 @@ function connect(port, { cookie } = {}) {
     client.closed = true;
     client.closeCode = code;
   });
-  // Acknowledges what it receives, exactly as the real client does -- the
-  // server will not let a client that is not keeping up run away, and silence
-  // is how it tells.
+  // Acknowledges what it receives, exactly as the real client does: at a
+  // watermark, so a burst is one acknowledgement, with a trailing timer for a
+  // payload that arrives alone. The cadence is part of what is under test --
+  // acknowledging on a flat timer instead of at a watermark is what used to
+  // halve the frame rate -- so it is kept the same as client/js/services.
+  const ACK_WATERMARK = 2;
   let unacked = 0;
   let ackTimer = null;
   client.acking = true;
+  const flushAck = () => {
+    if (ackTimer !== null) {
+      clearTimeout(ackTimer);
+      ackTimer = null;
+    }
+    const n = unacked;
+    unacked = 0;
+    if (n > 0 && client.acking && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ action: 'ack', n }));
+    }
+  };
   const scheduleAck = () => {
     unacked += 1;
-    if (ackTimer !== null || !client.acking) {
+    if (!client.acking) {
       return;
     }
-    ackTimer = setTimeout(() => {
-      ackTimer = null;
-      const n = unacked;
-      unacked = 0;
-      if (n > 0 && client.acking && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ action: 'ack', n }));
-      }
-    }, 50);
+    if (unacked >= ACK_WATERMARK) {
+      flushAck();
+      return;
+    }
+    if (ackTimer === null) {
+      ackTimer = setTimeout(flushAck, 0);
+    }
   };
+  client.ackRaw = (n) => ws.send(JSON.stringify({ action: 'ack', n }));
 
   ws.on('message', (data, isBinary) => {
     if (isBinary) {
@@ -311,7 +337,11 @@ const validJpeg = (buffer) =>
 async function main() {
   await listen(printer, 0);
   const printerPort = printer.address().port;
-  PRINTER = { _id: PRINTER_ID, camURL: `http://127.0.0.1:${printerPort}/webcam/?action=stream` };
+  const camURL = `http://127.0.0.1:${printerPort}/webcam/?action=stream`;
+  PRINTERS = [
+    { _id: PRINTER_ID, camURL },
+    { _id: PRINTER_ID_2, camURL: `${camURL}&camera=two` },
+  ];
 
   const server = http.createServer(app);
   attachLiveSocket(server, fakeSessionMiddleware);
@@ -503,7 +533,7 @@ async function main() {
   {
     const a = connect(port);
     await waitFor(() => a.ready, 2000, 'ready');
-    a.send({ action: 'subscribe', id: 'bbbbbbbbbbbbbbbbbbbbbbbb' });
+    a.send({ action: 'subscribe', id: 'cccccccccccccccccccccccc' });
     ok(
       'an unknown printer is reported down',
       await waitFor(() => a.states.some((s) => s.state === 'down'), 3000, 'a down state')
@@ -643,6 +673,107 @@ async function main() {
       'closing the socket releases every channel',
       await waitFor(() => tickers.size === 0 && eventSinks.size === 0, 3000, 'release')
     );
+  }
+
+  // --- the window does not set the frame rate ---------------------------
+  //
+  // This is the regression the whole flow-control rewrite is for. The window
+  // started as four payloads, acknowledged on a flat 150ms timer, and a window
+  // drains no faster than one windowful per acknowledgement -- so between them
+  // they capped the socket at about twenty-six payloads a second shared by
+  // every camera and every stream on it, whatever the cameras were producing.
+  // On the real farm that was six frames a second per camera against twelve
+  // available, and the first camera to deliver took most of what there was:
+  // 5.4 against 10.6 for the one beside it.
+  //
+  // The fake cameras here send every 20ms, so two of them produce a hundred
+  // payloads a second -- comfortably above the old ceiling and below anything
+  // loopback would struggle with. A client that keeps up should therefore drop
+  // almost nothing.
+  //
+  // The two are deliberately uneven, one sending frames eight times the size of
+  // the other, because the rate a camera gets should depend on that camera and
+  // not on what it shares a socket with. This does not reproduce the farm's
+  // 5.4-against-10.6 split on its own -- loopback is fast enough that nothing
+  // here has to be dropped at all, which is the point of checking it -- so it
+  // is a guard against a future change that reintroduces a shared quota, not a
+  // test that failed before the per-camera one existed.
+  {
+    frameSize2 = 192 * 1024;
+    const a = connect(port);
+    await waitFor(() => a.ready, 2000, 'ready');
+    a.send({ action: 'subscribe', id: PRINTER_ID });
+    a.send({ action: 'subscribe', id: PRINTER_ID_2 });
+    await waitFor(
+      () =>
+        a.frames.filter((f) => f.id === PRINTER_ID).length >= 5 &&
+        a.frames.filter((f) => f.id === PRINTER_ID_2).length >= 5,
+      4000,
+      'frames from both cameras'
+    );
+
+    const from = a.frames.length;
+    const startedAt = Date.now();
+    await sleep(1500);
+    const elapsed = (Date.now() - startedAt) / 1000;
+    const received = a.frames.slice(from);
+    const first = received.filter((f) => f.id === PRINTER_ID).length;
+    const second = received.filter((f) => f.id === PRINTER_ID_2).length;
+    const perSecond = received.length / elapsed;
+
+    ok(
+      'a client that keeps up is not held to a window',
+      perSecond > 60,
+      `${perSecond.toFixed(0)} payloads/s for two cameras sending 100/s`
+    );
+    // Both are sent every 20ms, so 1.5 seconds is about 75 frames each. The
+    // small one reaching that is it running at its own rate rather than at a
+    // rate it lost a fight over.
+    ok(
+      'a cheap camera is not starved by an expensive one',
+      first > 50,
+      `${first} frames from the small camera against ${second} from the one 8x its size`
+    );
+
+    const mine = liveSocketStats().clients.filter((client) => client.sent > 0);
+    const dropRate = mine.length === 1 ? mine[0].dropped / (mine[0].sent + mine[0].dropped) : null;
+    ok(
+      'and drops almost nothing',
+      dropRate !== null && dropRate < 0.1,
+      dropRate === null
+        ? 'could not identify the client'
+        : `${(dropRate * 100).toFixed(1)}% dropped`
+    );
+
+    // What is outstanding has to be bounded, or the window is not doing its
+    // job at all -- that was the original bug, megabytes queued per viewer.
+    const outstanding = mine[0];
+    ok(
+      'and never has more than the budget outstanding',
+      outstanding.unackedBytes <= MAX_UNACKED_BYTES + frameSize * 2,
+      `${outstanding.unackedBytes} bytes outstanding`
+    );
+
+    // An acknowledgement for far more than was ever sent must not leave the
+    // accounting owing a debt no later acknowledgement can pay off, or the
+    // client is credited forever and the window stops meaning anything.
+    a.ackRaw(1e9);
+    await sleep(200);
+    const after = liveSocketStats().clients.filter((client) => client.sent > 0)[0];
+    ok(
+      'an impossible acknowledgement does not corrupt the accounting',
+      after.unackedBytes >= 0 && after.unacked >= 0,
+      `${after.unacked} payloads / ${after.unackedBytes} bytes`
+    );
+    const keptGoing = a.frames.length;
+    await waitFor(() => a.frames.length > keptGoing + 5, 2000, 'frames to continue');
+    ok('and the cameras keep running after it', a.frames.length > keptGoing + 5);
+
+    a.send({ action: 'unsubscribe', id: PRINTER_ID });
+    a.send({ action: 'unsubscribe', id: PRINTER_ID_2 });
+    a.ws.close();
+    await waitFor(() => liveUpstreams === 0, 3000, 'release');
+    frameSize2 = frameSize;
   }
 
   // --- the upgrade -----------------------------------------------------

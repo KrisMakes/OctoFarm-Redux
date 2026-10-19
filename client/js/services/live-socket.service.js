@@ -36,18 +36,32 @@ const RECONNECT_MAX_MS = 30000;
 // work.
 const ATTEMPTS_BEFORE_GIVING_UP = 3;
 
+// How this client tells the server what it has received. Nothing on the server
+// can see how far behind this browser is -- its own buffer, the kernel's send
+// buffer and the network are all invisible to it, and the kernel's alone runs
+// to megabytes -- so the only honest measure is this one, from here.
+//
+// This used to be a flat 150ms timer, on the reasoning that a few times a
+// second is enough and an acknowledgement per payload would be wasteful. It is
+// wasteful, and it was also the single biggest thing slowing the cameras down:
+// a server window drains no faster than one windowful per acknowledgement, so
+// the interval, not the camera, set the frame rate. Measured on the panel view,
+// six frames a second per camera against the twelve the cameras were producing.
+// The traffic it was saving is a few dozen bytes a second.
+//
+// So acknowledgements go out as soon as there is something worth saying. The
+// watermark coalesces a burst -- two cameras delivering together is one
+// acknowledgement, not two -- and the timer is only the trailing flush for a
+// payload that arrives alone. It is deliberately not the only trigger: a
+// background tab has its timers clamped to a second or more, which is exactly
+// the stall this replaced.
+const ACK_WATERMARK = 2;
+const ACK_FLUSH_MS = 0;
+
 // Liveness. A socket can be abandoned by the browser -- backgrounding the
 // window, a display sleeping, a network that changed underneath it -- and still
 // report OPEN. Unlike a half-dead HTTP stream this is checkable: ask it, and see
 // whether it answers.
-// How often this client tells the server what it has received. Nothing on the
-// server can see how far behind this browser is -- its own buffer, the kernel's
-// send buffer and the network are all invisible to it, and the kernel's alone
-// runs to megabytes -- so the only honest measure is this one, from here. A few
-// times a second is enough to keep a frame or two in flight and no more, and
-// costs one tiny text frame.
-const ACK_INTERVAL_MS = 150;
-
 const LIVENESS_CHECK_MS = 5000;
 const SILENCE_BEFORE_PING_MS = 12000;
 const PONG_TIMEOUT_MS = 4000;
@@ -278,22 +292,27 @@ const handleJson = (text) => {
   jsonHandlers.forEach((fn) => fn(message));
 };
 
-// Batched rather than sent per payload: at fifteen frames a second across two
-// cameras an ack each would be thirty extra messages a second to say nothing in
-// particular.
+const flushAck = () => {
+  if (ackTimer !== null) {
+    clearTimeout(ackTimer);
+    ackTimer = null;
+  }
+  const count = unacked;
+  unacked = 0;
+  if (count > 0) {
+    sendMessage({ action: 'ack', n: count });
+  }
+};
+
 const scheduleAck = () => {
   unacked += 1;
-  if (ackTimer !== null) {
+  if (unacked >= ACK_WATERMARK) {
+    flushAck();
     return;
   }
-  ackTimer = setTimeout(() => {
-    ackTimer = null;
-    const count = unacked;
-    unacked = 0;
-    if (count > 0) {
-      sendMessage({ action: 'ack', n: count });
-    }
-  }, ACK_INTERVAL_MS);
+  if (ackTimer === null) {
+    ackTimer = setTimeout(flushAck, ACK_FLUSH_MS);
+  }
 };
 
 const handleBinary = (buffer) => {
