@@ -249,8 +249,30 @@ function connect(port, { cookie } = {}) {
     client.closed = true;
     client.closeCode = code;
   });
+  // Acknowledges what it receives, exactly as the real client does -- the
+  // server will not let a client that is not keeping up run away, and silence
+  // is how it tells.
+  let unacked = 0;
+  let ackTimer = null;
+  client.acking = true;
+  const scheduleAck = () => {
+    unacked += 1;
+    if (ackTimer !== null || !client.acking) {
+      return;
+    }
+    ackTimer = setTimeout(() => {
+      ackTimer = null;
+      const n = unacked;
+      unacked = 0;
+      if (n > 0 && client.acking && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'ack', n }));
+      }
+    }, 50);
+  };
+
   ws.on('message', (data, isBinary) => {
     if (isBinary) {
+      scheduleAck();
       const bytes = new Uint8Array(
         data.buffer ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) : data
       );
@@ -353,6 +375,9 @@ async function main() {
 
     // --- a viewer that stops reading is dropped, not queued -----------
     frameSize = 180 * 1024;
+    // A viewer that stops reading stops acknowledging; that is the whole
+    // signal, and it is the only one that sees past the kernel's send buffer.
+    b.acking = false;
     b.ws._socket.pause();
     const dropping = await waitFor(
       () => liveSocketStats().clients.some((client) => client.dropped > 0),
@@ -371,6 +396,7 @@ async function main() {
       `${a.frames.length - aBefore} more`
     );
     b.ws._socket.resume();
+    b.acking = true;
     frameSize = 24 * 1024;
 
     // --- the camera is released when nobody is watching ---------------

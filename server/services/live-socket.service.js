@@ -67,15 +67,23 @@ const CHANNEL_OPCODE = 0x02;
 // second of latency on every viewer, permanently. Measured on this farm before
 // this was fixed: 1.0-1.9MB queued per viewer, oscillating, never draining.
 //
-// So what is counted instead is payloads genuinely in flight. ws.send's
-// callback fires when the write has actually completed, so a client whose
-// socket will not accept more simply stops acknowledging, the count climbs, and
-// the drop kicks in within a frame or two rather than within a megabyte.
+// ws.send's completion callback is no better: it fires when the KERNEL accepted
+// the bytes, which it does right up until that multi-megabyte buffer is full.
+// Measured after trying exactly that: still 1.3-1.9MB queued per viewer.
+//
+// Nothing on this side of the connection can see how far behind a client is.
+// Only the client knows, so the client is asked: it counts what it has received
+// and says so, a few times a second, and what is counted here is payloads sent
+// but not yet acknowledged. That measures the whole pipe -- this server's
+// buffer, the kernel's, the network, and the browser's own ability to keep up
+// -- which is the only measure that means anything.
 const MAX_BUFFERED_BYTES = 512 * 1024;
 
-// Two: one being written, one behind it. More than that is latency nobody
-// asked for; a viewer wants the newest frame, not every frame.
-const MAX_FRAMES_IN_FLIGHT = 2;
+// How many payloads may be outstanding before this client is treated as behind.
+// Acknowledgements are batched by the client every ACK_INTERVAL, so a healthy
+// viewer at fifteen frames a second always has one or two in flight; this has
+// to sit above that and well below a second's worth.
+const MAX_UNACKED_PAYLOADS = 4;
 
 // Control messages are a few dozen bytes. Nothing legitimate is larger, and
 // refusing the rest means a client cannot make the server allocate.
@@ -156,28 +164,31 @@ const clientStats = new WeakMap();
 function handleConnection(ws, request) {
   const subscriptions = new Map();
   const listening = new Map();
-  const stats = { sent: 0, dropped: 0, inFlight: 0, since: Date.now() };
+  const stats = { sent: 0, dropped: 0, unacked: 0, everAcked: false, since: Date.now() };
   clientStats.set(ws, stats);
 
-  // True while this client is behind: either bytes are piling up above the
-  // socket, or writes are not completing because the socket itself will not
-  // take more. The second is the one that matters and the one bufferedAmount
-  // cannot see.
+  // True while this client is behind. The acknowledgement count is the real
+  // measure; bufferedAmount is kept as a second line for a client that stops
+  // reading so hard that even this server's own buffer fills.
+  //
+  // A client that has never acknowledged anything is not counted as behind on
+  // that basis -- a page still running a bundle from before acknowledgements
+  // existed would otherwise receive four payloads and then silence, which is a
+  // far worse failure than the latency this is here to prevent. It still has
+  // the bufferedAmount check.
   const isBehind = () =>
-    stats.inFlight >= MAX_FRAMES_IN_FLIGHT || ws.bufferedAmount > MAX_BUFFERED_BYTES;
+    (stats.everAcked && stats.unacked >= MAX_UNACKED_PAYLOADS) ||
+    ws.bufferedAmount > MAX_BUFFERED_BYTES;
 
-  // Sends one binary payload, counting it as in flight until the write really
-  // completes. Returns whether it went.
+  // Sends one binary payload, counting it as outstanding until the client says
+  // otherwise. Returns whether it went.
   const deliver = (message) => {
-    stats.inFlight += 1;
     try {
-      ws.send(message, { binary: true, compress: false }, () => {
-        stats.inFlight -= 1;
-      });
+      ws.send(message, { binary: true, compress: false });
       stats.sent += 1;
+      stats.unacked += 1;
       return true;
     } catch (e) {
-      stats.inFlight -= 1;
       return false;
     }
   };
@@ -309,6 +320,18 @@ function handleConnection(ws, request) {
 
     if (message.action === 'ping') {
       send(ws, { type: 'pong' });
+      return;
+    }
+
+    // "I have received this many payloads since I last said so." The one thing
+    // that tells this side whether the client is keeping up.
+    if (message.action === 'ack') {
+      stats.everAcked = true;
+      const count = Number(message.n);
+      stats.unacked = Math.max(
+        0,
+        stats.unacked - (Number.isFinite(count) && count > 0 ? count : 1)
+      );
       return;
     }
 
@@ -574,7 +597,7 @@ function liveSocketStats() {
   return {
     clients: wss
       ? [...wss.clients].map((ws) => ({
-          ...(clientStats.get(ws) || { sent: 0, dropped: 0, inFlight: 0 }),
+          ...(clientStats.get(ws) || { sent: 0, dropped: 0, unacked: 0, everAcked: false }),
           bufferedAmount: ws.bufferedAmount,
         }))
       : [],

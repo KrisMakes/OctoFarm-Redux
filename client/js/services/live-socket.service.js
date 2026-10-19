@@ -40,6 +40,14 @@ const ATTEMPTS_BEFORE_GIVING_UP = 3;
 // window, a display sleeping, a network that changed underneath it -- and still
 // report OPEN. Unlike a half-dead HTTP stream this is checkable: ask it, and see
 // whether it answers.
+// How often this client tells the server what it has received. Nothing on the
+// server can see how far behind this browser is -- its own buffer, the kernel's
+// send buffer and the network are all invisible to it, and the kernel's alone
+// runs to megabytes -- so the only honest measure is this one, from here. A few
+// times a second is enough to keep a frame or two in flight and no more, and
+// costs one tiny text frame.
+const ACK_INTERVAL_MS = 150;
+
 const LIVENESS_CHECK_MS = 5000;
 const SILENCE_BEFORE_PING_MS = 12000;
 const PONG_TIMEOUT_MS = 4000;
@@ -60,6 +68,8 @@ let livenessTimer = null;
 let lastMessageAt = 0;
 let pingSentAt = 0;
 let lastPongAt = 0;
+let unacked = 0;
+let ackTimer = null;
 
 // What the server said when it accepted this socket: which optional features
 // are switched on, and which streams it is willing to carry. Null until a
@@ -268,7 +278,26 @@ const handleJson = (text) => {
   jsonHandlers.forEach((fn) => fn(message));
 };
 
+// Batched rather than sent per payload: at fifteen frames a second across two
+// cameras an ack each would be thirty extra messages a second to say nothing in
+// particular.
+const scheduleAck = () => {
+  unacked += 1;
+  if (ackTimer !== null) {
+    return;
+  }
+  ackTimer = setTimeout(() => {
+    ackTimer = null;
+    const count = unacked;
+    unacked = 0;
+    if (count > 0) {
+      sendMessage({ action: 'ack', n: count });
+    }
+  }, ACK_INTERVAL_MS);
+};
+
 const handleBinary = (buffer) => {
+  scheduleAck();
   const bytes = new Uint8Array(buffer);
   if (bytes.length < 2) {
     return;
@@ -324,6 +353,13 @@ function connect() {
     lastMessageAt = Date.now();
     lastPongAt = Date.now();
     pingSentAt = 0;
+    // The server counts what it has sent this socket and heard nothing about;
+    // a new socket has nothing outstanding on either side.
+    unacked = 0;
+    if (ackTimer !== null) {
+      clearTimeout(ackTimer);
+      ackTimer = null;
+    }
     // Nothing is announced here. The server says what it will carry in its
     // `ready` message, which arrives unprompted, and until then there is
     // nothing for anyone to decide.
