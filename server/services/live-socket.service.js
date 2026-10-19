@@ -204,6 +204,27 @@ const closeClient = (ws, code, reason) => {
 const clientStats = new WeakMap();
 
 function handleConnection(ws, request) {
+  // Nagle's algorithm holds back the last, partial TCP segment of anything
+  // written until the previous one is acknowledged. For a request/response
+  // protocol that is a kindness; for a 105KB camera frame it means the tail of
+  // every single frame waits on the client's delayed acknowledgement, which is
+  // up to 40ms it spends doing nothing.
+  //
+  // That is invisible until something measures the round trip, and the window
+  // measures it precisely: throughput is one windowful per round trip, so a
+  // two-frame window and a 74ms round trip is 27fps however fast the camera is.
+  // Measured here: cameras producing 31fps arriving at 27, and 30 with the
+  // window removed entirely -- which said the window was binding, when the
+  // real answer was that the round trip had no business being 74ms.
+  //
+  // Node does not set this on a socket it has handed to an upgrade, so it is
+  // set here. request.socket is the same socket the WebSocket is now using.
+  try {
+    request.socket.setNoDelay(true);
+  } catch (e) {
+    // An already-closed socket. Nothing is going to be written to it anyway.
+  }
+
   const subscriptions = new Map();
   const listening = new Map();
   const stats = {
