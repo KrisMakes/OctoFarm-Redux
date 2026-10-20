@@ -78,6 +78,32 @@ function sharedSocketScriptUrl() {
 }
 
 /**
+ * Identifies the build a page was rendered from.
+ *
+ * Every bundle name carries a content hash, so any one of them identifies the
+ * build -- and a page holds the names it was served with, which is exactly what
+ * makes a stale page detectable from inside itself. The live socket sends this,
+ * and a page whose own bundle name differs knows it is running code that is no
+ * longer deployed.
+ *
+ * This matters more here than in most apps: an open tab keeps running the
+ * JavaScript it loaded, so every deploy strands every tab, and a stale tab had
+ * no way to find out. That is not a cosmetic problem -- the tabs stranded
+ * during this work were holding six HTTP connections between them, which is a
+ * whole browser's budget.
+ */
+function clientBuildId() {
+  const files = loadManifest()['events.service'];
+  const main = (Array.isArray(files) ? files : []).find((file) => file.includes('events.service'));
+  // The bare filename, because that is what a page can see of itself: the
+  // manifest stores `js/name.hash.min.js` and the page compares the last
+  // segment of its own script src. Returning the path here would never match,
+  // and every page would reload once on its first socket -- a bug that looks
+  // exactly like the one this is meant to fix.
+  return main ? main.split('/').pop() : null;
+}
+
+/**
  * Files that more than one entry depends on, in load order.
  *
  * These are computed from the manifest rather than from the order tags happen
@@ -198,4 +224,9 @@ function createScriptTagRenderer() {
   return { sharedScriptTags, scriptTags, styleTags };
 }
 
-module.exports = { createScriptTagRenderer, workerScriptUrl, sharedSocketScriptUrl };
+module.exports = {
+  createScriptTagRenderer,
+  workerScriptUrl,
+  sharedSocketScriptUrl,
+  clientBuildId,
+};

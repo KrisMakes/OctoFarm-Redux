@@ -40,6 +40,7 @@ const { WebSocketServer } = require('ws');
 const passport = require('passport');
 const { cameraHub } = require('./camera-hub.service');
 const { getLiveChannel, liveChannelPaths } = require('./live-channels.registry');
+const { clientBuildId } = require('../utils/asset-manifest.utils');
 const { ensureCurrentUserAndGroup } = require('../middleware/users');
 const { SettingsClean } = require('./settings-cleaner.service');
 const Logger = require('../handlers/logger');
@@ -532,6 +533,9 @@ function handleConnection(ws, request) {
     type: 'ready',
     enabled: Boolean(SettingsClean.isCameraMultiplexEnabled()),
     channels: liveChannelPaths(),
+    // Which build is deployed. A page running an older one reloads itself;
+    // see clientBuildId.
+    build: clientBuildId(),
   });
 }
 

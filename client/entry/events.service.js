@@ -11,7 +11,8 @@ import {
 import { startCameraStreamWatchdog } from '../js/services/camera-stream-watchdog.service';
 import { startReloadOnReturn } from '../js/services/reload-on-return.service';
 import { startCameraMultiplexer } from '../js/services/camera-socket.service';
-import { listenToChannel, startLiveSocket } from '../js/services/live-socket.service';
+import { listenToChannel, onSocketUp, startLiveSocket } from '../js/services/live-socket.service';
+import { checkBuild } from '../js/services/stale-build.service';
 import { updateMaintenanceModeBanner } from '../js/services/maintenance-mode-banner.service';
 
 // reconnectFrequencySeconds doubles every retry
@@ -273,6 +274,12 @@ window.addEventListener('focus', () => {
 // watchdog is what recovers the cameras in those cases.
 // Opened before anything that rides on it, so the first `ready` finds its
 // listeners already registered.
+// The socket is the only thing that knows which build is deployed, and this
+// page is the only thing that knows which one it is running. Comparing them is
+// what lets a tab left open across a deploy pick up the new code by itself
+// instead of waiting to be reloaded by hand.
+onSocketUp((ready) => checkBuild(ready?.build));
+
 startLiveSocket();
 
 startReloadOnReturn();
