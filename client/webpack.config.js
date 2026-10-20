@@ -54,6 +54,13 @@ const WORKER_ENTRY = 'sse.client';
 const workerEntry = webpackEntries[WORKER_ENTRY];
 delete webpackEntries[WORKER_ENTRY];
 
+// The SharedWorker that holds the one live socket for the whole browser. Same
+// constraint as the worker above and for the same reason -- a worker fetches
+// exactly one script -- so it gets a compiler of its own too.
+const SHARED_WORKER_ENTRY = 'live-socket.shared';
+const sharedWorkerEntry = webpackEntries[SHARED_WORKER_ENTRY];
+delete webpackEntries[SHARED_WORKER_ENTRY];
+
 // Output names carry a content hash so they can be served `immutable`. Before
 // this they were stamped with the package version alone, which meant every
 // rebuild at the same version reused the same URL -- browsers held onto the
@@ -67,7 +74,8 @@ const OUTPUT_CSS = `css/[name].${packageJsonVersion}.[contenthash:8].css`;
 // necessary now that names change on every content change, or the directory
 // would grow a copy per build. The worker is produced by a second compiler that
 // may still be running, so it is matched by prefix and left alone.
-const isWorkerAsset = (fileName) => fileName.startsWith(`${WORKER_ENTRY}.`);
+const isWorkerAsset = (fileName) =>
+  fileName.startsWith(`${WORKER_ENTRY}.`) || fileName.startsWith(`${SHARED_WORKER_ENTRY}.`);
 
 /**
  * The web worker, built on its own.
@@ -77,11 +85,12 @@ const isWorkerAsset = (fileName) => fileName.startsWith(`${WORKER_ENTRY}.`);
  * build; nothing references it through the asset manifest because
  * client-worker.service.js constructs the URL directly.
  */
-const workerConfig = (options) => {
+const workerConfig = (options, entryName, entryPath, manifestFile) => {
   const isProd = options.mode === 'production';
+  const isOwnAsset = (fileName) => fileName.startsWith(`${entryName}.`);
   return {
-    name: 'worker',
-    entry: { [WORKER_ENTRY]: workerEntry },
+    name: entryName,
+    entry: { [entryName]: entryPath },
     output: {
       filename: OUTPUT_JS,
       path: path.resolve(__dirname, isProd ? buildDirProd : buildDirDev),
@@ -113,9 +122,9 @@ const workerConfig = (options) => {
       {
         apply(compiler) {
           compiler.hooks.emit.tapAsync('WorkerManifestPlugin', (compilation, callback) => {
-            const files = compilation.entrypoints.get(WORKER_ENTRY).getFiles();
-            const json = JSON.stringify({ [WORKER_ENTRY]: files[0] }, null, 2);
-            compilation.assets['config/worker-manifest.json'] = {
+            const files = compilation.entrypoints.get(entryName).getFiles();
+            const json = JSON.stringify({ [entryName]: files[0] }, null, 2);
+            compilation.assets[manifestFile] = {
               source: () => json,
               size: () => json.length,
             };
@@ -127,10 +136,12 @@ const workerConfig = (options) => {
           // content hash leaves one behind on every content change.
           compiler.hooks.afterEmit.tapAsync('RemoveStaleWorkerAssets', (compilation, callback) => {
             const jsDir = path.join(compilation.compiler.outputPath, 'js');
-            const current = new Set(compilation.entrypoints.get(WORKER_ENTRY).getFiles());
+            const current = new Set(compilation.entrypoints.get(entryName).getFiles());
             if (fs.existsSync(jsDir)) {
               fs.readdirSync(jsDir, { withFileTypes: true }).forEach((file) => {
-                if (file.isFile() && isWorkerAsset(file.name) && !current.has(`js/${file.name}`)) {
+                // Only this compiler's own leftovers: the other worker compiler
+                // may still be running and its output is not ours to delete.
+                if (file.isFile() && isOwnAsset(file.name) && !current.has(`js/${file.name}`)) {
                   fs.unlinkSync(path.join(jsDir, file.name));
                   console.warn('Removed old worker asset: ', file.name);
                 }
@@ -359,4 +370,13 @@ const appConfig = (env, options) => {
   };
 };
 
-module.exports = (env, options) => [appConfig(env, options), workerConfig(options)];
+module.exports = (env, options) => [
+  appConfig(env, options),
+  workerConfig(options, WORKER_ENTRY, workerEntry, 'config/worker-manifest.json'),
+  workerConfig(
+    options,
+    SHARED_WORKER_ENTRY,
+    sharedWorkerEntry,
+    'config/shared-worker-manifest.json'
+  ),
+];

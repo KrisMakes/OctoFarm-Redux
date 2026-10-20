@@ -28,10 +28,14 @@ function readManifest(name) {
 
 const appManifest = readManifest('asset-manifest.json');
 const workerManifest = readManifest('worker-manifest.json');
+// The SharedWorker holding the live socket is built by a third compiler, with a
+// manifest of its own for the same reason the worker has one.
+const sharedWorkerManifest = readManifest('shared-worker-manifest.json');
 
 const referenced = new Set([
   ...Object.values(appManifest).flat(),
   ...Object.values(workerManifest),
+  ...Object.values(sharedWorkerManifest),
 ]);
 
 const missing = [...referenced].filter((file) => !fs.existsSync(path.join(assetsDir, file)));

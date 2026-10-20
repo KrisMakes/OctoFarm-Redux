@@ -16,9 +16,12 @@ const MANIFEST_PATH = path.join(CONFIG_DIR, 'asset-manifest.json');
 // The web worker is built by a second webpack compiler, so it is not in the app
 // manifest. It has its own, written by that compiler.
 const WORKER_MANIFEST_PATH = path.join(CONFIG_DIR, 'worker-manifest.json');
+// And so is the SharedWorker that holds the live socket, by a third.
+const SHARED_WORKER_MANIFEST_PATH = path.join(CONFIG_DIR, 'shared-worker-manifest.json');
 
 let manifest = null;
 let workerManifest = null;
+let sharedWorkerManifest = null;
 let sharedFiles = null;
 
 function readManifest(filePath, label) {
@@ -49,6 +52,26 @@ function workerScriptUrl() {
   const file = workerManifest['sse.client'];
   if (!file) {
     logger.error('No worker manifest entry for sse.client -- the monitoring views will not update');
+    return '';
+  }
+  return `/assets/${file}`;
+}
+
+/**
+ * URL of the SharedWorker that owns the live socket for the whole browser.
+ *
+ * Published the same way as the worker above and for the same reason: it is
+ * built by its own compiler, so its hashed name is in neither the app manifest
+ * nor the worker one. A page with no URL here falls back to opening a socket of
+ * its own, which works -- it is only the per-tab connection cost that returns.
+ */
+function sharedSocketScriptUrl() {
+  if (sharedWorkerManifest === null) {
+    sharedWorkerManifest = readManifest(SHARED_WORKER_MANIFEST_PATH, 'shared worker manifest');
+  }
+  const file = sharedWorkerManifest['live-socket.shared'];
+  if (!file) {
+    logger.warning('No shared worker manifest entry -- every tab will open its own live socket');
     return '';
   }
   return `/assets/${file}`;
@@ -175,4 +198,4 @@ function createScriptTagRenderer() {
   return { sharedScriptTags, scriptTags, styleTags };
 }
 
-module.exports = { createScriptTagRenderer, workerScriptUrl };
+module.exports = { createScriptTagRenderer, workerScriptUrl, sharedSocketScriptUrl };

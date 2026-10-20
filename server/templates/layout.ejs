@@ -48,6 +48,7 @@
     <%# The SSE web worker is fetched by URL from client-worker.service.js, which
         has no way to know its hash. This is how it finds out. %>
     <meta name="octofarm-worker-url" content="<%= workerScriptUrl() %>"/>
+    <meta name="octofarm-shared-socket-url" content="<%= sharedSocketScriptUrl() %>"/>
     <title><%= octoFarmPageTitle %>: <%= page %></title>
     <%# Read synchronously by printer-action-buttons.service.js so the Maintenance
         Mode button can be hidden for farms without the plugin without an extra

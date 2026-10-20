@@ -1,5 +1,9 @@
 const { AppConstants } = require('../constants/app.constants');
-const { createScriptTagRenderer, workerScriptUrl } = require('../utils/asset-manifest.utils');
+const {
+  createScriptTagRenderer,
+  workerScriptUrl,
+  sharedSocketScriptUrl,
+} = require('../utils/asset-manifest.utils');
 
 module.exports = {
   ensureClientServerVersion(_req, res, next) {
@@ -15,6 +19,7 @@ module.exports = {
     // Published into a meta tag by layout.ejs: the worker bundle's name carries
     // a content hash, so the client cannot derive it from the version any more.
     res.locals.workerScriptUrl = workerScriptUrl;
+    res.locals.sharedSocketScriptUrl = sharedSocketScriptUrl;
     next();
   },
 };
