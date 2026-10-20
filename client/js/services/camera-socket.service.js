@@ -130,17 +130,41 @@ const forId = (id) => {
 // it. That spaces frames evenly on the display whatever time they arrived, and
 // it costs nothing: at most one paint per element per redraw, which is already
 // the most that could ever be seen.
+// How long to wait for a redraw that may never come. A window completely
+// covered by another window gets no animation frames at all, and still reports
+// itself visible -- the same macOS behaviour that makes `visibilitychange`
+// useless for detecting it. Pacing to redraws alone would therefore not slow
+// such a window down, it would freeze it solid on its last frame, which looks
+// exactly like a camera that has died. So whichever comes first wins: the next
+// redraw, or this.
+const FRAME_FALLBACK_MS = 100;
+
 let framePending = false;
+let frameRaf = 0;
+let frameTimer = null;
+
+const flushFrames = () => {
+  framePending = false;
+  if (frameRaf && typeof cancelAnimationFrame === 'function') {
+    cancelAnimationFrame(frameRaf);
+  }
+  frameRaf = 0;
+  if (frameTimer !== null) {
+    clearTimeout(frameTimer);
+    frameTimer = null;
+  }
+  views.forEach(paintLatest);
+};
 
 const scheduleFrameFlush = () => {
-  if (framePending || typeof requestAnimationFrame !== 'function') {
+  if (framePending) {
     return;
   }
   framePending = true;
-  requestAnimationFrame(() => {
-    framePending = false;
-    views.forEach(paintLatest);
-  });
+  if (typeof requestAnimationFrame === 'function') {
+    frameRaf = requestAnimationFrame(flushFrames);
+  }
+  frameTimer = setTimeout(flushFrames, FRAME_FALLBACK_MS);
 };
 
 // Shows the newest frame this element has been given, if it is not still
@@ -167,11 +191,6 @@ const paintLatest = (view) => {
 
 const paint = (view, blob) => {
   view.next = blob;
-  // A browser with no requestAnimationFrame at all still has to show something.
-  if (typeof requestAnimationFrame !== 'function') {
-    paintLatest(view);
-    return;
-  }
   scheduleFrameFlush();
 };
 
