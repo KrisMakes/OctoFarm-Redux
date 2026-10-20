@@ -55,6 +55,27 @@ let sharedPages = null;
 let sharedWorkerId = null;
 let sharedSilenceTimer = null;
 
+// Whether it is yet known what will carry these streams.
+//
+// A consumer told "not carried" opens its own HTTP stream, and until the socket
+// has answered that is not an answer, it is an absence of one -- so saying it
+// meant every page opened a stream it was about to abandon. WebKit does not
+// close an abandoned stream, so the connection stayed held: measured, one per
+// tab, on top of the socket. Nothing is told anything until this is true, and
+// it becomes true either way -- the socket answering, or every route to one
+// having failed.
+let settled = false;
+
+const settle = () => {
+  if (settled) {
+    return;
+  }
+  settled = true;
+  channelListeners.forEach((entry) => {
+    entry.availability.forEach((fn) => fn(entry.carried));
+  });
+};
+
 // Registered here rather than passed through, so that it makes no difference
 // whether a listener was added before or after the socket was picked.
 const jsonHandlers = new Set();
@@ -145,6 +166,7 @@ const onSocketUpShared = (message) => {
       setChannelCarried(entry, false);
     }
   });
+  settle();
   announceUp();
 };
 
@@ -164,6 +186,7 @@ const handleSharedMessage = (data) => {
     case 'down':
       ready = null;
       channelListeners.forEach((entry) => setChannelCarried(entry, false));
+      settle();
       announceDown();
       return;
     case 'json':
@@ -242,6 +265,9 @@ const startShared = () => {
 
 const startDirect = () => {
   mode = 'direct';
+  // The core answers for itself from here, including when it gives up, so
+  // nothing is waiting on this side any more.
+  settle();
   core.onSocketUp((readyMessage) => {
     ready = readyMessage;
     announceUp();
@@ -249,6 +275,7 @@ const startDirect = () => {
   core.onSocketDown(() => {
     ready = null;
     channelListeners.forEach((entry) => setChannelCarried(entry, false));
+    settle();
     announceDown();
   });
   core.onJson((message) => jsonHandlers.forEach((fn) => fn(message)));
@@ -312,7 +339,10 @@ export const listenToChannel = (path, onPayload, onAvailability) => {
     setChannelCarried(entry, true);
   }
 
-  onAvailability(entry.carried);
+  // Only once it is known. See `settled`.
+  if (settled) {
+    onAvailability(entry.carried);
+  }
   return () => {
     entry.payload.delete(onPayload);
     entry.availability.delete(onAvailability);
