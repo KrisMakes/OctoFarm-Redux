@@ -32,6 +32,19 @@ const SHARED_WORKER_META = 'meta[name="octofarm-shared-socket-url"]';
 // one that crashes cannot, so the worker drops anything that goes quiet.
 const ALIVE_EVERY_MS = 15000;
 
+// How long to wait for the SharedWorker to say anything before giving up on it
+// and opening a socket for this tab alone.
+//
+// Not merely belt and braces. The worker's URL carries a content hash, so a
+// page served from cache after a deploy names a worker script that no longer
+// exists -- and a SharedWorker whose script 404s does not throw when it is
+// constructed. `onerror` is supposed to fire, and cannot be relied on to: a
+// tab was found with no socket at all, every stream fallen back to its own HTTP
+// connection and both cameras streaming directly, holding three connections of
+// the six it was allowed. Waiting for a message that never comes is the one
+// failure this must not have.
+const SHARED_WORKER_SILENCE_MS = 4000;
+
 let mode = null;
 let port = null;
 let aliveTimer = null;
@@ -40,6 +53,7 @@ let ready = null;
 // and which worker it is.
 let sharedPages = null;
 let sharedWorkerId = null;
+let sharedSilenceTimer = null;
 
 // Registered here rather than passed through, so that it makes no difference
 // whether a listener was added before or after the socket was picked.
@@ -134,7 +148,15 @@ const onSocketUpShared = (message) => {
   announceUp();
 };
 
+const heardFromWorker = () => {
+  if (sharedSilenceTimer !== null) {
+    clearTimeout(sharedSilenceTimer);
+    sharedSilenceTimer = null;
+  }
+};
+
 const handleSharedMessage = (data) => {
+  heardFromWorker();
   switch (data && data.t) {
     case 'ready':
       onSocketUpShared(data);
@@ -194,6 +216,12 @@ const startShared = () => {
     fallBackToDirect();
   };
 
+  sharedSilenceTimer = setTimeout(() => {
+    sharedSilenceTimer = null;
+    console.debug('The shared live socket never answered, using one for this tab');
+    fallBackToDirect();
+  }, SHARED_WORKER_SILENCE_MS);
+
   aliveTimer = setInterval(() => tell({ t: 'alive' }), ALIVE_EVERY_MS);
 
   const sayGoodbye = () => tell({ t: 'bye' });
@@ -243,6 +271,7 @@ const fallBackToDirect = () => {
   if (mode === 'direct') {
     return;
   }
+  heardFromWorker();
   if (aliveTimer !== null) {
     clearInterval(aliveTimer);
     aliveTimer = null;

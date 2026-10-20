@@ -129,6 +129,28 @@ function setupExpressServer() {
   // the templates links to a file inside the views folder; they only reference
   // /assets and app routes.
 
+  // A page must never be served from cache without asking.
+  //
+  // Bundle filenames carry a content hash, which is what lets /assets be served
+  // immutable -- but it also means the page is the only thing that knows which
+  // bundle is current, and a stale page names bundles that have since been
+  // deleted. The page then loads against files that 404: the live socket's
+  // SharedWorker never starts, every stream falls back to its own HTTP
+  // connection, and the tab holds three of the six a browser allows. Two tabs
+  // like that and nothing else will load -- which is the original bug, reached
+  // by way of the cache.
+  //
+  // Nothing was setting this at all, so freshness was left to the browser's own
+  // heuristics. `no-cache` does not mean "do not store", it means "revalidate
+  // before reusing", and with the ETag already being sent that costs a 304.
+  // /assets and /images set their own below and are unaffected.
+  app.use((req, res, next) => {
+    if (!req.path.startsWith('/assets') && !req.path.startsWith('/images')) {
+      res.set('Cache-Control', 'no-cache');
+    }
+    next();
+  });
+
   // Resolved against this file, not process.cwd(). These used to work only
   // because pm2 happens to start from server/.
   app.use('/images', express.static(path.join(__dirname, '..', 'images')));
