@@ -252,7 +252,9 @@ onBinary((opcode, name, bytes) => {
     return;
   }
   eachPage((state, port) => {
-    if (!state.cameras.has(name)) {
+    // A page nobody is looking at keeps its subscription -- so it is never
+    // frozen when it comes back -- but is not sent frames it cannot show.
+    if (!state.cameras.has(name) || !state.visible) {
       return;
     }
     // A copy per page, and deliberately so: the bytes are a view onto the
@@ -273,6 +275,9 @@ const handle = (state, data) => {
     case 'bye':
       forget(state.port);
       return;
+    case 'visible':
+      state.visible = data.visible !== false;
+      return;
     case 'check':
       // A page came back to the front. This worker has no document and cannot
       // know that by itself.
@@ -282,7 +287,9 @@ const handle = (state, data) => {
       const payload = data.payload || {};
       const id = typeof payload.id === 'string' ? payload.id : null;
       const channel = typeof payload.channel === 'string' ? payload.channel : null;
-      if (payload.action === 'subscribe' && id) {
+      if (payload.action === 'visible') {
+        state.visible = payload.visible !== false;
+      } else if (payload.action === 'subscribe' && id) {
         addCamera(state, id);
       } else if (payload.action === 'unsubscribe' && id) {
         removeCamera(state, id);
@@ -306,7 +313,15 @@ const handle = (state, data) => {
 
 self.addEventListener('connect', (event) => {
   const port = event.ports[0];
-  const state = { port, cameras: new Set(), channels: new Set(), lastSeen: Date.now() };
+  const state = {
+    port,
+    cameras: new Set(),
+    channels: new Set(),
+    // Assumed until the page says otherwise, so a page that never reports
+    // visibility is served rather than silently starved.
+    visible: true,
+    lastSeen: Date.now(),
+  };
   pages.set(port, state);
   port.onmessage = (e) => handle(state, e.data);
   port.start();

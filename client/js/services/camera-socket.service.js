@@ -56,19 +56,19 @@ let enabled = null;
 let started = false;
 let handBackTimer = null;
 
-// Whether this page is the one being looked at. A camera in a tab behind
-// another tab is drawing nothing anyone can see, and streaming to it is not
-// free: at this farm's resolution each camera is about 126KB a frame, so four
-// tabs of two cameras was roughly 48Mbit/s off the server and ninety-six
-// two-megapixel JPEG decodes a second in one browser -- for three tabs' worth
-// of pictures nobody was looking at. That is what made opening a fourth tab
-// look like the cameras had stopped: not connections any more, but bandwidth
-// and decoding.
+// Whether this page is the one being looked at.
 //
-// So a hidden page unsubscribes, and asks again when it comes back. The last
-// frame is left on screen either way, so returning to a tab shows the old
-// picture for the moment it takes the first new one to arrive rather than a
-// gap.
+// A hidden page used to unsubscribe its cameras outright, which was right when
+// every tab paid for its own connections. It is not right now: all the tabs in
+// a browser share one socket and one subscription per camera, so a hidden tab
+// costs no connection and no bandwidth of its own -- the frames are arriving
+// anyway. What it did cost was the thing it was reported as: every tab you were
+// not looking at sat frozen on its last frame.
+//
+// So the subscription stays and the page says whether anyone can see it. The
+// worker holding the socket skips a hidden page when it hands frames out, so
+// nothing is copied or decoded for a tab nobody is looking at, and the moment
+// it comes back the next frame -- at most a frame interval away -- goes to it.
 let pageVisible = true;
 
 // One entry per adopted <img>.
@@ -235,9 +235,10 @@ const subscribedCountFor = (id) => {
   return count;
 };
 
-// Whether this element should be receiving frames: it has to be on screen, and
-// the page has to be one somebody is looking at.
-const shouldStream = (view) => view.onScreen && pageVisible;
+// Whether this element should be receiving frames. Only whether it is on
+// screen: whether the page itself can be seen is the socket's business now, not
+// the subscription's.
+const shouldStream = (view) => view.onScreen;
 
 const subscribe = (view) => {
   if (view.subscribed) {
@@ -275,8 +276,6 @@ const applyStreaming = (view) => {
     unsubscribe(view);
   }
 };
-
-const applyStreamingToAll = () => views.forEach(applyStreaming);
 
 // Anything subscribed has to be asked for again on a new socket, and the server
 // is told about each camera once however many elements are showing it.
@@ -547,14 +546,18 @@ const startVisibilityWatch = () => {
   if (typeof document === 'undefined') {
     return;
   }
-  pageVisible = document.visibilityState !== 'hidden';
+  const tell = (visible) => {
+    pageVisible = visible;
+    // Not an unsubscribe: the cameras stay subscribed and the socket simply
+    // stops handing frames to this page until it is worth looking at again.
+    sendMessage({ action: 'visible', visible });
+  };
+  tell(document.visibilityState !== 'hidden');
   document.addEventListener('visibilitychange', () => {
     const visible = document.visibilityState !== 'hidden';
-    if (visible === pageVisible) {
-      return;
+    if (visible !== pageVisible) {
+      tell(visible);
     }
-    pageVisible = visible;
-    applyStreamingToAll();
   });
 };
 
