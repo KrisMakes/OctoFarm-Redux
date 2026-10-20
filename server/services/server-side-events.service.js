@@ -120,6 +120,24 @@ const listActiveClientsRes = (_req, res) => {
 const listActiveClientsCount = () => {
   return clientList.length;
 };
+
+/**
+ * How many subscribers there are and how they are connected, grouped by the
+ * endpoint each arrived on.
+ *
+ * This exists because "is anything still holding an HTTP stream?" turned out to
+ * be unanswerable from outside: counting TCP connections on the host sweeps up
+ * every browser on the network, so the number moves for reasons that have
+ * nothing to do with the tab being tested.
+ */
+const activeClientSummary = () => {
+  const byEndpoint = {};
+  clientList.forEach((client) => {
+    const key = client.endpoint || 'unknown';
+    byEndpoint[key] = (byEndpoint[key] || 0) + 1;
+  });
+  return { total: clientList.length, byEndpoint };
+};
 /**
  *
  * @param id Object ID relating to either files / printers / element in UI.
@@ -158,4 +176,5 @@ module.exports = {
   notifySubscribers,
   listActiveClientsRes,
   listActiveClientsCount,
+  activeClientSummary,
 };

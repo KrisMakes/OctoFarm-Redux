@@ -23,7 +23,10 @@ const clientLogger = new Logger(LOGGER_ROUTE_KEYS.SERVER_CLIENT);
 const multer = require('multer');
 const { isEqual } = require('lodash');
 const { SettingsClean } = require('../services/settings-cleaner.service.js');
-const { refreshCameraSocketClients } = require('../services/live-socket.service.js');
+const {
+  refreshCameraSocketClients,
+  liveSocketStats,
+} = require('../services/live-socket.service.js');
 const { Logs } = require('../services/server-logs.service.js');
 const { SystemCommands } = require('../services/server-commands.service.js');
 const { fetchUsers } = require('../services/users.service');
@@ -61,7 +64,10 @@ const DATABASE_MODELS = {
 };
 const { TaskManager } = require('../services/task-manager.service');
 const { SystemRunner } = require('../services/system-information.service');
-const { listActiveClientsRes } = require('../services/server-side-events.service');
+const {
+  listActiveClientsRes,
+  activeClientSummary,
+} = require('../services/server-side-events.service');
 const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const { FilamentClean } = require('../services/filament-cleaner.service');
 
@@ -544,6 +550,20 @@ router.get('/system/tasks', ensureAuthenticated, ensureAdministrator, async (req
 });
 
 router.get('/system/activeUsers', ensureAuthenticated, ensureAdministrator, listActiveClientsRes);
+
+// What is actually connected, and how. Deliberately not administrator-only:
+// this is the thing to look at when a tab will not load, and being locked out
+// of it is how three separate wrong diagnoses got made -- a browser at the
+// limit cannot open an administrator session to ask why.
+router.get('/system/liveSocket', ensureAuthenticated, (req, res) => {
+  const stats = liveSocketStats();
+  res.json({
+    sockets: stats.clients.length,
+    socketClients: stats.clients,
+    cameras: stats.cameras,
+    subscribers: activeClientSummary(),
+  });
+});
 
 router.post('/client/logs', ensureAuthenticated, clientLogLimits, async (req, res) => {
   const { code, message, name, statusCode, type, color, developerMessage } = req.body;
