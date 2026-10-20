@@ -68,6 +68,8 @@ const {
   listActiveClientsRes,
   activeClientSummary,
 } = require('../services/server-side-events.service');
+const { liveChannelHttpClients } = require('../services/live-channels.registry');
+const { activeCameraProxies } = require('./camera-proxy.routes.js');
 const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const { FilamentClean } = require('../services/filament-cleaner.service');
 
@@ -562,6 +564,10 @@ router.get('/system/liveSocket', ensureAuthenticated, (req, res) => {
     socketClients: stats.clients,
     cameras: stats.cameras,
     subscribers: activeClientSummary(),
+    // The two things that cost a browser a connection per tab, which is what
+    // actually runs a browser out of them.
+    httpStreams: liveChannelHttpClients(),
+    cameraProxies: activeCameraProxies(),
   });
 });
 

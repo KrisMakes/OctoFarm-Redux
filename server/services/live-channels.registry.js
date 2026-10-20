@@ -26,17 +26,33 @@ const channels = new Map();
  *                    every payload matters because nothing repeats it. The
  *                    socket uses this to decide what it may drop when a client
  *                    cannot keep up.
+ * @param httpClients optional () => number, how many clients are still on the
+ *                    HTTP form of this stream. Only for reporting: an HTTP
+ *                    stream holds one of the handful of connections a browser
+ *                    is allowed, so "which streams is this browser still
+ *                    holding open?" is the first question worth asking when a
+ *                    further tab will not load, and it was unanswerable.
  */
-const registerLiveChannel = (path, subscribe, { coalescing }) => {
-  channels.set(path, { path, subscribe, coalescing });
+const registerLiveChannel = (path, subscribe, { coalescing, httpClients }) => {
+  channels.set(path, { path, subscribe, coalescing, httpClients });
 };
 
 const getLiveChannel = (path) => channels.get(path);
 
 const liveChannelPaths = () => [...channels.keys()];
 
+// path -> how many clients are on the HTTP form of that stream right now.
+const liveChannelHttpClients = () => {
+  const report = {};
+  channels.forEach((channel, path) => {
+    report[path] = channel.httpClients ? channel.httpClients() : null;
+  });
+  return report;
+};
+
 module.exports = {
   registerLiveChannel,
   getLiveChannel,
   liveChannelPaths,
+  liveChannelHttpClients,
 };

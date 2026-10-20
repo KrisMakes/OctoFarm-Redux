@@ -66,11 +66,10 @@ const channel = new SseChannel('dashboard', 5000, sendData);
 // whole budget, after which every request the page made queued behind a stream
 // that never ends. Coalescing: this re-sends the whole state on a timer, so a
 // payload a struggling client misses is replaced by the next one.
-registerLiveChannel(
-  '/dashboardInfo/get/',
-  (user, write) => channel.addSocketClient(user, write),
-  { coalescing: true }
-);
+registerLiveChannel('/dashboardInfo/get/', (user, write) => channel.addSocketClient(user, write), {
+  coalescing: true,
+  httpClients: () => channel.clientCount,
+});
 
 // Called once for each new client. Note, this response is left open!
 router.get('/get/', ensureAuthenticated, ensureCurrentUserAndGroup, channel.handler);

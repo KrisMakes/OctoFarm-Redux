@@ -3,7 +3,11 @@ const express = require('express');
 const router = express.Router();
 const { ensureAuthenticated } = require('../middleware/auth.js');
 const { ensureCurrentUserAndGroup } = require('../middleware/users.js');
-const { addClientConnection, addSocketClient } = require('../services/server-side-events.service');
+const {
+  addClientConnection,
+  addSocketClient,
+  httpEventClients,
+} = require('../services/server-side-events.service');
 const { registerLiveChannel } = require('../services/live-channels.registry');
 
 // ensureAuthenticated is new here. This stream used to be open to anyone,
@@ -21,7 +25,7 @@ router.get('/', ensureAuthenticated, ensureCurrentUserAndGroup, addClientConnect
 registerLiveChannel(
   '/events',
   (user, write) => addSocketClient(user, write, { endpoint: '/events (socket)' }),
-  { coalescing: false }
+  { coalescing: false, httpClients: () => httpEventClients() }
 );
 
 module.exports = router;

@@ -130,6 +130,10 @@ const listActiveClientsCount = () => {
  * every browser on the network, so the number moves for reasons that have
  * nothing to do with the tab being tested.
  */
+// Clients on the HTTP form of /events, as opposed to those arriving over the
+// socket. Only the HTTP ones cost a connection.
+const httpEventClients = () => clientList.filter((client) => Boolean(client.res)).length;
+
 const activeClientSummary = () => {
   const byEndpoint = {};
   clientList.forEach((client) => {
@@ -177,4 +181,5 @@ module.exports = {
   listActiveClientsRes,
   listActiveClientsCount,
   activeClientSummary,
+  httpEventClients,
 };

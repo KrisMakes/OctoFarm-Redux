@@ -27,6 +27,26 @@ const STREAM_IDLE_TIMEOUT_MS = Number(process.env.CAMERA_STREAM_IDLE_TIMEOUT_MS)
 // printer -- mjpg-streamer sends none, which is what stopped Safari loading the
 // cameras directly. Same origin also means the stall watchdog can sample the
 // canvas without it being tainted.
+// Cameras being proxied straight to a browser right now, by printer id.
+//
+// Each of these is a long-lived HTTP connection, which is one of the handful a
+// browser allows per origin -- the whole reason the multiplexer exists. If one
+// is open while the multiplexer is on, something is not being adopted, and that
+// is worth being able to see rather than deduce.
+const activeProxies = new Map();
+
+const proxyStarted = (id) => activeProxies.set(id, (activeProxies.get(id) || 0) + 1);
+const proxyEnded = (id) => {
+  const left = (activeProxies.get(id) || 1) - 1;
+  if (left > 0) {
+    activeProxies.set(id, left);
+  } else {
+    activeProxies.delete(id);
+  }
+};
+
+const activeCameraProxies = () => Object.fromEntries(activeProxies);
+
 router.get(
   '/:id',
   ensureAuthenticated,
@@ -79,8 +99,19 @@ router.get(
 
     // Tear the upstream connection down when the browser navigates away or
     // swaps the image, or mjpg-streamer runs out of its handful of client slots.
+    proxyStarted(id);
+    let counted = true;
+    const uncount = () => {
+      if (counted) {
+        counted = false;
+        proxyEnded(id);
+      }
+    };
+    res.on('close', uncount);
+
     req.on('close', () => {
       clientGone = true;
+      uncount();
       clearIdleTimer();
       controller.abort();
     });
@@ -139,3 +170,4 @@ router.get(
 );
 
 module.exports = router;
+module.exports.activeCameraProxies = activeCameraProxies;
