@@ -114,15 +114,44 @@ const forId = (id) => {
 
 // ---------------------------------------------------------------- painting
 
-// Hands the element the next frame, or keeps it for when the element has
-// finished with the one it has. Replacing rather than queueing: if the browser
-// cannot decode as fast as the camera sends, the frame to show is the newest
-// one, and every frame in between is already history.
-const paint = (view, blob) => {
-  if (view.busy) {
-    view.pending = blob;
+// Frames are shown on the display's own beat, not the moment they arrive.
+//
+// A camera sends about thirty frames a second and a screen redraws sixty times
+// a second, and the two are not in step: handing the element a frame the
+// instant it lands means the gap between one frame appearing and the next
+// varies by however far each arrival happened to fall from the next redraw.
+// Chrome hides that. WebKit does not -- it was reported as cameras that stutter
+// in Safari while Chrome is smooth, with the server sending both of them the
+// same frames at the same even thirty a second (measured on the wire: median
+// gap 30ms, 95th percentile 52ms).
+//
+// So an arriving frame is only remembered, and the newest one is painted from a
+// requestAnimationFrame callback, which runs once per redraw and in step with
+// it. That spaces frames evenly on the display whatever time they arrived, and
+// it costs nothing: at most one paint per element per redraw, which is already
+// the most that could ever be seen.
+let framePending = false;
+
+const scheduleFrameFlush = () => {
+  if (framePending || typeof requestAnimationFrame !== 'function') {
     return;
   }
+  framePending = true;
+  requestAnimationFrame(() => {
+    framePending = false;
+    views.forEach(paintLatest);
+  });
+};
+
+// Shows the newest frame this element has been given, if it is not still
+// working on the last one. A frame held back is not queued: the next redraw
+// takes whatever is newest then, and anything in between is already history.
+const paintLatest = (view) => {
+  if (view.busy || !view.next) {
+    return;
+  }
+  const blob = view.next;
+  view.next = null;
   const url = URL.createObjectURL(blob);
   const previous = view.objectUrl;
   view.objectUrl = url;
@@ -130,25 +159,36 @@ const paint = (view, blob) => {
   view.img.src = url;
   // The element has already been pointed at the new frame, so nothing needs the
   // old one any more -- and an object URL that is never revoked is a copy of a
-  // JPEG kept alive for the life of the page, fifteen times a second.
+  // JPEG kept alive for the life of the page, thirty times a second.
   if (previous) {
     URL.revokeObjectURL(previous);
   }
 };
 
+const paint = (view, blob) => {
+  view.next = blob;
+  // A browser with no requestAnimationFrame at all still has to show something.
+  if (typeof requestAnimationFrame !== 'function') {
+    paintLatest(view);
+    return;
+  }
+  scheduleFrameFlush();
+};
+
 const onSettled = (view) => {
   view.busy = false;
-  if (view.pending) {
-    const next = view.pending;
-    view.pending = null;
-    paint(view, next);
+  // Deliberately not painting here: whatever arrived while this frame was
+  // decoding is shown on the next redraw, with everything else, rather than at
+  // the moment a decode happened to finish.
+  if (view.next) {
+    scheduleFrameFlush();
   }
 };
 
 // Shows nothing. A camera that has gone must not be left showing the last
 // picture it ever sent, because that looks exactly like one that works.
 const blank = (view) => {
-  view.pending = null;
+  view.next = null;
   view.busy = false;
   view.img.src = BLANK_PIXEL;
   if (view.objectUrl) {
@@ -250,7 +290,8 @@ const adopt = (img) => {
     fromModal: !img.getAttribute('src') && Boolean(img.dataset.cameraSrc),
     subscribed: false,
     busy: false,
-    pending: null,
+    // The newest frame this element has been given and not yet shown.
+    next: null,
     objectUrl: null,
     onSettled: null,
     // The viewport observer's verdict, whether it has said anything about this
@@ -311,7 +352,7 @@ const forget = (img) => {
     URL.revokeObjectURL(view.objectUrl);
     view.objectUrl = null;
   }
-  view.pending = null;
+  view.next = null;
   views.delete(img);
   const set = byId.get(view.id);
   set?.delete(img);
