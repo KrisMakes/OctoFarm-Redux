@@ -146,6 +146,18 @@ const MAX_CHANNELS_PER_CLIENT = 8;
 // a budget -- this is a home farm, not a broadcast.
 const MAX_CLIENTS = 128;
 
+// A socket that has asked for nothing this long after connecting is not a
+// viewer, it is a leftover: a SharedWorker whose pages have all gone, or a tab
+// whose bundle predates the fix that releases them. Left alone it holds one of
+// the handful of connections its browser is allowed, which in Safari is enough
+// to stop a further tab loading -- the exact bug this whole design exists to
+// prevent, reintroduced from the other end.
+//
+// A real client subscribes or listens within a moment of connecting, so this
+// only ever catches the leftovers. The client closing cleanly is still the
+// normal path; this is the backstop for the ones that cannot.
+const IDLE_WITHOUT_INTEREST_MS = 90000;
+
 const MONGO_ID = /^[0-9a-fA-F]{24}$/;
 
 let wss = null;
@@ -202,6 +214,9 @@ const closeClient = (ws, code, reason) => {
 // not broken -- it is the design working -- but a client dropping most of them
 // is worth being able to see.
 const clientStats = new WeakMap();
+// ws -> how many cameras and streams that socket has asked for. Read by the
+// heartbeat, which has no other way to tell a leftover from a viewer.
+const clientInterests = new WeakMap();
 
 function handleConnection(ws, request) {
   // Nagle's algorithm holds back the last, partial TCP segment of anything
@@ -243,6 +258,8 @@ function handleConnection(ws, request) {
   // exact, with no sequence numbers in the protocol to keep in step. It holds
   // the size and the stream name, never the payload, and the window above
   // bounds its length.
+  clientInterests.set(ws, () => subscriptions.size + listening.size);
+
   const outstanding = [];
   // stream name -> payloads of it in `outstanding`. Kept alongside rather than
   // counted on demand because it is read on every single frame.
@@ -682,6 +699,18 @@ function attachLiveSocket(server, sessionMiddleware) {
       // subscriptions, which holds the cameras open.
       if (ws.isAlive === false) {
         ws.terminate();
+        return;
+      }
+      const stats = clientStats.get(ws);
+      const interests = clientInterests.get(ws);
+      if (
+        stats &&
+        interests &&
+        interests() === 0 &&
+        Date.now() - stats.since > IDLE_WITHOUT_INTEREST_MS
+      ) {
+        logger.debug('Closing a live socket that has asked for nothing');
+        closeClient(ws, 1000, 'idle');
         return;
       }
       ws.isAlive = false;

@@ -29,6 +29,7 @@ import {
   onSocketUp,
   sendMessage,
   startLiveSocket,
+  stopLiveSocket,
 } from '../js/services/live-socket.core';
 
 // A page that has gone -- closed, crashed, or navigated away -- must not keep a
@@ -37,6 +38,19 @@ import {
 // and anything that stops saying so is dropped.
 const SILENCE_BEFORE_DROPPED_MS = 45000;
 const SWEEP_EVERY_MS = 15000;
+
+// How long the socket is kept after the last page goes, so that reloading a tab
+// -- which is the last page leaving and a new one arriving a moment later --
+// does not drop the connection and build it again.
+//
+// Without this the socket was never released at all. A SharedWorker outlives
+// the pages that used it, and its URL carries a content hash, so every deploy
+// started a new worker and left the previous one running with a socket open
+// that nothing would ever use again. Three sockets were found open on this farm
+// after a day of deploys, two of them subscribed to nothing -- and in Safari,
+// where sockets come out of the same six-connection budget as everything else,
+// those two were enough to stop a fifth tab loading.
+const LINGER_WITHOUT_PAGES_MS = 20000;
 
 // port -> what that page has asked for.
 const pages = new Map();
@@ -48,8 +62,32 @@ const pages = new Map();
 const WORKER_ID = Math.random().toString(36).slice(2, 8);
 
 let lastReady = null;
+let lingerTimer = null;
 
 const eachPage = (fn) => pages.forEach((state, port) => fn(state, port));
+
+// Nothing is looking at this worker any more. The socket goes, after a pause
+// long enough to cover a reload.
+const releaseIfUnused = () => {
+  if (lingerTimer !== null || pages.size > 0) {
+    return;
+  }
+  lingerTimer = setTimeout(() => {
+    lingerTimer = null;
+    if (pages.size > 0) {
+      return;
+    }
+    lastReady = null;
+    stopLiveSocket();
+  }, LINGER_WITHOUT_PAGES_MS);
+};
+
+const keepAlive = () => {
+  if (lingerTimer !== null) {
+    clearTimeout(lingerTimer);
+    lingerTimer = null;
+  }
+};
 
 // Told to every page whenever it changes, so any tab can say how many others
 // are sharing this socket with it.
@@ -185,6 +223,7 @@ const forget = (port) => {
     // Already gone.
   }
   announcePages();
+  releaseIfUnused();
 };
 
 // ------------------------------------------------------------ the socket
@@ -277,6 +316,8 @@ self.addEventListener('connect', (event) => {
     post(port, { t: 'ready', ready: lastReady });
   }
   announcePages();
+  keepAlive();
+  // Starts the socket, and starts it again if this worker had released it.
   startLiveSocket();
 });
 
