@@ -274,6 +274,11 @@ const handle = (state, data) => {
       if (typeof data.visible === 'boolean') {
         state.visible = data.visible;
       }
+      // Answered, so that a page hearing nothing back knows this worker is
+      // gone rather than merely quiet. A SharedWorker can be replaced or
+      // killed by the browser at any time, and the pages attached to it are
+      // not told -- their port simply stops delivering.
+      post(state.port, { t: 'alive', worker: WORKER_ID, up: isSocketUp() });
       return;
     case 'bye':
       forget(state.port);

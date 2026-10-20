@@ -30,7 +30,21 @@ const SHARED_WORKER_META = 'meta[name="octofarm-shared-socket-url"]';
 
 // Tells the worker this page still exists. A tab that is closed says goodbye;
 // one that crashes cannot, so the worker drops anything that goes quiet.
-const ALIVE_EVERY_MS = 15000;
+const ALIVE_EVERY_MS = 5000;
+
+// A worker that has not answered in this long is treated as gone.
+//
+// A SharedWorker is not owned by the page that started it: the browser can
+// replace it -- a page loaded from a newer build asks for a different script --
+// or simply kill it, and the pages still attached are not told. Their port goes
+// quiet, and every one of them sits there believing the socket is up, because
+// from inside the page it still looks up.
+//
+// Reproduced with six tabs: five shared one worker and streamed, while the tab
+// that had been open longest was alone on an older one, reporting `up: true`
+// with no socket on the server at all, frozen on its last frame for as long as
+// it stayed open.
+const WORKER_SILENCE_MS = 16000;
 
 // How long to wait for the SharedWorker to say anything before giving up on it
 // and opening a socket for this tab alone.
@@ -170,10 +184,39 @@ const onSocketUpShared = (message) => {
   announceUp();
 };
 
+let lastWorkerWordAt = 0;
+
 const heardFromWorker = () => {
+  lastWorkerWordAt = Date.now();
   if (sharedSilenceTimer !== null) {
     clearTimeout(sharedSilenceTimer);
     sharedSilenceTimer = null;
+  }
+};
+
+// Throws this page's connection to the worker away and asks for one again.
+// Whatever the browser hands back -- the same worker, or a new one -- is a port
+// that delivers, which the one being dropped was not.
+const reattachToWorker = () => {
+  if (mode !== 'shared') {
+    return;
+  }
+  console.debug('The shared live socket stopped answering, attaching again');
+  if (aliveTimer !== null) {
+    clearInterval(aliveTimer);
+    aliveTimer = null;
+  }
+  try {
+    port?.close();
+  } catch (e) {
+    // Already gone, which is the case this exists for.
+  }
+  port = null;
+  ready = null;
+  channelListeners.forEach((entry) => setChannelCarried(entry, false));
+  announceDown();
+  if (!startShared()) {
+    fallBackToDirect();
   }
 };
 
@@ -251,11 +294,19 @@ const startShared = () => {
   // -- sent before the port was ready, or dropped on a worker that was
   // restarting -- nothing would ever correct it. Saying it again every
   // heartbeat makes that self-healing instead of permanent.
-  const stillHere = () =>
+  const stillHere = () => {
+    // The worker answers every one of these. Nothing coming back for several in
+    // a row is the only sign a page gets that its worker has gone.
+    if (lastWorkerWordAt && Date.now() - lastWorkerWordAt > WORKER_SILENCE_MS) {
+      reattachToWorker();
+      return;
+    }
     tell({
       t: 'alive',
       visible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
     });
+  };
+  lastWorkerWordAt = Date.now();
   stillHere();
   aliveTimer = setInterval(stillHere, ALIVE_EVERY_MS);
 
