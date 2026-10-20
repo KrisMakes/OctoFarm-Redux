@@ -1,18 +1,26 @@
 import { parsePayload, debounce } from '../js/utils/sse.utils';
-import { listenToChannel, startLiveSocket } from '../js/services/live-socket.service';
 
 // This worker exists to keep the parsing of a large monitoring payload off the
-// main thread, and it still does. What changed is how the payload gets here.
+// main thread, and that is now all it does. It holds no connection of its own.
 //
-// It used to hold its own EventSource, which is one of the handful of
-// connections a browser allows per origin, held for as long as the tab is open
-// -- and with the page's own event stream that was two per tab, so three tabs
-// spent the entire budget and every request any of them made queued behind a
-// stream that never ends. See live-socket.service.js.
+// It used to hold an EventSource, which is one of the handful of connections a
+// browser allows per origin, held for as long as the tab is open -- and with
+// the page's own event stream that was two per tab, so three tabs spent the
+// whole budget and every request any of them made queued behind a stream that
+// never ends. See live-socket.service.js.
 //
-// A WebSocket is a separate pool, and workers can open one. So this listens on
-// a socket of its own and keeps the EventSource only as the fallback for a
-// browser or a network that will not carry one.
+// Moving it to a WebSocket of its own was supposed to settle that, because a
+// WebSocket is a separate pool. In Chrome it is. In Safari it is not: sockets
+// are counted against the same per-host budget as everything else, so two
+// sockets per tab meant three tabs still spent all six and a fourth tab would
+// not load at all -- the original bug exactly, with the connections holding
+// sockets instead of camera streams. Measured: one panel tab opened two
+// persistent connections to the server, 13 to 15.
+//
+// So the page keeps the one socket for the whole tab and hands the payloads
+// here to be parsed, which is the part that actually needed a worker. The
+// EventSource remains, used only when the page says the socket is not carrying
+// this stream.
 
 // reconnectFrequencySeconds doubles every retry
 let reconnectFrequencySeconds = 1;
@@ -21,11 +29,24 @@ let evtURL;
 let socketCarrying = false;
 let fallbackTimer = null;
 let everCarried = false;
-let stopListening = null;
 
 // The socket has not answered when the first message arrives, so falling back
 // at once would open the very stream this is here to avoid.
 const FIRST_FALLBACK_GRACE_MS = 2000;
+
+// Parses one payload exactly as the EventSource path does and hands the result
+// back to the page.
+const deliver = (data) => {
+  if (!data) {
+    return;
+  }
+  const res = parsePayload(data);
+  // asyncParse returns false when the payload will not parse; forwarding that
+  // made the handler on the other side destructure `false`.
+  if (res !== false) {
+    postMessage(res);
+  }
+};
 
 const reconnectFunc = debounce(
   function () {
@@ -51,6 +72,9 @@ function setupEventSource(url) {
   } else {
     url = evtURL;
   }
+  if (!url) {
+    return;
+  }
   // Close any previous stream before replacing the reference. The main thread
   // re-posts on every tab resume, so this used to leak a live EventSource each
   // time a hidden tab came back.
@@ -60,15 +84,7 @@ function setupEventSource(url) {
   const source = new EventSource(url);
   evtSource = source;
   source.onmessage = function (e) {
-    if (!e.data) {
-      return;
-    }
-    const res = parsePayload(e.data);
-    // asyncParse returns false when the payload will not parse; forwarding that
-    // made the handler on the other side destructure `false`.
-    if (res !== false) {
-      postMessage(res);
-    }
+    deliver(e.data);
   };
   source.onopen = function (e) {
     console.debug('Connected to ' + url);
@@ -124,45 +140,53 @@ function fallBackToStream() {
   );
 }
 
-// The page tells the worker which stream it wants by its URL -- the same URL it
-// would have opened itself -- and that URL is what the socket calls the
-// channel, so there is no second name for the same thing.
+// Three things arrive from the page:
+//
+//   {url}             which stream this worker is for. The same URL the worker
+//                     would have opened itself, and the same name the socket
+//                     calls the channel, so there is no second naming scheme.
+//   {carried}         whether the page's socket is carrying that stream. False
+//                     means this worker opens its own EventSource, which is the
+//                     only remaining reason it would hold a connection at all.
+//   {payload}         one serialised payload off the page's socket, to parse.
 self.addEventListener(
   'message',
   function (e) {
-    const url = e.data.url;
+    const message = e.data || {};
+
+    // The common case by a wide margin, so it is answered first and cheaply.
+    if (typeof message.payload === 'string') {
+      deliver(message.payload);
+      return;
+    }
+
+    if (typeof message.carried === 'boolean') {
+      socketCarrying = message.carried;
+      if (message.carried) {
+        everCarried = true;
+        if (fallbackTimer !== null) {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = null;
+        }
+        closeEventSource();
+        reconnectFrequencySeconds = 1;
+        console.debug(`${evtURL} is coming over the live socket`);
+      } else {
+        console.debug(`${evtURL} is coming over its own stream`);
+        fallBackToStream();
+      }
+      return;
+    }
+
+    const url = message.url;
     if (!url || url === evtURL) {
       return;
     }
     evtURL = url;
-    stopListening?.();
     closeEventSource();
-    stopListening = listenToChannel(
-      url,
-      (data) => {
-        const res = parsePayload(data);
-        if (res !== false) {
-          postMessage(res);
-        }
-      },
-      (carried) => {
-        socketCarrying = carried;
-        if (carried) {
-          everCarried = true;
-          if (fallbackTimer !== null) {
-            clearTimeout(fallbackTimer);
-            fallbackTimer = null;
-          }
-          closeEventSource();
-          reconnectFrequencySeconds = 1;
-          console.debug(`${url} is coming over the live socket`);
-        } else {
-          console.debug(`${url} is coming over its own stream`);
-          fallBackToStream();
-        }
-      }
-    );
-    startLiveSocket();
+    // Nothing is opened here. The page says, through {carried}, whether this
+    // worker has to open anything at all, and it says so for every socket it
+    // gets and loses -- so waiting is correct rather than merely cheap.
   },
   false
 );
