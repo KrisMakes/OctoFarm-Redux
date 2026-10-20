@@ -214,8 +214,11 @@ const closeClient = (ws, code, reason) => {
 // not broken -- it is the design working -- but a client dropping most of them
 // is worth being able to see.
 const clientStats = new WeakMap();
-// ws -> how many cameras and streams that socket has asked for. Read by the
-// heartbeat, which has no other way to tell a leftover from a viewer.
+// ws -> what that socket has asked for. Read by the heartbeat, which has no
+// other way to tell a leftover from a viewer, and reported by liveSocketStats,
+// because "how many sockets are there" turned out to be the wrong question --
+// what matters is what each one is for, and two different counts of
+// subscribers had already been misread before this existed.
 const clientInterests = new WeakMap();
 
 function handleConnection(ws, request) {
@@ -258,7 +261,10 @@ function handleConnection(ws, request) {
   // exact, with no sequence numbers in the protocol to keep in step. It holds
   // the size and the stream name, never the payload, and the window above
   // bounds its length.
-  clientInterests.set(ws, () => subscriptions.size + listening.size);
+  clientInterests.set(ws, () => ({
+    cameras: [...subscriptions.keys()],
+    channels: [...listening.keys()],
+  }));
 
   const outstanding = [];
   // stream name -> payloads of it in `outstanding`. Kept alongside rather than
@@ -703,10 +709,12 @@ function attachLiveSocket(server, sessionMiddleware) {
       }
       const stats = clientStats.get(ws);
       const interests = clientInterests.get(ws);
+      const wanted = interests ? interests() : null;
       if (
         stats &&
-        interests &&
-        interests() === 0 &&
+        wanted &&
+        wanted.cameras.length === 0 &&
+        wanted.channels.length === 0 &&
         Date.now() - stats.since > IDLE_WITHOUT_INTEREST_MS
       ) {
         logger.debug('Closing a live socket that has asked for nothing');
@@ -744,6 +752,7 @@ function liveSocketStats() {
   return {
     clients: wss
       ? [...wss.clients].map((ws) => ({
+          ...(clientInterests.get(ws)?.() || { cameras: [], channels: [] }),
           ...(clientStats.get(ws) || {
             sent: 0,
             dropped: 0,
