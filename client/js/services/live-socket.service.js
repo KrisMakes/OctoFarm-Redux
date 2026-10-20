@@ -245,7 +245,19 @@ const startShared = () => {
     fallBackToDirect();
   }, SHARED_WORKER_SILENCE_MS);
 
-  aliveTimer = setInterval(() => tell({ t: 'alive' }), ALIVE_EVERY_MS);
+  // Visibility rides along with it. The page also reports a change the moment
+  // it happens, but that single message is the only thing standing between a
+  // tab and being starved of frames for as long as it stays open: if it is lost
+  // -- sent before the port was ready, or dropped on a worker that was
+  // restarting -- nothing would ever correct it. Saying it again every
+  // heartbeat makes that self-healing instead of permanent.
+  const stillHere = () =>
+    tell({
+      t: 'alive',
+      visible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
+    });
+  stillHere();
+  aliveTimer = setInterval(stillHere, ALIVE_EVERY_MS);
 
   const sayGoodbye = () => tell({ t: 'bye' });
   // pagehide rather than unload: it is the one that fires on iOS and on a tab

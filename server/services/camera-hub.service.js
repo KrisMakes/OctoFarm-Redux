@@ -358,6 +358,11 @@ class CameraHub {
       frames: camera.frames,
       droppedFrames: camera.demuxer?.dropped ?? 0,
       lastFrameAt: camera.lastFrameAt || null,
+      // Worked out here, against this process's own clock. Read from anywhere
+      // else it is a subtraction between two machines' clocks, and a host that
+      // is a minute out makes a perfectly healthy camera look stalled -- which
+      // it did, convincingly, for both cameras at once.
+      lastFrameAgoMs: camera.lastFrameAt ? Date.now() - camera.lastFrameAt : null,
       lingering: Boolean(camera.lingerTimer),
       connected: Boolean(camera.controller),
     }));

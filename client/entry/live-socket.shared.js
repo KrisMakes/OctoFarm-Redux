@@ -271,6 +271,9 @@ const handle = (state, data) => {
   state.lastSeen = Date.now();
   switch (data && data.t) {
     case 'alive':
+      if (typeof data.visible === 'boolean') {
+        state.visible = data.visible;
+      }
       return;
     case 'bye':
       forget(state.port);
