@@ -41,9 +41,20 @@ const SWEEP_EVERY_MS = 15000;
 // port -> what that page has asked for.
 const pages = new Map();
 
+// Distinguishes one worker from another. If two tabs report different ids then
+// they are not sharing, which is the thing most worth being able to check --
+// whether a browser really does give an origin a single SharedWorker is not
+// something to take on trust.
+const WORKER_ID = Math.random().toString(36).slice(2, 8);
+
 let lastReady = null;
 
 const eachPage = (fn) => pages.forEach((state, port) => fn(state, port));
+
+// Told to every page whenever it changes, so any tab can say how many others
+// are sharing this socket with it.
+const announcePages = () =>
+  eachPage((state, port) => post(port, { t: 'pages', pages: pages.size, worker: WORKER_ID }));
 
 const post = (port, message, transfer) => {
   try {
@@ -173,6 +184,7 @@ const forget = (port) => {
   } catch (e) {
     // Already gone.
   }
+  announcePages();
 };
 
 // ------------------------------------------------------------ the socket
@@ -264,6 +276,7 @@ self.addEventListener('connect', (event) => {
   if (lastReady) {
     post(port, { t: 'ready', ready: lastReady });
   }
+  announcePages();
   startLiveSocket();
 });
 

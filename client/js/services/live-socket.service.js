@@ -36,6 +36,10 @@ let mode = null;
 let port = null;
 let aliveTimer = null;
 let ready = null;
+// What the SharedWorker last said about itself: how many tabs are sharing it,
+// and which worker it is.
+let sharedPages = null;
+let sharedWorkerId = null;
 
 // Registered here rather than passed through, so that it makes no difference
 // whether a listener was added before or after the socket was picked.
@@ -151,6 +155,10 @@ const handleSharedMessage = (data) => {
       entry?.payload.forEach((fn) => fn(data.text));
       return;
     }
+    case 'pages':
+      sharedPages = data.pages;
+      sharedWorkerId = data.worker;
+      return;
     case 'channelState': {
       const entry = channelListeners.get(data.path);
       if (entry) {
@@ -313,6 +321,11 @@ export const startLiveSocket = () => {
   if (mode !== null) {
     return;
   }
+  // Reachable from the console. This is the only way to see from inside a tab
+  // which socket it is on and who it is sharing with.
+  if (typeof window !== 'undefined') {
+    window.octofarmLiveSocket = liveSocketStatus;
+  }
   if (typeof window !== 'undefined' && startShared()) {
     mode = 'shared';
     return;
@@ -321,9 +334,14 @@ export const startLiveSocket = () => {
 };
 
 // For the console, and for anything that has to report what the page is doing.
+// `tabsSharing` is the one worth looking at: it is how many tabs are on this
+// one socket, and two tabs reporting the same `worker` is the proof that they
+// really are sharing rather than each having quietly started its own.
 export const liveSocketStatus = () => ({
   mode,
   up: isSocketUp(),
+  tabsSharing: sharedPages,
+  worker: sharedWorkerId,
   channels: ready?.channels ?? null,
   core: mode === 'direct' ? core.liveSocketStatus() : null,
 });
