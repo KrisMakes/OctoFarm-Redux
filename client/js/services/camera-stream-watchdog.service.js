@@ -454,6 +454,35 @@ const handleWindowBlur = () => {
 // while the modal is open -- see the note in camera.template.js. Bound on the
 // document rather than per modal, because the modal markup is rebuilt from the
 // templates every time a printer card is redrawn.
+// How long the multiplexer gets to claim a camera before the watchdog gives it
+// a stream of its own. It claims them as soon as the socket says it is on,
+// which is well inside this; the wait only shows when there is no socket, no
+// multiplexer, or an older server -- the cases where a direct stream is the
+// right answer anyway.
+const ADOPTION_GRACE_MS = 1500;
+
+// Cameras carry their URL in data-camera-src and are not fetched by being
+// rendered -- see the note in camera.template.js. This is what fetches the ones
+// the multiplexer did not take: visible, unclaimed, and still without a src.
+//
+// A camera inside a closed modal is not visible, so it is left alone and the
+// modal handlers below start it when it is opened, exactly as before.
+const attachIdleCameras = () => {
+  document.querySelectorAll(MODAL_CAMERAS).forEach((img) => {
+    if (img.getAttribute('src') || img.offsetParent === null) {
+      return;
+    }
+    img.src = img.dataset.cameraSrc;
+  });
+};
+
+const startIdleCameraAttach = () => {
+  setTimeout(attachIdleCameras, ADOPTION_GRACE_MS);
+  // The monitoring views rebuild a printer's card constantly, so a camera the
+  // multiplexer is not handling appears again and again.
+  setInterval(attachIdleCameras, ADOPTION_GRACE_MS * 2);
+};
+
 const attachModalCameras = () => {
   if (typeof window.$ !== 'function') {
     return;
@@ -536,6 +565,8 @@ export const startCameraStreamWatchdog = () => {
   startFreezeDetector();
 
   attachModalCameras();
+
+  startIdleCameraAttach();
 
   releaseRemovedCameras();
 

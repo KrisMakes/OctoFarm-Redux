@@ -303,10 +303,12 @@ const adopt = (img) => {
   const view = {
     img,
     id,
-    // What to put back if this has to give up -- the URL the template wrote,
-    // and whether it was written as a src or held for a modal.
+    // What to put back if this has to give up. The template writes every
+    // camera's URL into a data attribute and no src at all, so this is only
+    // kept for the record -- handing an element back means blanking it and
+    // letting the watchdog attach a stream, which is the one path that decides
+    // whether a camera streams directly.
     streamSrc: cameraUrlOf(img),
-    fromModal: !img.getAttribute('src') && Boolean(img.dataset.cameraSrc),
     subscribed: false,
     busy: false,
     // The newest frame this element has been given and not yet shown.
@@ -382,18 +384,17 @@ const forget = (img) => {
 
 // Gives the element back to the direct stream and the watchdog, by undoing
 // everything adopt() did.
+//
+// Blanked rather than pointed at the stream: no camera carries a src of its
+// own any more, and the watchdog attaches one to every visible camera the
+// multiplexer has not claimed. Setting it here as well would open the stream
+// twice -- once from here and once from there -- which is the duplication this
+// whole path exists to remove.
 const handBack = (view) => {
   const { img } = view;
   forget(img);
   delete img.dataset.cameraMux;
-  if (view.fromModal) {
-    // A modal camera is handed its URL when the modal opens, not before -- the
-    // watchdog's modal handler does that, and it will now see this element
-    // again.
-    img.src = BLANK_PIXEL;
-  } else {
-    img.src = view.streamSrc;
-  }
+  img.src = BLANK_PIXEL;
 };
 
 const handBackEverything = () => {

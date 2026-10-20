@@ -12,13 +12,26 @@ export const drawCamera = (
   const aspectClass = aspectRatioClass(resolved);
   const changeAspect = aspectClass ? ` ${aspectClass}` : '';
 
-  // A camera inside a modal is handed its URL rather than its src. A hidden
-  // <img> still loads, so every printer held a second live MJPEG connection for
-  // a modal nobody had opened -- with two printers that was four of the six
-  // connections a browser allows per origin, and the visible panes' own
-  // requests sat queued behind them, never starting. The camera watchdog fills
-  // this in when the modal opens and releases it when it closes.
-  const source = modal ? `data-camera-src="${url}"` : `src="${url}"`;
+  // No camera is handed a src here. Every one of them carries its URL in a data
+  // attribute instead, and something else decides whether it is ever fetched.
+  //
+  // This started as a fix for modals: a hidden <img> still loads, so every
+  // printer held a live MJPEG connection for a modal nobody had opened, which
+  // with two printers was four of the six connections a browser allows. The
+  // visible panes' own requests then queued behind them and never started.
+  //
+  // The visible panes have the same problem for a different reason. Writing a
+  // src here starts a stream the moment the card is drawn, and the multiplexer
+  // -- which cannot adopt anything until the socket has said it is on -- then
+  // points the element somewhere else a second later. In Chrome that ends the
+  // request. In WebKit the connection is abandoned rather than closed, so it
+  // was still held: a freshly opened tab cost two connections it was not using
+  // on top of the one it was, and three tabs filled the budget again.
+  //
+  // So the multiplexer gets first refusal on every camera, and the watchdog
+  // attaches a direct stream only to the ones nothing adopted -- see
+  // attachIdleCameras. A connection that is never opened cannot be leaked.
+  const source = `data-camera-src="${url}"`;
 
   return `<img
         class="camImg ${hidden ? hideMe : ''}${changeAspect}"
