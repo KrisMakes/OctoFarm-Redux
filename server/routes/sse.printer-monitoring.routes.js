@@ -131,7 +131,7 @@ const channel = new SseChannel('monitoring', 1000, sendData);
 // payload a struggling client misses is replaced by the next one.
 registerLiveChannel('/monitoringInfo/get/', (user, write) => channel.addSocketClient(user, write), {
   coalescing: true,
-  httpClients: () => channel.clientCount,
+  httpClients: () => channel.httpClientCount,
 });
 
 // Called once for each new client. Note, this response is left open!

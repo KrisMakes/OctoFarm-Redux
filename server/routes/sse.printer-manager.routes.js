@@ -49,7 +49,7 @@ const channel = new SseChannel('printer-manager', 500, sendData);
 // payload a struggling client misses is replaced by the next one.
 registerLiveChannel('/printersInfo/get/', (user, write) => channel.addSocketClient(user, write), {
   coalescing: true,
-  httpClients: () => channel.clientCount,
+  httpClients: () => channel.httpClientCount,
 });
 
 // Called once for each new client. Note, this response is left open!

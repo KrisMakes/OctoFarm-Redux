@@ -46,6 +46,25 @@ class SseChannel {
     return this.#clients.size;
   }
 
+  /**
+   * Only the clients that are an HTTP response, as opposed to subscribers over
+   * the live socket.
+   *
+   * These are the ones that cost a browser a connection, and they are the whole
+   * question when a tab will not load -- so counting both together, as
+   * clientCount does, answers a different question in the same shape. It was
+   * read as a leak that was not there.
+   */
+  get httpClientCount() {
+    let count = 0;
+    for (const client of this.#clients.values()) {
+      if (client.res) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
   clients() {
     return this.#clients.values();
   }
