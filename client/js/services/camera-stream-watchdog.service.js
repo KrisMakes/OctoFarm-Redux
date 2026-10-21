@@ -467,9 +467,23 @@ const ADOPTION_GRACE_MS = 1500;
 //
 // A camera inside a closed modal is not visible, so it is left alone and the
 // modal handlers below start it when it is opened, exactly as before.
+// Whether this element is showing nothing of its own. The blank pixel counts as
+// nothing: it is what both services point an element at to end a stream, so an
+// element that has just been handed back by the multiplexer is carrying one and
+// is as unattached as one that never had a src at all. Treating it as attached
+// is what left a handed-back camera grey -- the multiplexer had let go of it and
+// this skipped it, so nothing was fetching it and nothing ever would.
+//
+// noCamera.jpg is deliberately not included: that is a real picture, and this
+// would otherwise re-fetch it every few seconds forever.
+const isUnattached = (img) => {
+  const src = img.getAttribute('src');
+  return !src || src === BLANK_PIXEL;
+};
+
 const attachIdleCameras = () => {
   document.querySelectorAll(MODAL_CAMERAS).forEach((img) => {
-    if (img.getAttribute('src') || img.offsetParent === null) {
+    if (!isUnattached(img) || img.offsetParent === null) {
       return;
     }
     img.src = img.dataset.cameraSrc;

@@ -59,6 +59,20 @@ const WORKER_SILENCE_MS = 16000;
 // failure this must not have.
 const SHARED_WORKER_SILENCE_MS = 4000;
 
+// A heartbeat this much later than it was due was not late, it was not running:
+// a laptop asleep, or a page the browser froze.
+//
+// It has to be told apart from silence, because the two look identical from here
+// and the conclusions are opposite. A sleep stops both ends of this conversation
+// at once -- the worker says nothing because nothing is executing, not because
+// it is gone -- so a page that read a wake as a dead worker would throw away a
+// working connection every time the lid opened, and every open tab would do it
+// in the same instant. Ten tabs reattaching together, each falling back to a
+// socket of its own if the worker were slow to answer, is the connection
+// exhaustion this whole design exists to avoid, caused by the thing meant to
+// recover from it.
+const FROZEN_IF_LATE_BY_MS = 20000;
+
 let mode = null;
 let port = null;
 let aliveTimer = null;
@@ -185,6 +199,7 @@ const onSocketUpShared = (message) => {
 };
 
 let lastWorkerWordAt = 0;
+let lastAliveTickAt = 0;
 
 const heardFromWorker = () => {
   lastWorkerWordAt = Date.now();
@@ -258,6 +273,29 @@ const handleSharedMessage = (data) => {
   }
 };
 
+// Wired once, not once per worker. This is also called on the way back from a
+// worker that went away, and a second set of these would mean two goodbyes and
+// two checks for every one event -- growing by one more each time a page had to
+// reattach.
+let pageEventsWired = false;
+
+const wirePageEvents = () => {
+  if (pageEventsWired) {
+    return;
+  }
+  pageEventsWired = true;
+  // pagehide rather than unload: it is the one that fires on iOS and on a tab
+  // restored from the back/forward cache.
+  window.addEventListener('pagehide', () => tell({ t: 'bye' }));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      // The worker has no document and cannot know a tab came back.
+      tell({ t: 'check' });
+    }
+  });
+  window.addEventListener('focus', () => tell({ t: 'check' }));
+};
+
 const startShared = () => {
   const url = document.querySelector(SHARED_WORKER_META)?.content;
   if (!url || typeof SharedWorker !== 'function') {
@@ -295,9 +333,23 @@ const startShared = () => {
   // restarting -- nothing would ever correct it. Saying it again every
   // heartbeat makes that self-healing instead of permanent.
   const stillHere = () => {
-    // The worker answers every one of these. Nothing coming back for several in
-    // a row is the only sign a page gets that its worker has gone.
-    if (lastWorkerWordAt && Date.now() - lastWorkerWordAt > WORKER_SILENCE_MS) {
+    const now = Date.now();
+    // Recorded before anything can return, so one gap is measured once.
+    const sinceLastTick = lastAliveTickAt ? now - lastAliveTickAt : 0;
+    lastAliveTickAt = now;
+    // This page was not running. See FROZEN_IF_LATE_BY_MS: the worker's silence
+    // says nothing about whether it is still there, so the clock is re-based
+    // rather than read. What is certain is that the socket it holds has been
+    // through the same sleep and is most likely dead, so it is asked to look at
+    // it now -- and if the worker really has gone, the next few heartbeats go
+    // unanswered and the test below reattaches, a few seconds later than it
+    // would have done.
+    if (sinceLastTick > ALIVE_EVERY_MS + FROZEN_IF_LATE_BY_MS) {
+      lastWorkerWordAt = now;
+      tell({ t: 'check' });
+    } else if (lastWorkerWordAt && now - lastWorkerWordAt > WORKER_SILENCE_MS) {
+      // The worker answers every one of these. Nothing coming back for several
+      // in a row is the only sign a page gets that its worker has gone.
       reattachToWorker();
       return;
     }
@@ -307,20 +359,10 @@ const startShared = () => {
     });
   };
   lastWorkerWordAt = Date.now();
+  lastAliveTickAt = Date.now();
   stillHere();
   aliveTimer = setInterval(stillHere, ALIVE_EVERY_MS);
-
-  const sayGoodbye = () => tell({ t: 'bye' });
-  // pagehide rather than unload: it is the one that fires on iOS and on a tab
-  // restored from the back/forward cache.
-  window.addEventListener('pagehide', sayGoodbye);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      // The worker has no document and cannot know a tab came back.
-      tell({ t: 'check' });
-    }
-  });
-  window.addEventListener('focus', () => tell({ t: 'check' }));
+  wirePageEvents();
   return true;
 };
 

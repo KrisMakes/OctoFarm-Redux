@@ -68,6 +68,21 @@ const LIVENESS_CHECK_MS = 5000;
 const SILENCE_BEFORE_PING_MS = 12000;
 const PONG_TIMEOUT_MS = 4000;
 
+// A check that arrives this much later than it was due means it was not late,
+// it was not running: a laptop asleep, a lid closed, a process the browser
+// froze. The distinction matters because the ordinary test is a conversation --
+// twelve seconds of silence, a ping, four seconds for an answer -- and a sleep
+// of any length makes all of it a foregone conclusion. The connection went away
+// while this side was not there to be told, so it still reports OPEN, and
+// everything riding on it sits frozen for the sixteen seconds it takes to
+// establish what was already certain.
+//
+// Reported as cameras grey in every tab after a sleeping MacBook woke up. Sleep
+// is not a rare case and it should not need sixteen seconds and a round trip to
+// recognise -- so a socket that has been through one is rebuilt rather than
+// tested.
+const FROZEN_IF_LATE_BY_MS = 20000;
+
 const root = typeof window !== 'undefined' ? window : self;
 const textDecoder = new TextDecoder('utf-8');
 const isVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
@@ -82,6 +97,7 @@ let reconnectTimer = null;
 let livenessTimer = null;
 
 let lastMessageAt = 0;
+let lastLivenessAt = 0;
 let pingSentAt = 0;
 let lastPongAt = 0;
 let unacked = 0;
@@ -431,21 +447,38 @@ export const reconnectSocketNow = () => {
 };
 
 const checkLiveness = () => {
+  const now = Date.now();
+  // Recorded before anything can return, so a gap is measured once and not
+  // measured again by the check after it.
+  const sinceLastCheck = lastLivenessAt ? now - lastLivenessAt : 0;
+  lastLivenessAt = now;
   if (gaveUp || !isVisible()) {
+    return;
+  }
+  // Nothing here was running. See FROZEN_IF_LATE_BY_MS: a socket that has been
+  // through that is not tested, it is replaced -- including one that is already
+  // closed and waiting out a backoff, because the backoff was counting through
+  // the sleep as well and may have minutes left on it.
+  if (sinceLastCheck > LIVENESS_CHECK_MS + FROZEN_IF_LATE_BY_MS) {
+    console.debug(
+      `Nothing ran here for ${Math.round(sinceLastCheck / 1000)}s, rebuilding the live socket`
+    );
+    pingSentAt = 0;
+    reconnectSocketNow();
     return;
   }
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return;
   }
   // An unanswered ping is the clearest signal there is.
-  if (pingSentAt && lastPongAt < pingSentAt && Date.now() - pingSentAt > PONG_TIMEOUT_MS) {
+  if (pingSentAt && lastPongAt < pingSentAt && now - pingSentAt > PONG_TIMEOUT_MS) {
     console.debug('Live socket stopped answering, rebuilding it');
     pingSentAt = 0;
     reconnectSocketNow();
     return;
   }
-  if (Date.now() - lastMessageAt > SILENCE_BEFORE_PING_MS) {
-    pingSentAt = Date.now();
+  if (now - lastMessageAt > SILENCE_BEFORE_PING_MS) {
+    pingSentAt = now;
     sendMessage({ action: 'ping' });
   }
 };
@@ -491,6 +524,7 @@ export const stopLiveSocket = () => {
     ackTimer = null;
   }
   unacked = 0;
+  lastLivenessAt = 0;
   ready = null;
   started = false;
   gaveUp = false;
@@ -505,6 +539,7 @@ export const startLiveSocket = () => {
   }
   started = true;
   connect();
+  lastLivenessAt = Date.now();
   livenessTimer = setInterval(checkLiveness, LIVENESS_CHECK_MS);
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {

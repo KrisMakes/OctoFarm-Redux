@@ -80,10 +80,24 @@ const byId = new Map();
 let viewportObserver = null;
 let domObserver = null;
 
-// The camera's URL as the template wrote it -- `src` for a camera on the page,
-// `data-camera-src` for one inside a modal, which is handed its URL only when
-// the modal opens.
-const cameraUrlOf = (img) => img.getAttribute('src') || img.dataset.cameraSrc || '';
+// The camera's URL. Every camera carries it in `data-camera-src`, and one that
+// is streaming also has it as its `src` -- possibly with a cache-buster on it,
+// which is why the live one is preferred when there is one.
+//
+// A `src` that is not a URL at all is skipped rather than returned. An element
+// handed back to the direct streams has been pointed at the blank pixel, and an
+// adopted one at a blob, so taking `src` first meant a camera that had ever
+// been given up could never be identified again: `data:` is not a camera
+// address, so this returned one, printerIdOf refused it, and adopt() walked
+// away from an element whose URL was sitting in the data attribute all along.
+// Found as cameras that went grey when a sleeping laptop woke up and stayed
+// grey, in every tab, until each one was reloaded by hand.
+const isUrl = (src) => Boolean(src) && !src.startsWith('data:') && !src.startsWith('blob:');
+
+const cameraUrlOf = (img) => {
+  const src = img.getAttribute('src');
+  return isUrl(src) ? src : img.dataset.cameraSrc || '';
+};
 
 const printerIdOf = (img) => {
   const raw = cameraUrlOf(img);
