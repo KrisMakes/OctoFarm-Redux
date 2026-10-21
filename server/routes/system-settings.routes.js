@@ -571,6 +571,52 @@ router.get('/system/liveSocket', ensureAuthenticated, (req, res) => {
   });
 });
 
+// Where a page says what happened to it before it was given up on.
+//
+// Five rounds of grey cameras were each diagnosed by reading the code, finding
+// a failure that would produce exactly that symptom, reproducing it and fixing
+// it. Every one of those was a real bug and none of them was the one being
+// reported, because the only moment that would have said which it was -- the
+// page sitting there frozen -- was also the only moment nothing recorded, and
+// the reload that ended it took the evidence with it.
+//
+// The client keeps a trail and sends it from the NEXT page load, so a reload is
+// now how the evidence arrives rather than the end of it. Logged rather than
+// stored: this is read once, while a specific fault is being chased, and a
+// collection nobody prunes is worse than a log line.
+//
+// Not administrator-only, for the same reason the live socket diagnostic is
+// not: the person whose cameras have stopped is whoever happens to be logged
+// in, and needing a second account to report a fault is how a fault goes
+// unreported.
+const MAX_TRAIL_BYTES = 64 * 1024;
+
+router.post('/system/liveDiagnostics', ensureAuthenticated, clientLogLimits, (req, res) => {
+  // Answered first and always: a page sending this is already in trouble, and
+  // nothing it does with the response matters.
+  res.sendStatus(204);
+  try {
+    const body = req.body || {};
+    const trail = body.trail || {};
+    const serialised = JSON.stringify(trail);
+    if (!serialised || serialised.length > MAX_TRAIL_BYTES) {
+      clientLogger.warning(
+        `Live diagnostics discarded: ${serialised ? serialised.length + ' bytes' : 'empty'}`
+      );
+      return;
+    }
+    const why = sanitizeString(String(body.why || 'unspecified')).slice(0, 40);
+    clientLogger.info(
+      `Live diagnostics (${why}) from page ${sanitizeString(String(trail.page || '?')).slice(
+        0,
+        12
+      )}: ${serialised}`
+    );
+  } catch (e) {
+    clientLogger.warning(`Live diagnostics could not be read: ${e?.toString()}`);
+  }
+});
+
 router.post('/client/logs', ensureAuthenticated, clientLogLimits, async (req, res) => {
   const { code, message, name, statusCode, type, color, developerMessage } = req.body;
   const loggingMessage = `${code ? code : 'No Code'}: ${message ? message : 'No Message'}`;

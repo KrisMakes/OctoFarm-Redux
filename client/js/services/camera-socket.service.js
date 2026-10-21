@@ -13,8 +13,16 @@
 // with data-camera-mux, which is what keeps this and the stream watchdog from
 // fighting over it.
 import { BLANK_PIXEL } from './camera-stream-watchdog.service';
+import { reloadBecause } from './reload-on-return.service';
+import {
+  note,
+  provideDiagnosticSnapshot,
+  sendDiagnosticTrail,
+  startLiveDiagnostics,
+} from './live-diagnostics.service';
 import {
   FRAME_OPCODE,
+  liveSocketStatus,
   onBinary,
   onJson,
   onSocketDown,
@@ -76,6 +84,13 @@ const STARVED_MS = 5000;
 // come after that, the connection itself is what is wrong, and it is rebuilt.
 // Much longer, because that is felt by every tab sharing the socket.
 const STARVED_BEYOND_ASKING_MS = 15000;
+
+// And when rebuilding the connection does not bring them back either, the page
+// itself is thrown away -- which is what the person watching does, and has had
+// to do five times over while each of the causes below it was found and fixed.
+// It is last for a reason: it is the only remedy here that loses anything, and
+// everything above it is cheaper and more likely.
+const STARVED_BEYOND_REBUILDING_MS = 35000;
 const STARVE_CHECK_EVERY_MS = 2500;
 
 // A check this much later than it was due was not late, this page was not
@@ -99,6 +114,8 @@ let handBackTimer = null;
 let starveTimer = null;
 let lastResetAt = 0;
 let lastStarveCheckAt = 0;
+// When this page was last getting what it asked for. Zero when it is.
+let starvingSince = 0;
 
 // Cameras the server has said are not live. A printer that is switched off is
 // not a starved pane and must not provoke anything: there are no frames to be
@@ -264,6 +281,7 @@ const paintLatest = (view) => {
   view.objectUrl = url;
   view.busy = true;
   view.busySince = Date.now();
+  view.painted += 1;
   view.img.src = url;
   // The element has already been pointed at the new frame, so nothing needs the
   // old one any more -- and an object URL that is never revoked is a copy of a
@@ -413,6 +431,9 @@ const adopt = (img) => {
     askedAgainAt: 0,
     busy: false,
     busySince: 0,
+    // Frames actually handed to the element, which is a different question
+    // from frames arriving -- a pane can be frozen with either one stalled.
+    painted: 0,
     // The newest frame this element has been given and not yet shown.
     next: null,
     objectUrl: null,
@@ -493,6 +514,7 @@ const forget = (img) => {
 // twice -- once from here and once from there -- which is the duplication this
 // whole path exists to remove.
 const handBack = (view) => {
+  note('handed-back', { camera: view.id.slice(-6) });
   const { img } = view;
   forget(img);
   delete img.dataset.cameraMux;
@@ -573,13 +595,16 @@ const startDomObserver = () => {
 
 // ------------------------------------------------------------ the starvation watch
 
+// Whether this element is owed frames at all: it is showing a camera, it can
+// be seen, and the server says that camera is live. Everything below is about
+// elements that answer yes -- an element that answers no is not being starved
+// however long it has been since it saw anything.
+const isOwedFrames = (view) => view.subscribed && view.onScreen && !notLive.has(view.id);
+
 // How long this element has gone without a frame it should have had. Measured
 // from the subscription when none has ever arrived.
 const starvedFor = (view, now) => {
-  if (!view.subscribed || !view.onScreen) {
-    return 0;
-  }
-  if (notLive.has(view.id)) {
+  if (!isOwedFrames(view)) {
     return 0;
   }
   const since = view.lastFrameAt || view.subscribedAt;
@@ -612,6 +637,13 @@ const forgetFrameClocks = (now) => {
   });
 };
 
+// As above, and this page is no longer considered to be in trouble either --
+// for a gap that was nobody's fault there is nothing to escalate.
+const giveUpMeasuring = (now) => {
+  forgetFrameClocks(now);
+  starvingSince = 0;
+};
+
 const checkForStarvation = () => {
   const now = Date.now();
   // Recorded before anything can return, so one gap is measured once.
@@ -622,12 +654,19 @@ const checkForStarvation = () => {
   // fresh while it is away, and coming back starts from now rather than from
   // whenever the last frame happened to be.
   if (enabled !== true || !pageVisible) {
-    forgetFrameClocks(now);
+    giveUpMeasuring(now);
     return;
   }
   // This page was not running. See NOT_RUNNING_IF_LATE_BY_MS.
   if (sinceLastCheck > STARVE_CHECK_EVERY_MS + NOT_RUNNING_IF_LATE_BY_MS) {
-    forgetFrameClocks(now);
+    giveUpMeasuring(now);
+    return;
+  }
+  // Nothing on this page is owed a frame -- scrolled away from, inside a closed
+  // dialog, or every camera switched off -- so nothing is owed and nothing is
+  // being withheld.
+  if (![...views.values()].some(isOwedFrames)) {
+    starvingSince = 0;
     return;
   }
   const starved = [];
@@ -641,23 +680,72 @@ const checkForStarvation = () => {
     worst = Math.max(worst, age);
   });
   if (starved.length === 0) {
+    // Under the threshold, which is not the same as being fed: this is also
+    // what the moments just after a rebuild look like, because rebuilding
+    // resets the per-camera clocks. So the trouble clock is deliberately NOT
+    // cleared here -- only an arriving frame clears it, which is the one thing
+    // that actually proves the chain is working. Clearing it here was the
+    // second version of the same bug: every rebuild wiped the record of the
+    // rebuild before it, so the page could never conclude that rebuilding was
+    // not helping, and it rebuilt every fifteen seconds for as long as it was
+    // open. Caught in the harness, again.
     return;
   }
-  // Asking again did not work, so the thing that was asked is what is wrong.
-  if (worst > STARVED_BEYOND_ASKING_MS && now - lastResetAt > RESET_NOT_OFTENER_THAN_MS) {
+  if (starvingSince === 0) {
+    starvingSince = now - worst;
+  }
+  // How long this page has been in trouble, which is not the same as how long
+  // since a frame arrived.
+  //
+  // The two have to be counted separately, and conflating them was a bug in
+  // the first version of this: rebuilding the connection resets the per-camera
+  // clocks -- it has to, or the replacement is judged on the gap that provoked
+  // it -- so measuring the escalation that way meant the gap was wiped every
+  // time it got close, and the ladder below looped between asking again and
+  // rebuilding for as long as the page was open without ever reaching the
+  // bottom rung. Caught in the harness: a page sabotaged so nothing could
+  // reach it rebuilt eight times in fifty seconds and never once reloaded.
+  const inTroubleFor = now - starvingSince;
+  const camerasStarved = starved.map((view) => view.id.slice(-6));
+
+  // Nothing else has worked. Everything this page can do about its own cameras
+  // has been tried, so the page goes -- which is what the person watching does.
+  if (inTroubleFor > STARVED_BEYOND_REBUILDING_MS) {
+    note('starved-reloading', { forMs: inTroubleFor, gapMs: worst, cameras: camerasStarved });
+    // Sent before the page goes. The trail is also written to storage every few
+    // seconds, so whatever this misses arrives from the page that replaces it.
+    sendDiagnosticTrail('starved-reloading');
+    if (reloadBecause(`no camera frames for ${Math.round(inTroubleFor / 1000)}s`)) {
+      return;
+    }
+    // Held back: a dialog open, something being typed, or a reload asked for
+    // too recently. Falls through -- rebuilding again is still worth doing.
+  }
+
+  // Asking again did not work, so what was asked is what is wrong.
+  if (inTroubleFor > STARVED_BEYOND_ASKING_MS && now - lastResetAt > RESET_NOT_OFTENER_THAN_MS) {
     lastResetAt = now;
-    console.debug(`No camera frames for ${Math.round(worst / 1000)}s, rebuilding the connection`);
-    // Everything will be asked for again when the replacement says it is up,
-    // so the clocks are reset here or this fires again immediately on the way
-    // through.
+    note('starved-rebuilding', { forMs: inTroubleFor, gapMs: worst, cameras: camerasStarved });
+    // Reported without waiting for anyone to reload: by this point the page has
+    // been without frames for fifteen seconds and nothing it has tried worked,
+    // which is worth seeing whether or not it recovers in the next breath.
+    sendDiagnosticTrail('starved-rebuilding');
+    console.debug(
+      `No camera frames for ${Math.round(inTroubleFor / 1000)}s, rebuilding the connection`
+    );
+    // The per-camera clocks start again, so the new connection is given the
+    // same few seconds to deliver that the old one had. starvingSince is
+    // deliberately left alone: it is what remembers that this did not work.
     forgetFrameClocks(now);
     resetLiveSocketNow();
     return;
   }
+
   starved.forEach((view) => {
     if (view.askedAgainAt && now - view.askedAgainAt < STARVED_MS) {
       return;
     }
+    note('starved-asking-again', { camera: view.id.slice(-6), forMs: starvedFor(view, now) });
     console.debug(
       `No frames from camera ${view.id} for ${Math.round(
         starvedFor(view, now) / 1000
@@ -665,6 +753,39 @@ const checkForStarvation = () => {
     );
     askAgain(view, now);
   });
+};
+
+// What this page would say if asked why a pane is not moving. Every field is
+// something that has been the answer at least once: whether the socket is up,
+// which worker it is on, whether anyone is looking at the page, whether the
+// element is on screen and subscribed, when a frame last arrived, when one was
+// last drawn, and whether the element is still sitting on one it never
+// finished. A pane frozen with frames arriving is a different bug from one
+// frozen with none, and this is what separates them without having to ask.
+const diagnosticSnapshot = () => {
+  const now = Date.now();
+  const socket = liveSocketStatus();
+  return {
+    up: socket.up,
+    mode: socket.mode,
+    worker: socket.worker,
+    tabs: socket.tabsSharing,
+    enabled,
+    visible: pageVisible,
+    hidden: typeof document !== 'undefined' ? document.visibilityState === 'hidden' : null,
+    cameras: [...views.values()].map((view) => ({
+      id: view.id.slice(-6),
+      on: view.onScreen,
+      sub: view.subscribed,
+      live: !notLive.has(view.id),
+      // Frames handed to this element since the page opened, and the gap since
+      // the last one arrived. Taken together these say which half has stopped.
+      drawn: view.painted,
+      frameAgoMs: view.lastFrameAt ? now - view.lastFrameAt : null,
+      waitingMs: view.busy ? now - view.busySince : null,
+      px: view.img.naturalWidth,
+    })),
+  };
 };
 
 const startStarvationWatch = () => {
@@ -696,7 +817,19 @@ const dispatchFrame = (id, bytes) => {
     // Stamped whether or not it is painted. This is the record of the chain
     // working, which is a separate question from whether this element wanted
     // the frame.
+    const wasStarved = view.askedAgainAt > 0;
     view.lastFrameAt = Date.now();
+    // A frame arrived, so whatever was wrong is not wrong now. This is the only
+    // thing that clears the trouble clock, because it is the only evidence that
+    // does not depend on a timer or a verdict from somewhere else.
+    starvingSince = 0;
+    if (wasStarved) {
+      view.askedAgainAt = 0;
+      note('starved-recovered', { camera: id.slice(-6) });
+      // Sent now rather than waiting for someone to reload: a case that heals
+      // itself is the one that says whether any of this is working.
+      sendDiagnosticTrail('starved-recovered');
+    }
     if (view.subscribed) {
       paint(view, blob);
     }
@@ -715,6 +848,7 @@ const handleState = (message) => {
   if (!targets || message.state !== 'down') {
     return;
   }
+  note('camera-down', { camera: message.id.slice(-6), reason: message.reason || null });
   targets.forEach((img) => {
     const view = views.get(img);
     if (view) {
@@ -743,6 +877,8 @@ const socketUp = (ready) => {
   startViewportObserver();
   startDomObserver();
   startStarvationWatch();
+  provideDiagnosticSnapshot(diagnosticSnapshot);
+  startLiveDiagnostics();
   // Cameras drawn before the server answered are taken over now. In practice
   // there are none -- the answer arrives long before the printers fetch
   // resolves -- but a camera left on a direct stream would be one this and the
@@ -755,6 +891,7 @@ const socketDown = () => {
   if (enabled !== true || handBackTimer !== null) {
     return;
   }
+  note('socket-down-handing-back-in', { ms: HAND_BACK_AFTER_MS });
   handBackTimer = setTimeout(() => {
     handBackTimer = null;
     enabled = false;

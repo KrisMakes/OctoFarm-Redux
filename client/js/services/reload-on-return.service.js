@@ -116,6 +116,56 @@ const markBack = () => {
   recoverCamerasNow();
 };
 
+// How long between reloads this page asks for on its own. Across reloads, so
+// it has to outlive the page: a page that reloads itself and comes back just as
+// broken must not do it again a few seconds later, and the counter that would
+// have stopped it is gone with the page that set it.
+const MIN_BETWEEN_ASKED_RELOADS_MS = 5 * 60 * 1000;
+const ASKED_RELOAD_KEY = 'octofarm-asked-reload-at';
+
+const lastAskedReloadAt = () => {
+  try {
+    return Number(window.localStorage.getItem(ASKED_RELOAD_KEY)) || 0;
+  } catch (e) {
+    // No storage, so no way to tell whether this has just happened. Treated as
+    // if it had: a reload loop is far worse than a pane left grey.
+    return Date.now();
+  }
+};
+
+/**
+ * Reloads the page because the caller has run out of other ways to put it
+ * right, if it is safe to throw this page away.
+ *
+ * The last resort behind everything else, and deliberately the same remedy the
+ * person was reaching for anyway -- the complaint being answered is "the
+ * cameras stop until I reload". Doing it for them is worth little in itself;
+ * what makes it acceptable is that the page sends its diagnostic trail first,
+ * so a reload is also how the fault gets reported rather than hidden.
+ *
+ * @returns whether it is reloading
+ */
+export const reloadBecause = (reason) => {
+  const now = Date.now();
+  if (now - loadedAt < SETTLE_AFTER_LOAD_MS) {
+    return false;
+  }
+  if (now - lastAskedReloadAt() < MIN_BETWEEN_ASKED_RELOADS_MS) {
+    return false;
+  }
+  if (shouldHoldOff()) {
+    return false;
+  }
+  try {
+    window.localStorage.setItem(ASKED_RELOAD_KEY, String(now));
+  } catch (e) {
+    return false;
+  }
+  console.debug(`Reloading: ${reason}`);
+  window.location.reload();
+  return true;
+};
+
 export const startReloadOnReturn = () => {
   // A tab switch, and anything else that hides the page.
   document.addEventListener('visibilitychange', () => {

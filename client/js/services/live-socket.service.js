@@ -20,6 +20,7 @@
 // raised.
 
 import * as core from './live-socket.core';
+import { note } from './live-diagnostics.service';
 
 export const FRAME_OPCODE = core.FRAME_OPCODE;
 export const CHANNEL_OPCODE = core.CHANNEL_OPCODE;
@@ -179,6 +180,7 @@ const tell = (message) => {
 };
 
 const onSocketUpShared = (message) => {
+  note('socket-up', { worker: sharedWorkerId, build: message.ready?.build });
   ready = message.ready;
   // Every stream this page wants is asked for again. The worker counts pages
   // per stream, so asking twice from one page would be wrong and asking not at
@@ -216,6 +218,7 @@ const reattachToWorker = () => {
   if (mode !== 'shared') {
     return;
   }
+  note('worker-reattach', { worker: sharedWorkerId, pages: sharedPages });
   console.debug('The shared live socket stopped answering, attaching again');
   if (aliveTimer !== null) {
     clearInterval(aliveTimer);
@@ -242,6 +245,7 @@ const handleSharedMessage = (data) => {
       onSocketUpShared(data);
       return;
     case 'down':
+      note('socket-down', { worker: sharedWorkerId });
       ready = null;
       channelListeners.forEach((entry) => setChannelCarried(entry, false));
       settle();
@@ -345,6 +349,7 @@ const startShared = () => {
     // unanswered and the test below reattaches, a few seconds later than it
     // would have done.
     if (sinceLastTick > ALIVE_EVERY_MS + FROZEN_IF_LATE_BY_MS) {
+      note('page-was-not-running', { forMs: sinceLastTick });
       lastWorkerWordAt = now;
       tell({ t: 'check' });
     } else if (lastWorkerWordAt && now - lastWorkerWordAt > WORKER_SILENCE_MS) {
@@ -403,6 +408,7 @@ const fallBackToDirect = () => {
   if (mode === 'direct') {
     return;
   }
+  note('fell-back-to-direct');
   heardFromWorker();
   if (aliveTimer !== null) {
     clearInterval(aliveTimer);
@@ -495,6 +501,7 @@ export const reconnectSocketNow = () => {
  * The caller rate-limits it.
  */
 export const resetLiveSocketNow = () => {
+  note('connection-reset', { mode });
   if (mode === 'shared') {
     reattachToWorker();
     return;
@@ -524,6 +531,7 @@ export const startLiveSocket = () => {
 // really are sharing rather than each having quietly started its own.
 export const liveSocketStatus = () => ({
   mode,
+  build: ready?.build ?? null,
   up: isSocketUp(),
   tabsSharing: sharedPages,
   worker: sharedWorkerId,
