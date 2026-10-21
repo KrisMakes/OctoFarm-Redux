@@ -202,6 +202,23 @@ const forId = (id) => {
 // redraw, or this.
 const FRAME_FALLBACK_MS = 100;
 
+// How long an element may be left holding a frame it has not finished with.
+//
+// `busy` says a frame has been handed over and the element has not reported
+// back, and it is cleared by that element's own load event. Which makes one
+// dropped load event permanent: nothing else clears it, so the element is
+// never given another frame for the rest of the page's life. Frames keep
+// arriving, the socket stays up, every count looks right, and that pane is
+// frozen on its last picture -- the same symptom as half a dozen other causes,
+// with nothing to distinguish it.
+//
+// A blob is already in memory and decodes in a few milliseconds, so this is
+// hundreds of times longer than it ever legitimately takes. Past it, the frame
+// is handed over regardless: pointing the element somewhere new cancels a load
+// that really was in flight, which is exactly what happens between any two
+// frames anyway.
+const BUSY_FOR_TOO_LONG_MS = 2000;
+
 let framePending = false;
 let frameRaf = 0;
 let frameTimer = null;
@@ -234,7 +251,10 @@ const scheduleFrameFlush = () => {
 // working on the last one. A frame held back is not queued: the next redraw
 // takes whatever is newest then, and anything in between is already history.
 const paintLatest = (view) => {
-  if (view.busy || !view.next) {
+  if (!view.next) {
+    return;
+  }
+  if (view.busy && Date.now() - view.busySince < BUSY_FOR_TOO_LONG_MS) {
     return;
   }
   const blob = view.next;
@@ -243,6 +263,7 @@ const paintLatest = (view) => {
   const previous = view.objectUrl;
   view.objectUrl = url;
   view.busy = true;
+  view.busySince = Date.now();
   view.img.src = url;
   // The element has already been pointed at the new frame, so nothing needs the
   // old one any more -- and an object URL that is never revoked is a copy of a
@@ -272,6 +293,7 @@ const onSettled = (view) => {
 const blank = (view) => {
   view.next = null;
   view.busy = false;
+  view.busySince = 0;
   view.img.src = BLANK_PIXEL;
   if (view.objectUrl) {
     URL.revokeObjectURL(view.objectUrl);
@@ -390,6 +412,7 @@ const adopt = (img) => {
     subscribedAt: 0,
     askedAgainAt: 0,
     busy: false,
+    busySince: 0,
     // The newest frame this element has been given and not yet shown.
     next: null,
     objectUrl: null,
