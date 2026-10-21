@@ -19,6 +19,7 @@ import {
   onJson,
   onSocketDown,
   onSocketUp,
+  resetLiveSocketNow,
   sendMessage,
 } from './live-socket.service';
 
@@ -50,11 +51,59 @@ const SUBSCRIBE_FALLBACK_MS = 2000;
 // frozen on their last frame, which looks exactly like a camera that works.
 const HAND_BACK_AFTER_MS = 10000;
 
+// A pane that should be showing frames and is not.
+//
+// Everything that decides whether frames reach a pane is event-driven, and
+// every one of those events is a single message that has been lost at least
+// once: a visibility report that starved a tab for as long as it stayed open,
+// a worker replaced underneath a page that went on believing its socket was
+// up, a camera handed back that could never be adopted again. Each was found
+// by someone noticing grey panes and each took a round of guessing to place,
+// because the page itself had no idea it was being starved.
+//
+// So the page stops inferring and watches the one thing that is not an
+// inference: whether frames are arriving. A pane that is on screen, on a page
+// someone is looking at, showing a camera the server says is live, and that
+// has had nothing for this long, is not waiting for a frame -- something
+// between here and the camera has stopped and nothing else is going to notice.
+//
+// Long enough that it is never a slow frame: these cameras send thirty a
+// second, and the gap is measured in frames, not seconds.
+const STARVED_MS = 5000;
+
+// Asking again fixes the usual case -- an intent that never arrived, a
+// subscription the other end does not think it has. If frames still do not
+// come after that, the connection itself is what is wrong, and it is rebuilt.
+// Much longer, because that is felt by every tab sharing the socket.
+const STARVED_BEYOND_ASKING_MS = 15000;
+const STARVE_CHECK_EVERY_MS = 2500;
+
+// A check this much later than it was due was not late, this page was not
+// running -- switched away from on a Mac, behind another window, or frozen by
+// the browser. Nothing arrived while it was not running, which says nothing
+// about whether anything is wrong: judging that gap would mean rebuilding the
+// connection on the way back from every trip away, which is the opposite of
+// what this is for.
+const NOT_RUNNING_IF_LATE_BY_MS = 15000;
+
+// Not oftener than this, however many panes are starved. A page with a dozen
+// cameras must not turn one outage into a dozen rebuilds, and ten tabs must
+// not turn it into ten.
+const RESET_NOT_OFTENER_THAN_MS = 30000;
+
 // null until the server has said. false means the multiplexer is switched off,
 // or the socket is gone for good, and every camera is on its own direct stream.
 let enabled = null;
 let started = false;
 let handBackTimer = null;
+let starveTimer = null;
+let lastResetAt = 0;
+let lastStarveCheckAt = 0;
+
+// Cameras the server has said are not live. A printer that is switched off is
+// not a starved pane and must not provoke anything: there are no frames to be
+// had, and the server is the only thing that knows that.
+const notLive = new Set();
 
 // Whether this page is the one being looked at.
 //
@@ -260,6 +309,8 @@ const subscribe = (view) => {
   }
   const alreadyWatching = subscribedCountFor(view.id) > 0;
   view.subscribed = true;
+  view.subscribedAt = Date.now();
+  view.askedAgainAt = 0;
   if (!alreadyWatching) {
     sendMessage({ action: 'subscribe', id: view.id });
   }
@@ -295,10 +346,18 @@ const applyStreaming = (view) => {
 // is told about each camera once however many elements are showing it.
 const resubscribeAll = () => {
   const wanted = new Set();
+  const now = Date.now();
   views.forEach((view) => {
-    if (view.subscribed) {
-      wanted.add(view.id);
+    if (!view.subscribed) {
+      return;
     }
+    // A new socket starts the clock again. What arrived on the last one says
+    // nothing about this one, and counting the gap across a reconnect would
+    // have the starvation watch fire on a connection that is working.
+    view.lastFrameAt = null;
+    view.subscribedAt = now;
+    view.askedAgainAt = 0;
+    wanted.add(view.id);
   });
   wanted.forEach((id) => sendMessage({ action: 'subscribe', id }));
 };
@@ -323,6 +382,13 @@ const adopt = (img) => {
     // whether a camera streams directly.
     streamSrc: cameraUrlOf(img),
     subscribed: false,
+    // The starvation watch, which needs to know when frames were last arriving
+    // and when this element last did something about their absence. Null means
+    // nothing has ever arrived, and the clock then runs from the subscription:
+    // a camera that has never painted is exactly as starved as one that stopped.
+    lastFrameAt: null,
+    subscribedAt: 0,
+    askedAgainAt: 0,
     busy: false,
     // The newest frame this element has been given and not yet shown.
     next: null,
@@ -482,6 +548,110 @@ const startDomObserver = () => {
   domObserver.observe(document.body, { childList: true, subtree: true });
 };
 
+// ------------------------------------------------------------ the starvation watch
+
+// How long this element has gone without a frame it should have had. Measured
+// from the subscription when none has ever arrived.
+const starvedFor = (view, now) => {
+  if (!view.subscribed || !view.onScreen) {
+    return 0;
+  }
+  if (notLive.has(view.id)) {
+    return 0;
+  }
+  const since = view.lastFrameAt || view.subscribedAt;
+  return since ? now - since : 0;
+};
+
+// Drops the camera and asks for it again, rather than asking twice. A second
+// subscribe for a camera the other end already has on its list is ignored --
+// by the worker, and by the server -- and being on a list while no frames
+// arrive is the state this is trying to get out of, so asking again the
+// obvious way would be a no-op exactly when it matters.
+const askAgain = (view, now) => {
+  view.askedAgainAt = now;
+  sendMessage({ action: 'unsubscribe', id: view.id });
+  // `again` is for the shared worker, which otherwise answers this out of its
+  // own list of who wants what -- the list that is in question. The server
+  // does not read it and does not need to: it is being told to unsubscribe and
+  // subscribe, which is the same instruction either way.
+  sendMessage({ action: 'subscribe', id: view.id, again: true });
+};
+
+// Forgets how long it has been. Used wherever the gap that is about to be
+// measured was not the connection's fault: a page that was not running, a page
+// nobody was looking at, a socket that has just been replaced.
+const forgetFrameClocks = (now) => {
+  views.forEach((view) => {
+    view.lastFrameAt = null;
+    view.subscribedAt = now;
+    view.askedAgainAt = 0;
+  });
+};
+
+const checkForStarvation = () => {
+  const now = Date.now();
+  // Recorded before anything can return, so one gap is measured once.
+  const sinceLastCheck = lastStarveCheckAt ? now - lastStarveCheckAt : 0;
+  lastStarveCheckAt = now;
+  // Nothing is expected while the multiplexer is off, and a page nobody is
+  // looking at is not being sent frames on purpose -- so the clocks are kept
+  // fresh while it is away, and coming back starts from now rather than from
+  // whenever the last frame happened to be.
+  if (enabled !== true || !pageVisible) {
+    forgetFrameClocks(now);
+    return;
+  }
+  // This page was not running. See NOT_RUNNING_IF_LATE_BY_MS.
+  if (sinceLastCheck > STARVE_CHECK_EVERY_MS + NOT_RUNNING_IF_LATE_BY_MS) {
+    forgetFrameClocks(now);
+    return;
+  }
+  const starved = [];
+  let worst = 0;
+  views.forEach((view) => {
+    const age = starvedFor(view, now);
+    if (age < STARVED_MS) {
+      return;
+    }
+    starved.push(view);
+    worst = Math.max(worst, age);
+  });
+  if (starved.length === 0) {
+    return;
+  }
+  // Asking again did not work, so the thing that was asked is what is wrong.
+  if (worst > STARVED_BEYOND_ASKING_MS && now - lastResetAt > RESET_NOT_OFTENER_THAN_MS) {
+    lastResetAt = now;
+    console.debug(`No camera frames for ${Math.round(worst / 1000)}s, rebuilding the connection`);
+    // Everything will be asked for again when the replacement says it is up,
+    // so the clocks are reset here or this fires again immediately on the way
+    // through.
+    forgetFrameClocks(now);
+    resetLiveSocketNow();
+    return;
+  }
+  starved.forEach((view) => {
+    if (view.askedAgainAt && now - view.askedAgainAt < STARVED_MS) {
+      return;
+    }
+    console.debug(
+      `No frames from camera ${view.id} for ${Math.round(
+        starvedFor(view, now) / 1000
+      )}s, asking again`
+    );
+    askAgain(view, now);
+  });
+};
+
+const startStarvationWatch = () => {
+  if (starveTimer !== null) {
+    return;
+  }
+  lastStarveCheckAt = Date.now();
+  starveTimer = setInterval(checkForStarvation, STARVE_CHECK_EVERY_MS);
+};
+
 // --------------------------------------------------------------- the socket
 
 const dispatchFrame = (id, bytes) => {
@@ -494,15 +664,30 @@ const dispatchFrame = (id, bytes) => {
   // its own object URL from it, because each revokes its own. The Blob copies
   // the bytes, so the socket's buffer is not held.
   const blob = new Blob([bytes], { type: 'image/jpeg' });
+  notLive.delete(id);
   targets.forEach((img) => {
     const view = views.get(img);
-    if (view?.subscribed) {
+    if (!view) {
+      return;
+    }
+    // Stamped whether or not it is painted. This is the record of the chain
+    // working, which is a separate question from whether this element wanted
+    // the frame.
+    view.lastFrameAt = Date.now();
+    if (view.subscribed) {
       paint(view, blob);
     }
   });
 };
 
 const handleState = (message) => {
+  if (message.state === 'live') {
+    notLive.delete(message.id);
+  } else {
+    // 'connecting' as well as 'down': a camera being reconnected has no frames
+    // to send and is not being starved of them.
+    notLive.add(message.id);
+  }
   const targets = byId.get(message.id);
   if (!targets || message.state !== 'down') {
     return;
@@ -534,6 +719,7 @@ const socketUp = (ready) => {
   enabled = true;
   startViewportObserver();
   startDomObserver();
+  startStarvationWatch();
   // Cameras drawn before the server answered are taken over now. In practice
   // there are none -- the answer arrives long before the printers fetch
   // resolves -- but a camera left on a direct stream would be one this and the

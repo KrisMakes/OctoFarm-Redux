@@ -481,6 +481,27 @@ export const reconnectSocketNow = () => {
   core.reconnectSocketNow();
 };
 
+/**
+ * Throws this page's connection away and builds it again.
+ *
+ * Stronger than reconnectSocketNow, which only asks whether what we have is
+ * alive. This is for a caller that has decided it is not -- it has been
+ * starved of something it asked for and has run out of ways to explain it --
+ * and it does not matter which part of the chain is at fault, because this
+ * replaces all of it: in shared mode the port and whatever worker is behind
+ * it, and otherwise the socket.
+ *
+ * Expensive in shared mode: every tab on this worker feels a rebuilt socket.
+ * The caller rate-limits it.
+ */
+export const resetLiveSocketNow = () => {
+  if (mode === 'shared') {
+    reattachToWorker();
+    return;
+  }
+  core.reconnectSocketNow();
+};
+
 export const startLiveSocket = () => {
   if (mode !== null) {
     return;

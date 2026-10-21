@@ -156,15 +156,27 @@ const closeChannel = (path) => {
   stop();
 };
 
-const addCamera = (state, id) => {
-  if (state.cameras.has(id)) {
+// `again` marks a page that is not asking for a camera, it is asking for one
+// it has already got and is not being sent. The count below is this worker's
+// own bookkeeping, and a starved page means something further away than that
+// disagrees with it -- so a re-ask is passed on to the server whatever the
+// count says. Without this a camera lost on the server could never be
+// recovered while a second tab had it on this worker's list: every page would
+// be starved, every one of them would ask again, and this would answer all of
+// them from a list that was the thing being doubted.
+const addCamera = (state, id, again = false) => {
+  if (state.cameras.has(id) && !again) {
     return;
   }
   const first = cameraWanters(id) === 0;
   state.cameras.add(id);
-  if (first) {
-    sendMessage({ action: 'subscribe', id });
+  if (!first && !again) {
+    return;
   }
+  if (again && !first) {
+    sendMessage({ action: 'unsubscribe', id });
+  }
+  sendMessage({ action: 'subscribe', id });
 };
 
 const removeCamera = (state, id) => {
@@ -298,7 +310,7 @@ const handle = (state, data) => {
       if (payload.action === 'visible') {
         state.visible = payload.visible !== false;
       } else if (payload.action === 'subscribe' && id) {
-        addCamera(state, id);
+        addCamera(state, id, payload.again === true);
       } else if (payload.action === 'unsubscribe' && id) {
         removeCamera(state, id);
       } else if (payload.action === 'listen' && channel) {
