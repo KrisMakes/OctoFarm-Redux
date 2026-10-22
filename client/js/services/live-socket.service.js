@@ -74,6 +74,45 @@ const SHARED_WORKER_SILENCE_MS = 4000;
 // recover from it.
 const FROZEN_IF_LATE_BY_MS = 20000;
 
+// How long the worker gets to say anything at all after a wake before this page
+// throws its port away and attaches again.
+//
+// Short, because the answer is immediate when it comes: a worker that is there
+// answers a heartbeat in milliseconds, and any frame it sends counts as an
+// answer too. Waiting longer only prolongs a state that is already broken.
+//
+// This is the measured shape of a MacBook lid being opened, from the trails
+// three tabs sent back over sixteen hours: the page notices it was not running,
+// asks the worker to check its socket, and nothing comes -- the port is dead,
+// so the check never arrives and neither do the camera subscriptions asked for
+// again after it. Nothing happened until the starvation watch gave up on the
+// connection fifteen seconds later, and reattaching fixed it in the same
+// second, every time, with the worker id unchanged either side.
+//
+// Which is also why this is safe to do promptly. Reattaching when the worker is
+// still there costs a MessagePort: the worker keeps its socket, and the server
+// never learns that anything happened -- no reconnection, no resubscription, no
+// cost that scales with the number of tabs. The caution that made a wake wait
+// instead of reattaching was aimed at a thundering herd of sockets that this
+// cannot produce.
+const WAKE_ANSWER_MS = 2000;
+
+// How long a reattach may take before everything riding on the socket is told
+// it is gone.
+//
+// Swapping a port normally takes a few milliseconds: the worker is still there
+// and already knows its socket is up, so the replacement port is handed a ready
+// almost at once. Announcing an outage for that is actively harmful -- every
+// consumer falls back to the HTTP stream it would otherwise not need, and in
+// WebKit an abandoned stream keeps its connection, so each reattach quietly
+// spends one of the six this origin is allowed. One was found held open in
+// exactly this way while the cameras were frozen.
+//
+// So a reattach says nothing until it has failed for this long. Nothing is lost
+// by waiting: the camera multiplexer gives the socket ten seconds before it
+// hands the cameras back, and this is well inside that.
+const REATTACH_GRACE_MS = 3000;
+
 let mode = null;
 let port = null;
 let aliveTimer = null;
@@ -180,6 +219,8 @@ const tell = (message) => {
 };
 
 const onSocketUpShared = (message) => {
+  // Whatever this page was told to expect, it has a working port again.
+  reattachSucceeded();
   note('socket-up', { worker: sharedWorkerId, build: message.ready?.build });
   ready = message.ready;
   // Every stream this page wants is asked for again. The worker counts pages
@@ -202,9 +243,18 @@ const onSocketUpShared = (message) => {
 
 let lastWorkerWordAt = 0;
 let lastAliveTickAt = 0;
+let wakeCheckTimer = null;
+let reattachGraceTimer = null;
+// How many times the worker has said anything. Counted rather than timed: a
+// reply can land in the same millisecond as the message that provoked it, so a
+// test of "has it spoken since?" written as a comparison of two Date.now()
+// values reads false and throws away a port that answered at once. Observed in
+// the harness, where a live worker was dropped on every single wake.
+let workerWords = 0;
 
 const heardFromWorker = () => {
   lastWorkerWordAt = Date.now();
+  workerWords += 1;
   if (sharedSilenceTimer !== null) {
     clearTimeout(sharedSilenceTimer);
     sharedSilenceTimer = null;
@@ -214,9 +264,36 @@ const heardFromWorker = () => {
 // Throws this page's connection to the worker away and asks for one again.
 // Whatever the browser hands back -- the same worker, or a new one -- is a port
 // that delivers, which the one being dropped was not.
+// After a wake, whether the worker said anything. Any message counts -- an
+// answered heartbeat, a frame, a channel payload -- because the question is not
+// whether the worker is healthy but whether this port can still deliver.
+const checkWokeUpAttached = (wokeAt) => {
+  const wordsAtWake = workerWords;
+  if (wakeCheckTimer !== null) {
+    clearTimeout(wakeCheckTimer);
+  }
+  wakeCheckTimer = setTimeout(() => {
+    wakeCheckTimer = null;
+    if (mode !== 'shared') {
+      return;
+    }
+    if (workerWords > wordsAtWake) {
+      // It is still there and still delivering. Nothing to do, which is the
+      // usual outcome: a page frozen for a few minutes comes back attached.
+      return;
+    }
+    note('wake-port-silent', { forMs: Date.now() - wokeAt });
+    reattachToWorker();
+  }, WAKE_ANSWER_MS);
+};
+
 const reattachToWorker = () => {
   if (mode !== 'shared') {
     return;
+  }
+  if (wakeCheckTimer !== null) {
+    clearTimeout(wakeCheckTimer);
+    wakeCheckTimer = null;
   }
   note('worker-reattach', { worker: sharedWorkerId, pages: sharedPages });
   console.debug('The shared live socket stopped answering, attaching again');
@@ -230,11 +307,26 @@ const reattachToWorker = () => {
     // Already gone, which is the case this exists for.
   }
   port = null;
-  ready = null;
-  channelListeners.forEach((entry) => setChannelCarried(entry, false));
-  announceDown();
+  // Nothing is announced yet. See REATTACH_GRACE_MS: a port swap that works --
+  // which is nearly all of them -- is over before anyone would need to know.
+  if (reattachGraceTimer === null) {
+    reattachGraceTimer = setTimeout(() => {
+      reattachGraceTimer = null;
+      note('reattach-failed', { ms: REATTACH_GRACE_MS });
+      ready = null;
+      channelListeners.forEach((entry) => setChannelCarried(entry, false));
+      announceDown();
+    }, REATTACH_GRACE_MS);
+  }
   if (!startShared()) {
     fallBackToDirect();
+  }
+};
+
+const reattachSucceeded = () => {
+  if (reattachGraceTimer !== null) {
+    clearTimeout(reattachGraceTimer);
+    reattachGraceTimer = null;
   }
 };
 
@@ -352,6 +444,10 @@ const startShared = () => {
       note('page-was-not-running', { forMs: sinceLastTick });
       lastWorkerWordAt = now;
       tell({ t: 'check' });
+      // The clock above was re-based on the strength of this page not having
+      // been running, which says nothing about whether the port survived. So
+      // it is asked, and given two seconds to answer.
+      checkWokeUpAttached(now);
     } else if (lastWorkerWordAt && now - lastWorkerWordAt > WORKER_SILENCE_MS) {
       // The worker answers every one of these. Nothing coming back for several
       // in a row is the only sign a page gets that its worker has gone.
@@ -408,6 +504,7 @@ const fallBackToDirect = () => {
   if (mode === 'direct') {
     return;
   }
+  reattachSucceeded();
   note('fell-back-to-direct');
   heardFromWorker();
   if (aliveTimer !== null) {
