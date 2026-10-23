@@ -100,7 +100,7 @@ export const getTemperatureLine = (settings) => {
   if (parts.length === 0) {
     return '';
   }
-  return ` <i class="fas fa-thermometer-half"></i> ${parts.join(' &nbsp; ')}`;
+  return `<i class="fas fa-thermometer-half"></i> ${parts.join(' &nbsp; ')}`;
 };
 
 export const getFileTemplate = (file, printerURL, id) => {
@@ -204,7 +204,7 @@ export const getFileTemplate = (file, printerURL, id) => {
                 <span class="size" id="fileSize-${file.fullPath}">${
     !!file?.fileSize ? Calc.bytes(file.fileSize) : getSpinnerElement()
   }</span>
-                <span class="temps" title="Temperatures this file was sliced with: nozzle/bed" id="fileTemps-${
+                <span class="temps ml-3" title="Temperatures this file was sliced with: nozzle/bed" id="fileTemps-${
                   file.fullPath
                 }"></span> <br>
             <span class="usage" title="Expected Filament Usage/Cost" id="fileTool-${
