@@ -68,6 +68,14 @@ bringing dependencies that have since gone end-of-life back up to date.
   matches multiple words in any order, and a "Hide Folders" toggle.
 - Copy a file directly to another printer - select one or more targets, with per-printer success/failure reporting.
 - The list resyncs itself after a file or folder is added, removed, or bulk-updated.
+- The temperatures a file was sliced with, shown beside its size: nozzle and bed, for the first layer and for the
+  rest. OctoPrint's file list does not carry them and its own analysis does not look for them, but the slicer
+  writes them into the file - so this reads the end of the gcode, where PrusaSlicer and OrcaSlicer append their
+  configuration. The last 48KB of it, once per file ever, fetched after the list has already drawn, so a folder
+  of two hundred files appears at once and fills in behind itself. Both slicers' spellings are read, so a file
+  sliced in Orca's own dialect is understood as readily as a Prusa one, and a value the file does not carry shows
+  as a dash rather than vanishing, so a half-known pair still says which half is missing. A file from a slicer
+  that writes no configuration block (Cura stores its settings as a base64 blob) simply shows nothing.
 
 **Torch** - turn a printer's light on and off from the command panel. A real toggle that reflects the light's
 actual state, and it tells you when the light cannot come on because the printer's PSU is off, instead of
@@ -100,6 +108,44 @@ until switched on under System > Server > Features.
 **Camera streaming** - camera feeds stream through OctoFarm itself (a same-origin proxy) instead of the browser
 connecting to every printer directly, which is also what stopped Safari loading them at all.
 
+**One connection per browser, not one per camera per tab** - the single largest change in this fork, and the
+answer to the grey panes and the buttons that stop responding with nothing in the console to explain them.
+
+A browser allows about six connections to one address over HTTP/1.1, shared across every tab, and anything that
+streams holds one of them open for as long as it is on screen. Two cameras in two tabs is four of the six, plus
+the event stream and the monitoring stream, and the budget is gone - and nothing fails cleanly when it does.
+Every later request queues behind a stream that never ends, so the page renders with no printers on it and every
+button stops working, with no error anywhere saying why. Measured in a tab that had run out: a `fetch()` had not
+started after eight seconds, while a WebSocket opened in 42ms, because WebSockets are a separate pool.
+
+So the number of connections stops following the number of viewers:
+
+- The server opens one connection per camera however many people are watching, splits the multipart stream back
+  into whole JPEGs and fans them out over a single WebSocket. Cameras nobody can see are not subscribed at all,
+  and the printer's Pi serves one stream instead of one per pane. Frames are painted into the same `<img>`
+  elements the templates already draw, so every CSS flip, aspect-ratio class and layout rule keeps working.
+- The event stream and the monitoring stream moved onto that same socket, so a tab holds no permanent HTTP
+  connection at all and tab count stops mattering. The HTTP endpoints are untouched and still serve the same
+  payloads - this is a second way in, not a replacement, and a browser that cannot open the socket falls back to
+  them unchanged.
+- The socket lives in a SharedWorker, so there is one for the whole browser rather than one per tab. Each tab
+  reaches it down a MessagePort, which costs no connection, and the worker keeps the union of what the tabs want:
+  a camera is subscribed when the first tab asks for it and dropped when the last one stops, and a second tab
+  showing the same camera costs nothing. This is what the budget actually ran out of in Safari, which counts
+  WebSockets against it where Chrome does not.
+
+The camera half is opt-in, under System > Server > Cameras > Multiplexer: the direct streams work, and this
+changes how every camera on the farm is delivered, so an upgrade does not inherit it. Switching it off takes
+effect immediately on every open tab rather than at the next reload.
+
+**Raise the head after cancelling** - a cancelled print used to leave the nozzle parked over the plate, in the
+way of whatever has to come off it. Cancelling now lifts it ten centimetres clear. The move is relative, so it
+is ten centimetres from wherever the print stopped rather than a fixed height, and the firmware's soft limit
+clips it at the top of the Z axis. It waits for the printer first - a cancel is not instant, and OctoPrint
+refuses commands outright while a job is still running - and if it gives up waiting it says so, rather than
+leaving the impression the head moved. Hooked into the job action rather than the buttons, so it covers every
+way a print is cancelled: the panel card, the control modal and bulk actions alike.
+
 **Cancel a single object mid-print** - when one part of a multi-object plate lifts or turns into spaghetti, cancel
 just that one from the job modal and let the rest of the plate finish. The objects of the current file are listed
 with a Cancel button each, the one being printed right now is marked, and cancelling asks first and says plainly
@@ -125,20 +171,51 @@ plugin not installed on that printer) rather than disappearing.
   printing" while the printer shows disconnected), instead of a generic conflict message.
 - Health check failures now name the specific check that failed (printer settings, required API, websocket,
   connection defaults, webcam settings, or history collection) instead of one generic "Failed health check!".
+- A page under System that says what is actually connected: how many live sockets are open, what each has sent
+  and dropped, what the camera hub is doing, and how many clients are still on the HTTP form of each stream -
+  which is where a connection nobody closed shows up by name. Deliberately not administrator-only: this is what
+  to look at when a tab will not load, and a browser that has run out of connections cannot open an administrator
+  session to ask why.
 - Replaced the toilet-roll filament icon with a real spool.
 
 ### Improvements
 
-- Coming back to the page after a tab or application switch reloads it, so the cameras are live and every button
-  works without touching refresh. Everything the page holds across a switch away is a long-lived connection - the
-  event stream, the monitoring worker's, and one per camera - and a browser allows about six to one site. WebKit
-  abandons them when the window goes behind another application without reporting it, and a request queued behind
-  an abandoned one never errors, it simply never happens: that is both the grey camera pane and the buttons that
-  stop responding with no message. Rebuilding those connections in place was tried from several angles and each
-  version fixed the case it was written for and left another one dead, because from inside the page an abandoned
-  stream cannot be told apart from a healthy one. Reloading has none of that uncertainty, which is why the
-  refresh button was always the thing that worked. It is held back while a dialog is open or something is being
-  typed, so it cannot take work with it, and the page comes back in the same scroll position.
+- Coming back to a tab no longer throws the whole page away and rebuilds it, which is why switching between open
+  tabs used to feel slow. It used to, and that was right at the time: everything the page held across a switch
+  away was a long-lived HTTP connection, WebKit abandons those when the window goes behind another application
+  without reporting it, and a request queued behind an abandoned one never errors - it simply never happens,
+  which is both the grey camera pane and the buttons that stop responding with no message. From inside the page an
+  abandoned stream cannot be told apart from a healthy one, so there was nothing to check and discarding the lot
+  was the only reliable cure. Carrying the streams and the cameras on one socket removed that premise: a socket,
+  unlike a stream, can be asked whether it is still there, and it is asked on every return and rebuilt if nothing
+  answers. The reload now runs only where the old reasoning still holds - the socket refused, an older server, or
+  the multiplexer switched off - and there it behaves exactly as before: held back while a dialog is open or
+  something is being typed, and coming back in the same scroll position.
+- A tab left open across a deploy reloads itself once, instead of running the old build until somebody remembers
+  to refresh it. Bundle names carry a content hash, so after a deploy a stale tab's files no longer exist - but
+  nothing told the tab, and whatever bug it was built with carried on. Three tabs left open across a day of
+  deploys were still holding one connection per camera, a whole browser's budget between them, a week after that
+  limit had been removed. The id a page compares itself against covers every bundle rather than one of them:
+  webpack splits the shared code out of the entries, and two deploys in a row once changed only that shared
+  chunk, so the id never moved and neither fix reached the browser that had reported the bug. Once per build
+  rather than once per page, so a tab picks up the next deploy too but can never loop.
+- Camera frames are painted on the display's beat rather than the instant they arrive. A camera sends thirty
+  frames a second, a screen redraws sixty times a second, and the two are not in step - handing the element each
+  frame as it lands means the gap between one appearing and the next varies by however far its arrival fell from
+  the next redraw. Chrome hides that; WebKit shows it as judder. Measured on the wire both browsers were being
+  sent the same even thirty frames a second, so the server was never the thing at fault.
+- How far behind a browser is, is now measured by the browser. Nothing on the server can see it: `bufferedAmount`
+  counts only what is queued above the socket, and `send`'s callback fires when the kernel accepted the bytes,
+  which it keeps doing until its own buffer is full - and Linux grows that into the megabytes. Both readings were
+  blind to a steady 1-2MB backlog per viewer that never drained, which is about a second of latency on every
+  camera, permanently. The browser now counts what it has received and says so a few times a second, the server
+  counts what it has sent and not had acknowledged, and a viewer that falls behind has frames dropped rather than
+  queued behind it.
+- A page that loses its cameras writes down why. What the socket did, what each camera was told, how many frames
+  each pane has drawn and how long since one arrived - saved every few seconds where a reload cannot take it with
+  it, and sent by the next page to load. The reload that ends the broken state is therefore how the evidence
+  arrives rather than the end of it, and a page that recovers on its own reports itself just as readily, so a
+  case that heals is as visible as one that does not.
 - Printer cards on the panel, camera and group views are sized by width rather than by a column count, so the
   number of columns follows the window and the printer count instead of a stored number that cannot know either.
   A column count is wrong on at least one screen the moment it is saved - six per row is comfortable on a large
