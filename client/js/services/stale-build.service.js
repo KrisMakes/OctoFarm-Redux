@@ -21,9 +21,19 @@ const SETTLE_AFTER_LOAD_MS = 5000;
 // worse than running a stale page.
 const RELOADED_FOR = 'octofarm-reloaded-for-build';
 
-// What this page is running: the name it was actually served, which is the one
+// What this page is running, as the server told it when it was served. The one
 // thing a stale page still knows the truth about.
+//
+// The fallback is for a page served before this meta tag existed: it cannot
+// know its build id, so it reports the bundle name it used to be identified by,
+// which will not match any id the server now computes -- and a page that cannot
+// match is exactly a page that should reload once. That is the only way the
+// tabs stranded by the bug this replaced can ever pick up current code.
 const ownBuild = () => {
+  const meta = document.querySelector('meta[name="octofarm-build"]')?.content;
+  if (meta) {
+    return meta;
+  }
   const script = document.querySelector('script[src*="events.service"]');
   const src = script?.getAttribute('src') || '';
   return src.split('/').pop() || null;

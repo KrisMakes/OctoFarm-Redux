@@ -1,5 +1,6 @@
 const { AppConstants } = require('../constants/app.constants');
 const {
+  clientBuildId,
   createScriptTagRenderer,
   workerScriptUrl,
   sharedSocketScriptUrl,
@@ -20,6 +21,7 @@ module.exports = {
     // a content hash, so the client cannot derive it from the version any more.
     res.locals.workerScriptUrl = workerScriptUrl;
     res.locals.sharedSocketScriptUrl = sharedSocketScriptUrl;
+    res.locals.clientBuildId = clientBuildId;
     next();
   },
 };

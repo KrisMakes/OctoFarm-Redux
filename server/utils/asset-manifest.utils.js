@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -78,29 +79,33 @@ function sharedSocketScriptUrl() {
 }
 
 /**
- * Identifies the build a page was rendered from.
+ * Identifies the build a page was rendered from: one short hash over every
+ * client bundle name there is.
  *
- * Every bundle name carries a content hash, so any one of them identifies the
- * build -- and a page holds the names it was served with, which is exactly what
- * makes a stale page detectable from inside itself. The live socket sends this,
- * and a page whose own bundle name differs knows it is running code that is no
- * longer deployed.
+ * It has to be every bundle, not one of them. This used to be the
+ * `events.service` filename alone, on the reasoning that any content-hashed
+ * name identifies the build -- and that is true of a build, but not of a
+ * *change*. webpack splits shared code out of the entries, so almost everything
+ * in this app lives in `shared-app`: the live socket, the camera multiplexer,
+ * the watchdogs. Two deploys in a row changed `shared-app` and left
+ * `events.service` byte-identical, so the id never moved, no open tab ever
+ * learned it was stale, and both fixes sat deployed and unreachable while the
+ * bug they fixed went on being reported. The tabs had been open sixteen hours.
  *
- * This matters more here than in most apps: an open tab keeps running the
- * JavaScript it loaded, so every deploy strands every tab, and a stale tab had
- * no way to find out. That is not a cosmetic problem -- the tabs stranded
- * during this work were holding six HTTP connections between them, which is a
- * whole browser's budget.
+ * Worse, it was invisible to testing: a freshly opened tab always has current
+ * code, so every check passed. Only a tab left open across a deploy shows it.
+ *
+ * The hash covers the worker manifests too -- the SSE worker and the live
+ * socket's SharedWorker are built by their own compilers and are not in the app
+ * manifest, so a change to either one would otherwise be just as silent.
  */
 function clientBuildId() {
-  const files = loadManifest()['events.service'];
-  const main = (Array.isArray(files) ? files : []).find((file) => file.includes('events.service'));
-  // The bare filename, because that is what a page can see of itself: the
-  // manifest stores `js/name.hash.min.js` and the page compares the last
-  // segment of its own script src. Returning the path here would never match,
-  // and every page would reload once on its first socket -- a bug that looks
-  // exactly like the one this is meant to fix.
-  return main ? main.split('/').pop() : null;
+  const everything = JSON.stringify([
+    loadManifest(),
+    readManifest(WORKER_MANIFEST_PATH, 'worker manifest'),
+    readManifest(SHARED_WORKER_MANIFEST_PATH, 'shared worker manifest'),
+  ]);
+  return crypto.createHash('sha1').update(everything).digest('hex').slice(0, 12);
 }
 
 /**

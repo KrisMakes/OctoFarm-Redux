@@ -49,6 +49,11 @@
         has no way to know its hash. This is how it finds out. %>
     <meta name="octofarm-worker-url" content="<%= workerScriptUrl() %>"/>
     <meta name="octofarm-shared-socket-url" content="<%= sharedSocketScriptUrl() %>"/>
+    <!-- Which build this page was served. Compared against what the live socket
+         reports is deployed; a page that differs reloads itself once. It is
+         published here rather than inferred from a script name so that both
+         sides are the same value computed the same way -- see clientBuildId. -->
+    <meta name="octofarm-build" content="<%= clientBuildId() %>"/>
     <title><%= octoFarmPageTitle %>: <%= page %></title>
     <%# Read synchronously by printer-action-buttons.service.js so the Maintenance
         Mode button can be hidden for farms without the plugin without an extra
