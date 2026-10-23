@@ -16,6 +16,7 @@ import { getFileRowID } from '../pages/file-manager/upload-queue.templates';
 import {
   getFilamentWarningTemplate,
   getFileTemplate,
+  getTemperatureLine,
   getFolderTemplate,
   noFilesToShow,
 } from '../pages/file-manager/file.template';
@@ -814,10 +815,53 @@ export default class FileManagerService {
         for (const file of currentFileList) {
           fileElem.insertAdjacentHTML('beforeend', getFileTemplate(file, printerURL, id));
         }
+        // Deliberately not awaited: the list is drawn and usable, and the
+        // temperatures fill themselves in behind it.
+        FileManagerService.fillTemperatures(id, currentFileList);
       } else {
         fileElem.insertAdjacentHTML('beforeend', noFilesToShow());
       }
     }
+  }
+
+  // Fills in the temperatures each file was sliced with.
+  //
+  // Asked for per row rather than carried in the file list, because the answer
+  // comes from reading the end of the gcode and the list must not wait on one
+  // read per file before it can be drawn. The rows appear immediately and the
+  // temperatures land a moment later; the server caches them, so this is one
+  // read per file ever rather than one per visit.
+  static async fillTemperatures(id, files) {
+    const waiting = files.filter((file) => document.getElementById(`fileTemps-${file.fullPath}`));
+    // A handful at a time: a folder of two hundred files must not open two
+    // hundred requests at once, and the printer answering them is also the one
+    // printing.
+    const inParallel = 4;
+    const fetchOne = async (file) => {
+      const element = document.getElementById(`fileTemps-${file.fullPath}`);
+      if (!element) {
+        return;
+      }
+      try {
+        const answer = await OctoFarmClient.get(
+          `printers/gcodeSettings/${id}?path=${encodeURIComponent(file.fullPath)}&date=${
+            file.uploadDate || 0
+          }`
+        );
+        element.innerHTML = getTemperatureLine(answer?.settings);
+      } catch (e) {
+        // A file that cannot be read says nothing, which is what the row
+        // already shows.
+      }
+    };
+    const queue = [...waiting];
+    await Promise.all(
+      Array.from({ length: Math.min(inParallel, queue.length) }, async () => {
+        while (queue.length) {
+          await fetchOne(queue.shift());
+        }
+      })
+    );
   }
 
   static async search(id) {

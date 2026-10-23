@@ -15,6 +15,7 @@ const { Script } = require('../services/server-scripts.service.js');
 const { getPrinterStoreCache } = require('../cache/printer-store.cache');
 const { copyFileToPrinters } = require('../services/printers/file-transfer.service');
 const { returnPrinterHealthChecks } = require('../store/printer-health-checks.store');
+const { gcodeSettingsFor } = require('../services/gcode-settings.service');
 const { getPluginList, getPluginNoticesList } = require('../store/octoprint-plugin-list.store');
 const { generatePrinterStatistics } = require('../services/printer-statistics.service');
 const { validateBodyMiddleware, validateParamsMiddleware } = require('../middleware/validators');
@@ -209,6 +210,31 @@ router.post('/updateSettings', ensureAuthenticated, ensureAdministrator, async (
     logger.error("Couldn't update settings...", e.message);
     res.send({ octofarm: 500, profile: 500, settings: 500 });
   }
+});
+
+// The temperatures a file was sliced with, which OctoPrint's file list does
+// not carry. Read from the end of the file itself and cached per file, so the
+// answer costs one ranged read ever rather than one per refresh.
+router.get('/gcodeSettings/:id', ensureAuthenticated, async (req, res) => {
+  const path = typeof req.query.path === 'string' ? req.query.path : null;
+  if (!path) {
+    res.sendStatus(400);
+    return;
+  }
+  const printer = getPrinterStoreCache().getPrinter(req.params.id);
+  if (!printer?.printerURL || !printer?.apikey) {
+    res.sendStatus(404);
+    return;
+  }
+  const settings = await gcodeSettingsFor(
+    printer.printerURL,
+    printer.apikey,
+    path,
+    Number(req.query.date) || 0
+  );
+  // null is a real answer -- this file carries no slicer configuration -- and
+  // the client shows nothing for it rather than asking again.
+  res.json({ settings });
 });
 
 router.get('/groups', ensureAuthenticated, async (req, res) => {

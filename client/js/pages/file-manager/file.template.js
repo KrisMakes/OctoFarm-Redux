@@ -71,6 +71,38 @@ const getCostLineTemplate = (icon, title, id, label, value) => {
   return `<i class="${icon}"></i> <span title="${title}" class="cost" id="${id}">${label}: ${shown}</span><br>`;
 };
 
+// Nozzle/bed, for the first layer and for the rest -- the two pairs that are
+// worth seeing before starting a print, and the ones a slicer writes into the
+// file. Shown as `First layer: 215/60  Others: 210/60`.
+//
+// An em dash stands in for a value the file does not carry, so a half-known
+// pair still says which half is missing rather than disappearing entirely.
+const temperaturePair = (nozzle, bed) => {
+  if (!nozzle && !bed) {
+    return null;
+  }
+  return `${nozzle || '&mdash;'}/${bed || '&mdash;'}`;
+};
+
+export const getTemperatureLine = (settings) => {
+  if (!settings) {
+    return '';
+  }
+  const parts = [];
+  const firstLayer = temperaturePair(settings.firstLayerNozzle, settings.firstLayerBed);
+  const others = temperaturePair(settings.nozzle, settings.bed);
+  if (firstLayer) {
+    parts.push(`First layer: ${firstLayer}`);
+  }
+  if (others) {
+    parts.push(`Others: ${others}`);
+  }
+  if (parts.length === 0) {
+    return '';
+  }
+  return ` <i class="fas fa-thermometer-half"></i> ${parts.join(' &nbsp; ')}`;
+};
+
 export const getFileTemplate = (file, printerURL, id) => {
   let toolInfo = '';
   if (file.toolUnits.length === 0) {
@@ -171,7 +203,10 @@ export const getFileTemplate = (file, printerURL, id) => {
   }"> ${dateString} ${timeString}</span><br>
                 <span class="size" id="fileSize-${file.fullPath}">${
     !!file?.fileSize ? Calc.bytes(file.fileSize) : getSpinnerElement()
-  }</span> <br>
+  }</span>
+                <span class="temps" title="Temperatures this file was sliced with: nozzle/bed" id="fileTemps-${
+                  file.fullPath
+                }"></span> <br>
             <span class="usage" title="Expected Filament Usage/Cost" id="fileTool-${
               file.fullPath
             }"> ${toolInfo} </span>
