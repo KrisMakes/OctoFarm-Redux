@@ -80,10 +80,17 @@ const HAND_BACK_AFTER_MS = 10000;
 const STARVED_MS = 5000;
 
 // Asking again fixes the usual case -- an intent that never arrived, a
-// subscription the other end does not think it has. If frames still do not
-// come after that, the connection itself is what is wrong, and it is rebuilt.
-// Much longer, because that is felt by every tab sharing the socket.
-const STARVED_BEYOND_ASKING_MS = 15000;
+// subscription the other end does not think it has -- and is tried first
+// because it is cheap. If frames still do not come, the connection itself is
+// what is wrong and it is rebuilt.
+//
+// Shortened from fifteen seconds on the evidence: across every trail returned
+// from the farm, asking again has never once brought a pane back, and
+// rebuilding has never once failed to. Rebuilding is also cheaper than it
+// looks -- the worker keeps its socket, so the server is not told anything
+// happened -- so there is little reason to sit on the cheap remedy once it has
+// had a fair chance.
+const STARVED_BEYOND_ASKING_MS = 10000;
 
 // And when rebuilding the connection does not bring them back either, the page
 // itself is thrown away -- which is what the person watching does, and has had
@@ -101,6 +108,30 @@ const STARVE_CHECK_EVERY_MS = 2500;
 // what this is for.
 const NOT_RUNNING_IF_LATE_BY_MS = 15000;
 
+// How long after coming back to a page the frames have to start again.
+//
+// Coming back is the moment all of this is judged on, and it is the moment the
+// slow path was costing the most: the trails show a tab returned to after eight
+// minutes away taking fifteen seconds to paint, because the starvation watch
+// cannot call a pane starved until five seconds have passed, then asks again,
+// then waits, and only then rebuilds the connection -- which is what works.
+//
+// Two seconds is already enormous for a camera sending thirty frames a second.
+// If one has not arrived by then, nothing is coming without intervention.
+//
+// This is deliberately measured in frames rather than in whether the worker is
+// answering, which is the mistake it replaces: the page asked "is my port
+// alive?", the worker answered because it was still sending channel payloads --
+// those go to every attached page, while frames are gated on the page being
+// visible and subscribed -- and the page concluded all was well while its panes
+// sat frozen. Routine chatter is not evidence that frames are flowing. Only
+// frames are.
+const FRAMES_BACK_WITHIN_MS = 2000;
+
+// A floor, so a burst of focus events cannot turn into a burst of reattaches.
+// Short, because every return deserves one attempt.
+const RETURN_RESET_FLOOR_MS = 6000;
+
 // Not oftener than this, however many panes are starved. A page with a dozen
 // cameras must not turn one outage into a dozen rebuilds, and ten tabs must
 // not turn it into ten.
@@ -114,6 +145,8 @@ let handBackTimer = null;
 let starveTimer = null;
 let lastResetAt = 0;
 let lastStarveCheckAt = 0;
+let returnTimer = null;
+let lastReturnResetAt = 0;
 // When this page was last getting what it asked for. Zero when it is.
 let starvingSince = 0;
 
@@ -788,6 +821,45 @@ const diagnosticSnapshot = () => {
   };
 };
 
+// Someone is looking at this page again. Whatever was or was not agreed with
+// the other end while nobody was, frames have to be arriving now.
+const checkFramesCameBack = () => {
+  returnTimer = null;
+  if (enabled !== true || !pageVisible) {
+    return;
+  }
+  const now = Date.now();
+  const owed = [...views.values()].filter(isOwedFrames);
+  if (owed.length === 0) {
+    return;
+  }
+  // Any one of them is enough: this is a question about the connection, not
+  // about a particular camera.
+  if (owed.some((view) => view.lastFrameAt && now - view.lastFrameAt < FRAMES_BACK_WITHIN_MS)) {
+    return;
+  }
+  if (now - lastReturnResetAt < RETURN_RESET_FLOOR_MS) {
+    return;
+  }
+  lastReturnResetAt = now;
+  note('no-frames-on-return', {
+    cameras: owed.map((view) => view.id.slice(-6)),
+    waitedMs: FRAMES_BACK_WITHIN_MS,
+  });
+  console.debug('Back on the page and no frames arrived, rebuilding the connection');
+  // The clocks start again with the new connection, or the starvation watch
+  // judges it on the gap that provoked this.
+  forgetFrameClocks(now);
+  resetLiveSocketNow();
+};
+
+const expectFramesBack = () => {
+  if (returnTimer !== null) {
+    clearTimeout(returnTimer);
+  }
+  returnTimer = setTimeout(checkFramesCameBack, FRAMES_BACK_WITHIN_MS);
+};
+
 const startStarvationWatch = () => {
   if (starveTimer !== null) {
     return;
@@ -918,7 +990,14 @@ const startVisibilityWatch = () => {
     if (visible !== pageVisible) {
       tell(visible);
     }
+    if (visible) {
+      expectFramesBack();
+    }
   });
+  // Switching back from another application never fires the event above -- on
+  // macOS the tab was the frontmost tab of a visible window the whole time --
+  // and the panes are just as capable of being frozen on the way back.
+  window.addEventListener('focus', expectFramesBack);
 };
 
 export const startCameraMultiplexer = () => {
