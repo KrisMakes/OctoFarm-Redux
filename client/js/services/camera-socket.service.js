@@ -870,6 +870,12 @@ const startStarvationWatch = () => {
 
 // --------------------------------------------------------------- the socket
 
+// Whether anything on this page is still going without frames it is owed.
+// Only consulted while the page is already in trouble, so the usual cost of
+// this is one comparison against zero.
+const anythingStillStarved = (now) =>
+  [...views.values()].some((view) => starvedFor(view, now) >= STARVED_MS);
+
 const dispatchFrame = (id, bytes) => {
   const targets = byId.get(id);
   if (!targets || targets.size === 0) {
@@ -880,6 +886,7 @@ const dispatchFrame = (id, bytes) => {
   // its own object URL from it, because each revokes its own. The Blob copies
   // the bytes, so the socket's buffer is not held.
   const blob = new Blob([bytes], { type: 'image/jpeg' });
+  const now = Date.now();
   notLive.delete(id);
   targets.forEach((img) => {
     const view = views.get(img);
@@ -890,11 +897,7 @@ const dispatchFrame = (id, bytes) => {
     // working, which is a separate question from whether this element wanted
     // the frame.
     const wasStarved = view.askedAgainAt > 0;
-    view.lastFrameAt = Date.now();
-    // A frame arrived, so whatever was wrong is not wrong now. This is the only
-    // thing that clears the trouble clock, because it is the only evidence that
-    // does not depend on a timer or a verdict from somewhere else.
-    starvingSince = 0;
+    view.lastFrameAt = now;
     if (wasStarved) {
       view.askedAgainAt = 0;
       note('starved-recovered', { camera: id.slice(-6) });
@@ -906,6 +909,24 @@ const dispatchFrame = (id, bytes) => {
       paint(view, blob);
     }
   });
+  // A frame arriving is the only evidence that clears the trouble clock -- it
+  // is the one thing that does not depend on a timer or on a verdict from
+  // somewhere else. But it clears the clock for the PAGE, and a frame proves
+  // only that the camera that sent it is working.
+  //
+  // That distinction is the whole of this. The clock is what the escalation
+  // ladder measures, and the ladder's bottom rung reloads the page when
+  // nothing else has worked. A farm has more than one camera, so clearing the
+  // clock on any frame meant a healthy camera wiped the record of a dead one
+  // thirty times a second: the gap could never accumulate past the rebuild
+  // rung, the rebuild reset the per-camera clocks, and the page rebuilt its
+  // connection every thirty seconds for as long as it was open without ever
+  // reaching the reload. The same loop as the two before it, reached through
+  // the second camera -- and invisible with only one, because a page whose
+  // only camera is dead receives no frames to clear anything with.
+  if (starvingSince !== 0 && !anythingStillStarved(now)) {
+    starvingSince = 0;
+  }
 };
 
 const handleState = (message) => {

@@ -84,6 +84,16 @@ const temperaturePair = (nozzle, bed) => {
   return `${nozzle || '&mdash;'}/${bed || '&mdash;'}`;
 };
 
+// The id of one row's temperature span.
+//
+// Scoped by printer, unlike the ids beside it. Every printer's file list is in
+// the document at once, so two printers holding a file of the same name -- which
+// is the normal result of copying a file from one to the other -- give two
+// elements the same id, and getElementById answers with whichever was rendered
+// first. The temperatures of one printer's file would be written into the
+// other's row, and the row they belonged to would stay empty.
+export const temperatureSpanId = (printerId, fullPath) => `fileTemps-${printerId}-${fullPath}`;
+
 export const getTemperatureLine = (settings) => {
   if (!settings) {
     return '';
@@ -204,9 +214,10 @@ export const getFileTemplate = (file, printerURL, id) => {
                 <span class="size" id="fileSize-${file.fullPath}">${
     !!file?.fileSize ? Calc.bytes(file.fileSize) : getSpinnerElement()
   }</span>
-                <span class="temps ml-3" title="Temperatures this file was sliced with: nozzle/bed" id="fileTemps-${
+                <span class="temps ml-3" title="Temperatures this file was sliced with: nozzle/bed" id="${temperatureSpanId(
+                  id,
                   file.fullPath
-                }"></span> <br>
+                )}"></span> <br>
             <span class="usage" title="Expected Filament Usage/Cost" id="fileTool-${
               file.fullPath
             }"> ${toolInfo} </span>

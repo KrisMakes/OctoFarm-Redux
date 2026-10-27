@@ -17,6 +17,7 @@ import {
   getFilamentWarningTemplate,
   getFileTemplate,
   getTemperatureLine,
+  temperatureSpanId,
   getFolderTemplate,
   noFilesToShow,
 } from '../pages/file-manager/file.template';
@@ -832,13 +833,15 @@ export default class FileManagerService {
   // temperatures land a moment later; the server caches them, so this is one
   // read per file ever rather than one per visit.
   static async fillTemperatures(id, files) {
-    const waiting = files.filter((file) => document.getElementById(`fileTemps-${file.fullPath}`));
+    const waiting = files.filter((file) =>
+      document.getElementById(temperatureSpanId(id, file.fullPath))
+    );
     // A handful at a time: a folder of two hundred files must not open two
     // hundred requests at once, and the printer answering them is also the one
     // printing.
     const inParallel = 4;
     const fetchOne = async (file) => {
-      const element = document.getElementById(`fileTemps-${file.fullPath}`);
+      const element = document.getElementById(temperatureSpanId(id, file.fullPath));
       if (!element) {
         return;
       }

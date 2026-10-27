@@ -36,7 +36,6 @@ const KEYS = {
   temperature: 'nozzle',
   first_layer_bed_temperature: 'firstLayerBed',
   bed_temperature: 'bed',
-  filament_type: 'filamentType',
   nozzle_temperature_initial_layer: 'firstLayerNozzle',
   nozzle_temperature: 'nozzle',
   hot_plate_temp_initial_layer: 'firstLayerBed',
@@ -48,6 +47,31 @@ const KEYS = {
 const SETTING_LINE = /^;\s*([a-z0-9_]+)\s*=\s*(.+?)\s*$/i;
 
 const firstValue = (raw) => String(raw).split(',')[0].trim();
+
+// Whether this is a path to a file in the printer's own store, and nothing
+// else.
+//
+// `encodeURIComponent` does not encode a dot, so a `..` segment survives it
+// intact -- and the URL is then normalised before the request is made, which
+// collapses the segment and walks out of the downloads directory. A path of
+// `../../../api/settings` becomes a GET of `/api/settings` carrying the
+// printer's API key: a route any signed-in user can reach, reaching anything
+// on the printer with a key they may not hold.
+//
+// Encoding harder is the wrong answer -- the file store's own paths contain
+// slashes, so the separators have to stay separators. What makes this safe is
+// that a legitimate path never needs a relative segment at all.
+const isInsideFileStore = (path) => {
+  if (typeof path !== 'string' || path.length === 0 || path.startsWith('/')) {
+    return false;
+  }
+  // Backslashes, because a server that normalises them to slashes would see a
+  // different path from the one checked here.
+  if (path.includes('\\') || path.includes('\0')) {
+    return false;
+  }
+  return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
+};
 
 const asTemperature = (raw) => {
   const value = Number(firstValue(raw));
@@ -61,7 +85,6 @@ const parseSettings = (text) => {
     nozzle: null,
     firstLayerBed: null,
     bed: null,
-    filamentType: null,
   };
   let any = false;
   for (const line of text.split('\n')) {
@@ -73,10 +96,10 @@ const parseSettings = (text) => {
     if (!field) {
       continue;
     }
-    const value = field === 'filamentType' ? firstValue(match[2]) : asTemperature(match[2]);
+    const value = asTemperature(match[2]);
     // The first spelling found wins, so a file carrying both dialects is not
     // read twice with the second answer overwriting a good first one.
-    if (value !== null && value !== '' && found[field] === null) {
+    if (value !== null && found[field] === null) {
       found[field] = value;
       any = true;
     }
@@ -98,6 +121,10 @@ const remember = (key, settings) => {
  * no configuration block must not be fetched again on every refresh.
  */
 async function gcodeSettingsFor(printerURL, apikey, path, uploadedAt) {
+  if (!isInsideFileStore(path)) {
+    logger.warning(`Refusing to read slicer settings from ${path}`);
+    return null;
+  }
   const key = `${printerURL}:${path}:${uploadedAt || 0}`;
   if (cache.has(key)) {
     return cache.get(key);

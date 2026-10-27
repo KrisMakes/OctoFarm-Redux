@@ -147,8 +147,8 @@ const MAX_CHANNELS_PER_CLIENT = 8;
 // a budget -- this is a home farm, not a broadcast.
 const MAX_CLIENTS = 128;
 
-// A socket that has asked for nothing this long after connecting is not a
-// viewer, it is a leftover: a SharedWorker whose pages have all gone, or a tab
+// A socket that has held nothing for this long is not a viewer, it is a
+// leftover: a SharedWorker whose pages have all gone, or a tab
 // whose bundle predates the fix that releases them. Left alone it holds one of
 // the handful of connections its browser is allowed, which in Safari is enough
 // to stop a further tab loading -- the exact bug this whole design exists to
@@ -253,8 +253,26 @@ function handleConnection(ws, request) {
     unackedBytes: 0,
     everAcked: false,
     since: Date.now(),
+    // When this socket last had nothing it wanted, or 0 while it wants
+    // something. See IDLE_WITHOUT_INTEREST_MS: what makes a socket a leftover
+    // is holding nothing for a long time, which is not the same as having
+    // connected a long time ago.
+    idleSince: Date.now(),
   };
   clientStats.set(ws, stats);
+
+  // Called wherever a subscription or a listen is added or dropped, so the
+  // idle clock below is started and stopped at the moment it changes rather
+  // than sampled by the heartbeat -- which runs every 25 seconds and would
+  // miss anything shorter than itself.
+  const interestChanged = () => {
+    const wantsSomething = subscriptions.size > 0 || listening.size > 0;
+    if (wantsSomething) {
+      stats.idleSince = 0;
+    } else if (stats.idleSince === 0) {
+      stats.idleSince = Date.now();
+    }
+  };
 
   // Payloads sent and not yet acknowledged, oldest first, as {stream, bytes}.
   // A WebSocket delivers in order and the client acknowledges a count, so the
@@ -350,6 +368,7 @@ function handleConnection(ws, request) {
     subscriptions.clear();
     listening.forEach((stop) => stop());
     listening.clear();
+    interestChanged();
   };
 
   const listen = (path) => {
@@ -391,6 +410,7 @@ function handleConnection(ws, request) {
     } else {
       stop();
     }
+    interestChanged();
   };
 
   const unlisten = (path) => {
@@ -400,6 +420,7 @@ function handleConnection(ws, request) {
     }
     listening.delete(path);
     stop();
+    interestChanged();
   };
 
   const subscribe = (id) => {
@@ -439,6 +460,7 @@ function handleConnection(ws, request) {
     } else {
       stop();
     }
+    interestChanged();
   };
 
   const unsubscribe = (id) => {
@@ -448,6 +470,7 @@ function handleConnection(ws, request) {
     }
     subscriptions.delete(id);
     stop();
+    interestChanged();
   };
 
   ws.on('message', (data, isBinary) => {
@@ -712,15 +735,14 @@ function attachLiveSocket(server, sessionMiddleware) {
         return;
       }
       const stats = clientStats.get(ws);
-      const interests = clientInterests.get(ws);
-      const wanted = interests ? interests() : null;
-      if (
-        stats &&
-        wanted &&
-        wanted.cameras.length === 0 &&
-        wanted.channels.length === 0 &&
-        Date.now() - stats.since > IDLE_WITHOUT_INTEREST_MS
-      ) {
+      // Held nothing for long enough to be a leftover rather than a viewer.
+      // Measured from when it last wanted something, not from when it
+      // connected: a long-lived shared socket is always "connected long ago",
+      // and its interests go briefly empty every time its last page reloads --
+      // the old page unlistens on the way out and the new one listens a moment
+      // later. Timed from the connection, a heartbeat landing in that gap
+      // closed a socket that was about to be used again.
+      if (stats && stats.idleSince && Date.now() - stats.idleSince > IDLE_WITHOUT_INTEREST_MS) {
         logger.debug('Closing a live socket that has asked for nothing');
         closeClient(ws, 1000, 'idle');
         return;

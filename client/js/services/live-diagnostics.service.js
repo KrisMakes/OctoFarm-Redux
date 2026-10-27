@@ -22,6 +22,8 @@
 // required for anything to work -- a page whose diagnostics fail entirely must
 // behave exactly as it did before this existed.
 
+import { ownBuild } from './stale-build.service';
+
 const TRAIL_KEY = 'octofarm-live-trail';
 const MAX_EVENTS = 60;
 const MAX_SAMPLES = 40;
@@ -74,15 +76,15 @@ export const provideDiagnosticSnapshot = (fn) => {
   snapshotProvider = fn;
 };
 
-const ownBuild = () =>
-  safely(() => {
-    const script = document.querySelector('script[src*="events.service"]');
-    return (script?.getAttribute('src') || '').split('/').pop() || null;
-  }, null);
-
 const trail = () => ({
   page: pageId,
-  build: ownBuild(),
+  // The same id the server computes and the stale-build check compares
+  // against. Derived here from the bundle name it used to be, it could never
+  // equal any id the server had: the name is one bundle's, the id is a hash
+  // over all of them, and two deploys that change only the shared chunk leave
+  // that one name identical -- which is the fault the build id was widened to
+  // cover, repeated in the thing that reports it.
+  build: safely(() => ownBuild(), null),
   // Which browser, because the failures here have been WebKit-specific and the
   // reports come from one browser while the testing happens in another.
   agent: safely(() => navigator.userAgent, null),

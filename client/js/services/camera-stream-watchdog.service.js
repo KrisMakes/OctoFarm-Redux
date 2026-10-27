@@ -72,7 +72,18 @@ const isSafari = () => /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(nav
 // reconnect to. The two services never touch the same element, and the
 // attribute is the whole of the agreement.
 const OWNED_CAMERAS = '.camImg:not([data-camera-mux])';
-const MODAL_CAMERAS = '.camImg[data-camera-src]:not([data-camera-mux])';
+
+// Those of them that carry a URL to be pointed at, which is how a direct
+// stream is started.
+//
+// This was called MODAL_CAMERAS, from when a camera inside a modal was the
+// only one held back from loading itself. Every camera is held back now -- see
+// the note in camera.template.js -- so the two selectors match the same
+// elements, and the old name said the opposite of what the selector did:
+// attachIdleCameras uses it across the whole page, not inside a modal. The
+// attribute is still required rather than assumed, because an element without
+// it would be given a src of "undefined".
+const ATTACHABLE_CAMERAS = '.camImg[data-camera-src]:not([data-camera-mux])';
 
 const isPlaceholderSrc = (src) => !src || src.endsWith('noCamera.jpg') || src.startsWith('data:');
 
@@ -482,7 +493,7 @@ const isUnattached = (img) => {
 };
 
 const attachIdleCameras = () => {
-  document.querySelectorAll(MODAL_CAMERAS).forEach((img) => {
+  document.querySelectorAll(ATTACHABLE_CAMERAS).forEach((img) => {
     if (!isUnattached(img) || img.offsetParent === null) {
       return;
     }
@@ -502,13 +513,13 @@ const attachModalCameras = () => {
     return;
   }
   window.$(document).on('shown.bs.modal', (event) => {
-    event.target?.querySelectorAll?.(MODAL_CAMERAS).forEach((img) => {
+    event.target?.querySelectorAll?.(ATTACHABLE_CAMERAS).forEach((img) => {
       img.src = img.dataset.cameraSrc;
     });
   });
   window.$(document).on('hidden.bs.modal', (event) => {
     // The URL stays in the data attribute, so reopening starts it again.
-    event.target?.querySelectorAll?.(MODAL_CAMERAS).forEach(releaseStream);
+    event.target?.querySelectorAll?.(ATTACHABLE_CAMERAS).forEach(releaseStream);
   });
 };
 

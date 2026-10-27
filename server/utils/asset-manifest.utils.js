@@ -24,6 +24,7 @@ let manifest = null;
 let workerManifest = null;
 let sharedWorkerManifest = null;
 let sharedFiles = null;
+let buildId = null;
 
 function readManifest(filePath, label) {
   try {
@@ -46,11 +47,22 @@ function loadManifest() {
  * client can no longer build it from the version alone -- layout.ejs publishes
  * this in a meta tag and client-worker.service.js reads it back.
  */
-function workerScriptUrl() {
+function loadWorkerManifest() {
   if (workerManifest === null) {
     workerManifest = readManifest(WORKER_MANIFEST_PATH, 'worker manifest');
   }
-  const file = workerManifest['sse.client'];
+  return workerManifest;
+}
+
+function loadSharedWorkerManifest() {
+  if (sharedWorkerManifest === null) {
+    sharedWorkerManifest = readManifest(SHARED_WORKER_MANIFEST_PATH, 'shared worker manifest');
+  }
+  return sharedWorkerManifest;
+}
+
+function workerScriptUrl() {
+  const file = loadWorkerManifest()['sse.client'];
   if (!file) {
     logger.error('No worker manifest entry for sse.client -- the monitoring views will not update');
     return '';
@@ -67,10 +79,7 @@ function workerScriptUrl() {
  * its own, which works -- it is only the per-tab connection cost that returns.
  */
 function sharedSocketScriptUrl() {
-  if (sharedWorkerManifest === null) {
-    sharedWorkerManifest = readManifest(SHARED_WORKER_MANIFEST_PATH, 'shared worker manifest');
-  }
-  const file = sharedWorkerManifest['live-socket.shared'];
+  const file = loadSharedWorkerManifest()['live-socket.shared'];
   if (!file) {
     logger.warning('No shared worker manifest entry -- every tab will open its own live socket');
     return '';
@@ -100,12 +109,21 @@ function sharedSocketScriptUrl() {
  * manifest, so a change to either one would otherwise be just as silent.
  */
 function clientBuildId() {
-  const everything = JSON.stringify([
-    loadManifest(),
-    readManifest(WORKER_MANIFEST_PATH, 'worker manifest'),
-    readManifest(SHARED_WORKER_MANIFEST_PATH, 'shared worker manifest'),
-  ]);
-  return crypto.createHash('sha1').update(everything).digest('hex').slice(0, 12);
+  // Worked out once. The manifests are written by the build and the process is
+  // replaced by a deploy, so this cannot change while the server is running --
+  // and it is asked for on every page render and on every socket that opens,
+  // which through the uncached reads this used to do was two synchronous file
+  // reads apiece, and an error logged on each of them when a manifest was
+  // missing rather than once.
+  if (buildId === null) {
+    const everything = JSON.stringify([
+      loadManifest(),
+      loadWorkerManifest(),
+      loadSharedWorkerManifest(),
+    ]);
+    buildId = crypto.createHash('sha1').update(everything).digest('hex').slice(0, 12);
+  }
+  return buildId;
 }
 
 /**

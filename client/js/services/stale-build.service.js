@@ -29,7 +29,10 @@ const RELOADED_FOR = 'octofarm-reloaded-for-build';
 // which will not match any id the server now computes -- and a page that cannot
 // match is exactly a page that should reload once. That is the only way the
 // tabs stranded by the bug this replaced can ever pick up current code.
-const ownBuild = () => {
+// Exported, because the diagnostic trail reports which build a page was
+// running and has to mean the same thing by it that this does -- a trail
+// naming a build the server never computed identifies nothing.
+export const ownBuild = () => {
   const meta = document.querySelector('meta[name="octofarm-build"]')?.content;
   if (meta) {
     return meta;
