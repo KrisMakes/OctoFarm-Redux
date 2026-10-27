@@ -873,13 +873,44 @@ const checkFramesCameBack = () => {
   if (owed.some((view) => view.lastFrameAt && now - view.lastFrameAt < FRAMES_BACK_WITHIN_MS)) {
     return;
   }
+  // Nothing can be concluded from a connection that is not up, nor from one so
+  // new it has not had its window yet -- and both are the ordinary state of a
+  // page that has just woken, because the port is replaced the moment it is
+  // found silent and the socket behind it is still reconnecting. So the window
+  // is measured from when the cameras were last asked for rather than from
+  // when somebody came back: on a socket that is up the server hands over the
+  // camera's latest frame in the same breath as the subscription (measured at
+  // 50ms, cold, from the server itself), which makes two seconds generous for
+  // a subscription that has been made and meaningless for one that has not.
+  //
+  // Judging it from the return instead is what a wake looked like in the
+  // diagnostics: port silent, reattach, and two seconds later a rebuild of a
+  // connection that was itself two seconds old -- then the same again every
+  // six seconds, each round throwing away a socket that was still connecting
+  // and starting its backoff from the beginning. Frames came back when a round
+  // happened to get lucky, which is the slow, self-correcting recovery that
+  // was reported. A page that really has come back to a dead connection still
+  // gets its rebuild; it gets it a few seconds later.
+  const askedAt = owed.reduce((at, view) => Math.max(at, view.subscribedAt || 0), 0);
+  const waitLonger = liveSocketStatus().up
+    ? askedAt + FRAMES_BACK_WITHIN_MS - now
+    : FRAMES_BACK_WITHIN_MS;
+  if (waitLonger > 0) {
+    returnTimer = setTimeout(checkFramesCameBack, waitLonger);
+    return;
+  }
   if (now - lastReturnResetAt < RETURN_RESET_FLOOR_MS) {
     return;
   }
   lastReturnResetAt = now;
+  // This is a rebuild, so the starvation ladder is told one has just happened.
+  // Without it the ladder's own rebuild rung is free to fire ten seconds later
+  // on top of this one, which is two rebuilds for one fault.
+  lastResetAt = now;
   note('no-frames-on-return', {
     cameras: owed.map((view) => view.id.slice(-6)),
     waitedMs: FRAMES_BACK_WITHIN_MS,
+    askedAgoMs: askedAt ? now - askedAt : null,
   });
   console.debug('Back on the page and no frames arrived, rebuilding the connection');
   // The clocks start again with the new connection, or the starvation watch
