@@ -149,6 +149,12 @@ let returnTimer = null;
 let lastReturnResetAt = 0;
 // When this page was last getting what it asked for. Zero when it is.
 let starvingSince = 0;
+// Cameras that have gone quiet since this page went into trouble, emptied as
+// each one is heard from again. Deliberately not rebuilt from the current
+// clocks on every check: rebuilding the connection resets those clocks, and a
+// record that a rebuild erases is the thing that stopped the ladder reaching
+// its bottom rung.
+const starvedCameras = new Set();
 
 // Cameras the server has said are not live. A printer that is switched off is
 // not a starved pane and must not provoke anything: there are no frames to be
@@ -634,6 +640,18 @@ const startDomObserver = () => {
 // however long it has been since it saw anything.
 const isOwedFrames = (view) => view.subscribed && view.onScreen && !notLive.has(view.id);
 
+// The same question asked of a camera rather than of one element showing it.
+const isCameraOwedFrames = (id) => {
+  const targets = byId.get(id);
+  if (!targets) {
+    return false;
+  }
+  return [...targets].some((img) => {
+    const view = views.get(img);
+    return view ? isOwedFrames(view) : false;
+  });
+};
+
 // How long this element has gone without a frame it should have had. Measured
 // from the subscription when none has ever arrived.
 const starvedFor = (view, now) => {
@@ -674,6 +692,7 @@ const forgetFrameClocks = (now) => {
 // for a gap that was nobody's fault there is nothing to escalate.
 const giveUpMeasuring = (now) => {
   forgetFrameClocks(now);
+  starvedCameras.clear();
   starvingSince = 0;
 };
 
@@ -699,6 +718,7 @@ const checkForStarvation = () => {
   // dialog, or every camera switched off -- so nothing is owed and nothing is
   // being withheld.
   if (![...views.values()].some(isOwedFrames)) {
+    starvedCameras.clear();
     starvingSince = 0;
     return;
   }
@@ -722,6 +742,21 @@ const checkForStarvation = () => {
     // rebuild before it, so the page could never conclude that rebuilding was
     // not helping, and it rebuilt every fifteen seconds for as long as it was
     // open. Caught in the harness, again.
+    return;
+  }
+  starved.forEach((view) => starvedCameras.add(view.id));
+  // A camera nobody is owed frames from any more is not in trouble, it is just
+  // not wanted: scrolled out of view, unsubscribed, or reported down by the
+  // server, which is a known fault rather than a silent one and is not
+  // something reloading this page would mend. Left in, it would hold the page
+  // in trouble forever and escalate all the way to a reload that cannot help.
+  starvedCameras.forEach((id) => {
+    if (!isCameraOwedFrames(id)) {
+      starvedCameras.delete(id);
+    }
+  });
+  if (starvedCameras.size === 0) {
+    starvingSince = 0;
     return;
   }
   if (starvingSince === 0) {
@@ -870,12 +905,6 @@ const startStarvationWatch = () => {
 
 // --------------------------------------------------------------- the socket
 
-// Whether anything on this page is still going without frames it is owed.
-// Only consulted while the page is already in trouble, so the usual cost of
-// this is one comparison against zero.
-const anythingStillStarved = (now) =>
-  [...views.values()].some((view) => starvedFor(view, now) >= STARVED_MS);
-
 const dispatchFrame = (id, bytes) => {
   const targets = byId.get(id);
   if (!targets || targets.size === 0) {
@@ -911,20 +940,24 @@ const dispatchFrame = (id, bytes) => {
   });
   // A frame arriving is the only evidence that clears the trouble clock -- it
   // is the one thing that does not depend on a timer or on a verdict from
-  // somewhere else. But it clears the clock for the PAGE, and a frame proves
-  // only that the camera that sent it is working.
+  // somewhere else. But a frame proves only that the camera that sent it is
+  // working, and the clock is the PAGE's, so it is cleared only once every
+  // camera that went quiet has been heard from again.
   //
-  // That distinction is the whole of this. The clock is what the escalation
-  // ladder measures, and the ladder's bottom rung reloads the page when
-  // nothing else has worked. A farm has more than one camera, so clearing the
-  // clock on any frame meant a healthy camera wiped the record of a dead one
-  // thirty times a second: the gap could never accumulate past the rebuild
-  // rung, the rebuild reset the per-camera clocks, and the page rebuilt its
-  // connection every thirty seconds for as long as it was open without ever
-  // reaching the reload. The same loop as the two before it, reached through
-  // the second camera -- and invisible with only one, because a page whose
-  // only camera is dead receives no frames to clear anything with.
-  if (starvingSince !== 0 && !anythingStillStarved(now)) {
+  // Clearing it on any frame at all was the third version of one bug. A farm
+  // has more than one camera, so a healthy camera wiped the record of a dead
+  // one thirty times a second: the gap could never accumulate past the rebuild
+  // rung, and the page rebuilt its connection every thirty seconds for as long
+  // as it was open without ever reaching the reload. Invisible with a single
+  // camera, because a page whose only camera is dead receives no frames to
+  // clear anything with.
+  //
+  // Testing "is anything starved right now" instead is not enough either: a
+  // rebuild resets the per-camera clocks, so for the next few seconds the dead
+  // camera looks healthy and the clock is wiped in that window exactly as
+  // before. What survives a rebuild is the list of who went quiet, which is
+  // why that, rather than a time, is what is kept.
+  if (starvedCameras.delete(id) && starvedCameras.size === 0) {
     starvingSince = 0;
   }
 };
