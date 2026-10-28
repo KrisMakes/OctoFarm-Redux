@@ -132,6 +132,27 @@ const FRAMES_BACK_WITHIN_MS = 2000;
 // Short, because every return deserves one attempt.
 const RETURN_RESET_FLOOR_MS = 6000;
 
+// How long the check below will wait for evidence before rebuilding anyway.
+//
+// It exists because "no frame has arrived" and "no frame could have arrived
+// yet" are not the same answer, and on a wake it is nearly always the second:
+// the port has just been replaced and the socket behind it is still
+// connecting. Waiting for the connection to be old enough to judge is right,
+// but it cannot be waited for forever -- a socket that never comes up is the
+// case this whole check exists for, and withholding the rebuild from it means
+// nothing ever rebuilds. Measured from the return, not from the connection, so
+// a connection that keeps restarting cannot keep pushing the deadline out.
+//
+// Six seconds, which is the handback's ten minus the time a rebuild needs to
+// land: ten seconds after the socket goes down the cameras are given back to
+// direct streams and this check stops running, so an escalation that has not
+// happened by then does not happen at all. Replayed against the wake, eight
+// was enough to miss it -- a page recovering from a wedged socket went to
+// direct streams on the way back, where six does not -- and six costs nothing
+// in the healthy wakes, which reach their first frame at the same moment
+// either way and still without a rebuild.
+const RETURN_PATIENCE_MS = 6000;
+
 // Not oftener than this, however many panes are starved. A page with a dozen
 // cameras must not turn one outage into a dozen rebuilds, and ten tabs must
 // not turn it into ten.
@@ -147,6 +168,9 @@ let lastResetAt = 0;
 let lastStarveCheckAt = 0;
 let returnTimer = null;
 let lastReturnResetAt = 0;
+// When the page was last come back to with its cameras unaccounted for. Zero
+// when there is no question outstanding.
+let returnAskedAt = 0;
 // When this page was last getting what it asked for. Zero when it is.
 let starvingSince = 0;
 // Cameras that have gone quiet since this page went into trouble, emptied as
@@ -871,6 +895,7 @@ const checkFramesCameBack = () => {
   // Any one of them is enough: this is a question about the connection, not
   // about a particular camera.
   if (owed.some((view) => view.lastFrameAt && now - view.lastFrameAt < FRAMES_BACK_WITHIN_MS)) {
+    returnAskedAt = 0;
     return;
   }
   // Nothing can be concluded from a connection that is not up, nor from one so
@@ -888,15 +913,26 @@ const checkFramesCameBack = () => {
   // connection that was itself two seconds old -- then the same again every
   // six seconds, each round throwing away a socket that was still connecting
   // and starting its backoff from the beginning. Frames came back when a round
-  // happened to get lucky, which is the slow, self-correcting recovery that
-  // was reported. A page that really has come back to a dead connection still
-  // gets its rebuild; it gets it a few seconds later.
+  // happened to get lucky, which is the slow recovery after sleep that was
+  // reported.
+  //
+  // But waiting for evidence with no deadline is worse than acting too early,
+  // which is how it was shipped and reported again the next morning as the
+  // cameras not coming back from sleep at all. A socket that stays down never
+  // produces the evidence, so there was always a reason to wait once more, and
+  // the rebuild -- the only remedy these panes have of their own, and the only
+  // thing that replaces a socket stuck part-way through reconnecting -- never
+  // happened. So the patience is bounded, and a page that really has come back
+  // to a dead connection still gets its rebuild; it gets it six seconds later
+  // than it used to.
   const askedAt = owed.reduce((at, view) => Math.max(at, view.subscribedAt || 0), 0);
-  const waitLonger = liveSocketStatus().up
-    ? askedAt + FRAMES_BACK_WITHIN_MS - now
-    : FRAMES_BACK_WITHIN_MS;
-  if (waitLonger > 0) {
-    returnTimer = setTimeout(checkFramesCameBack, waitLonger);
+  const up = liveSocketStatus().up;
+  const unjudgeable = up ? now - askedAt < FRAMES_BACK_WITHIN_MS : true;
+  // A check with no return behind it is treated as one that has only just
+  // asked, so an unattributed timer cannot be the thing that rebuilds.
+  const waitedFor = returnAskedAt ? now - returnAskedAt : 0;
+  if (unjudgeable && waitedFor < RETURN_PATIENCE_MS) {
+    returnTimer = setTimeout(checkFramesCameBack, FRAMES_BACK_WITHIN_MS);
     return;
   }
   if (now - lastReturnResetAt < RETURN_RESET_FLOOR_MS) {
@@ -909,17 +945,36 @@ const checkFramesCameBack = () => {
   lastResetAt = now;
   note('no-frames-on-return', {
     cameras: owed.map((view) => view.id.slice(-6)),
-    waitedMs: FRAMES_BACK_WITHIN_MS,
+    waitedMs: waitedFor,
+    // Both of these have been the whole answer at least once, and they are not
+    // visible from anywhere else: the socket can be up while the frames go
+    // nowhere, and it can be down while the server sees a perfectly healthy
+    // client -- the core acknowledges frames to the server whether or not any
+    // page is given them, so the server's own counters cannot tell these
+    // apart. Only the page knows.
+    socketUp: up,
     askedAgoMs: askedAt ? now - askedAt : null,
   });
+  // Reported as it happens rather than waiting for someone to reload. A page
+  // that fails to come back is exactly the page that never got round to
+  // uploading its trail -- which is why last night's failure left no record of
+  // itself anywhere.
+  sendDiagnosticTrail('no-frames-on-return');
   console.debug('Back on the page and no frames arrived, rebuilding the connection');
   // The clocks start again with the new connection, or the starvation watch
   // judges it on the gap that provoked this.
+  returnAskedAt = 0;
   forgetFrameClocks(now);
   resetLiveSocketNow();
 };
 
 const expectFramesBack = () => {
+  // The question belongs to the return, not to the timer: macOS fires a burst
+  // of focus events on the way back and each one re-arms the check, so timing
+  // the patience from the timer would let the burst push it out indefinitely.
+  if (returnAskedAt === 0) {
+    returnAskedAt = Date.now();
+  }
   if (returnTimer !== null) {
     clearTimeout(returnTimer);
   }
