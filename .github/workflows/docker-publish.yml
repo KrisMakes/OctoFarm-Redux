@@ -1,0 +1,94 @@
+name: Publish image
+
+# Builds monolithic.Dockerfile and pushes it to GitHub Container Registry, so
+# Unraid and Docker users can pull a release instead of building it themselves.
+#
+# Nothing is published until a v* tag is pushed. Two one-off setup steps are
+# needed on the repository before the first release:
+#   1. the package has to be made public once it exists
+#      (Packages -> octofarm-redux -> Package settings -> Change visibility),
+#      otherwise an anonymous `docker pull` gets a 401 and Community
+#      Applications reports the image as missing;
+#   2. nothing else - GITHUB_TOKEN already has the push permission granted below.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build and push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # linux/amd64 only. Unraid is x86_64, and the one other plausible target
+      # (arm64) would have to be cross-built under QEMU, which on an image this
+      # size costs more than the demand justifies.
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A tag push publishes the version and moves `latest`; a manual run
+      # publishes `edge` and leaves `latest` pointing at the last release.
+      - name: Work out the image tags
+        id: meta
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/octofarm-redux"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+            tags="${image}:${version},${image}:latest"
+          else
+            version="edge-${GITHUB_SHA::7}"
+            tags="${image}:edge"
+          fi
+          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Publishing ${tags}"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: monolithic.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          # Plain single-platform manifests. The default attestations turn the
+          # tag into a manifest index, which some registry clients and the
+          # Community Applications image check handle badly.
+          provenance: false
+          sbom: false
+          labels: |
+            org.opencontainers.image.title=OctoFarm-Redux
+            org.opencontainers.image.description=Maintained fork of OctoFarm - one web interface for multiple OctoPrint instances, with MongoDB bundled in the image.
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The health check only reports healthy once the server answers on 4000,
+      # so this fails the release if the published image cannot actually boot.
+      - name: Smoke-test the published image
+        run: |
+          image="$(echo '${{ steps.meta.outputs.tags }}' | cut -d, -f1)"
+          docker run -d --name smoke -e SUPER_SECRET_KEY=ci-smoke-test-key -p 4000:4000 "$image"
+          for i in $(seq 1 60); do
+            state="$(docker inspect -f '{{.State.Health.Status}}' smoke)"
+            [ "$state" = "healthy" ] && break
+            [ "$state" = "unhealthy" ] && break
+            sleep 5
+          done
+          echo "health: $state"
+          docker logs smoke | tail -40
+          docker rm -f smoke >/dev/null
+          [ "$state" = "healthy" ]

@@ -23,7 +23,8 @@
 - [About](#about)
 - [What's different from upstream](#whats-different-from-upstream)
 - [Getting Started](#getting-started)
-- [Installation Development](#installation-development)
+- [Installation](#installation)
+- [Development setup](#development-setup)
 - [Deployment](#deployment)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
@@ -356,7 +357,47 @@ documentation site (`docs.octofarm.net`) is offline and its domain has lapsed, s
 documentation lives in [the original repository](https://github.com/OctoFarm/OctoFarm). Everything specific to this
 fork is in this README.
 
-## Installation Development
+## Installation
+
+### Unraid
+
+The Unraid template is in this repository at [`templates/octofarm-redux.xml`](templates/octofarm-redux.xml) and is
+submitted to Community Applications, so the normal route is to search for **OctoFarm-Redux** in the **Apps** tab and
+install it from there. The image bundles MongoDB, so there is no second container to add.
+
+Two fields matter on first install:
+
+- **Session key** (`SUPER_SECRET_KEY`) - paste a long random string. The container generates one when it is left
+  empty, which logs every user out each time the container is recreated.
+- **Database config** (`/data/configdb`) - leave the mapping in place. The `mongo` base image declares that path
+  as a volume, so removing it strands an anonymous volume on every redeploy.
+
+Open the web interface afterwards and register the first account; it becomes the administrator.
+
+Coming from an existing OctoFarm install, point **Thumbnails** and **Scripts** at the old `images` and `scripts`
+folders and they carry over unchanged. The database does not: this image runs its own `mongod` against `/data/db`,
+so the old MongoDB container's contents have to be moved across with `mongodump` and `mongorestore`.
+
+### Docker
+
+Released images are published to GitHub Container Registry as `linux/amd64`:
+
+```sh
+docker run -d --name octofarm-redux --restart unless-stopped \
+  -p 4000:4000 \
+  -e SUPER_SECRET_KEY='a long random string' \
+  -e TZ=Europe/London \
+  -v /path/to/appdata/db:/data/db \
+  -v /path/to/appdata/configdb:/data/configdb \
+  -v /path/to/appdata/images:/app/images \
+  -v /path/to/appdata/logs:/app/logs \
+  -v /path/to/appdata/scripts:/scripts \
+  ghcr.io/krismakes/octofarm-redux:latest
+```
+
+Remove the container with `docker rm -v` so its anonymous volumes go with it.
+
+## Development setup
 
 ### Requirements
 - Git
@@ -416,8 +457,10 @@ npm run dev-server
 
 ## Deployment
 
-The running instance is built from `monolithic.Dockerfile`, which bundles MongoDB into the same image, so there is
-nothing else to deploy alongside it:
+Released images are built from `monolithic.Dockerfile` by
+[`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml), which runs on a `v*` tag, pushes
+`ghcr.io/krismakes/octofarm-redux`, and fails the release if the image it just pushed does not come up healthy. The
+same image builds locally, and bundles MongoDB, so there is nothing else to deploy alongside it:
 
 ```sh
 docker build -f monolithic.Dockerfile -t octofarm-redux:local .
@@ -436,7 +479,7 @@ output is committed under `server/assets/`, and a client-only edit without a reb
 
 ## License
 
-This work [is licensed](LICENSE.txt) under the [GNU Affero General Public License v3](https://www.gnu.org/licenses/agpl-3.0.html).
+This work [is licensed](LICENSE) under the [GNU Affero General Public License v3](https://www.gnu.org/licenses/agpl-3.0.html).
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
@@ -460,7 +503,7 @@ If you found your way here looking for OctoFarm itself, go to
 continuation. Note that upstream's website and documentation domains have lapsed - `octofarm.net` and
 `docs.octofarm.net` no longer resolve to the project - so the repository itself is all that is left of it.
 
-Like upstream, this fork stays under the same [AGPL-3.0 licence](LICENSE.txt) it was given under.
+Like upstream, this fork stays under the same [AGPL-3.0 licence](LICENSE) it was given under.
 
 ## Support
 

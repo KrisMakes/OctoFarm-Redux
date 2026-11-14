@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Community Applications repository profile. CA reads this file from the root of
+  the default branch when the repository is submitted at https://ca.unraid.net/submit,
+  and shows <Profile> as the repository's description next to its templates.
+  The templates themselves live in templates/.
+-->
+<CommunityApplications>
+  <Profile>
+    OctoFarm-Redux is a maintained fork of OctoFarm, the web interface that unifies
+    multiple OctoPrint instances into one dashboard. Upstream development stopped at
+    the end of 2022; this fork brings it back to current dependencies and fixes the
+    faults that had accumulated, without changing how the application works day to day.
+    The Unraid image here is self-contained - MongoDB runs inside the same container,
+    so there is nothing to deploy alongside it.
+  </Profile>
+  <Icon>https://raw.githubusercontent.com/KrisMakes/OctoFarm-Redux/master/server/assets/images/android-chrome-512x512.png</Icon>
+  <WebPage>https://github.com/KrisMakes/OctoFarm-Redux</WebPage>
+  <DonateText>OctoFarm-Redux is free. If it is useful to you, you can leave a tip.</DonateText>
+  <DonateLink>https://ko-fi.com/krismakes</DonateLink>
+</CommunityApplications>

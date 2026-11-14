@@ -27,8 +27,10 @@ because it is long and it is the one place worth keeping current. In outline:
   messages as HTML by design and upstream has declined to change that, so the untrusted values that reach a
   dialog - gcode file and folder paths, printer names, spool labels - are escaped at the call sites instead.
   Session and secret handling was tightened separately.
-* **Build** - a working CI workflow, a single `monolithic.Dockerfile` that bundles MongoDB, and a reproducible
-  client build that CI verifies against the committed bundles.
+* **Build and distribution** - a working CI workflow, a single `monolithic.Dockerfile` that bundles MongoDB, and a
+  reproducible client build that CI verifies against the committed bundles. Released images are published to
+  `ghcr.io/krismakes/octofarm-redux` by a tag-triggered workflow that refuses to publish an image which does not
+  come up healthy, and the repository ships an Unraid Community Applications template for installing them.
 
 Licensing is unchanged: AGPL-3.0, as upstream released it. See
 [Acknowledgements](https://github.com/KrisMakes/OctoFarm-Redux#acknowledgements) - this fork exists only because
