@@ -25,7 +25,10 @@
     "javascript",
     "3d-printing"
   ],
-  "author": "James Mackay (NotExpectedYet)",
+  "author": "KrisMakes",
+  "contributors": [
+    "James Mackay (NotExpectedYet) - original author of OctoFarm"
+  ],
   "license": "AGPL-3.0-only",
   "devDependencies": {
     "@babel/core": "^7.19.3",
