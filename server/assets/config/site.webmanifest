@@ -1,6 +1,6 @@
 {
-  "name": "OctoFarm",
-  "short_name": "OctoFarm",
+  "name": "OctoFarm-Redux",
+  "short_name": "Redux",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
