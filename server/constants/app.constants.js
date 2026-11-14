@@ -12,7 +12,7 @@ const VERSION_KEY = 'npm_package_version';
 
 const defaultMongoStringUnauthenticated = 'mongodb://127.0.0.1:27017/octofarm';
 const defaultOctoFarmPort = 4000;
-const defaultOctoFarmPageTitle = 'OctoFarm';
+const defaultOctoFarmPageTitle = 'OctoFarm-Redux';
 const defaultProductionEnv = 'production';
 const defaultTestEnv = 'test';
 const knownEnvNames = ['development', 'production', 'test'];
