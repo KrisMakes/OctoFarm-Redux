@@ -590,9 +590,12 @@ export default class OctoPrintClient {
     if (!post?.ok) {
       UI.createAlert(
         'error',
-        `${printerName}: Failed to complete ${action}<br> Status: ${post.statusText}`,
+        `${escapeHtml(printerName)}: Failed to complete ${escapeHtml(
+          action
+        )}<br> Status: ${escapeHtml(post.statusText)}`,
         3000,
-        'Clicked'
+        'Clicked',
+        true
       );
     } else {
       UI.createAlert('success', `${printerName}: Successfully ${action}!`, 3000, 'Clicked');

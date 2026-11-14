@@ -1,5 +1,6 @@
 import OctoFarmClient from '../../services/octofarm-client.service';
 import UI from '../../utils/ui';
+import { escapeHtml } from '../../utils/html.utils';
 import Calc from '../../utils/calc';
 import FileOperations from '../../utils/file';
 import { setupOctoPrintForTimelapses } from '../../services/octoprint/octoprint-settings.actions';
@@ -256,7 +257,8 @@ async function restartOctoFarmServer() {
         "<a type=”noopener” href='https://github.com/KrisMakes/OctoFarm-Redux#readme'> " +
         'OctoFarm Service Setup </a> for more information ',
       5000,
-      'clicked'
+      'clicked',
+      true
     );
   }
 
@@ -525,7 +527,7 @@ async function clearOldLogs() {
             let message = '';
 
             deletedLogs.forEach((log) => {
-              message += `${log}<br>`;
+              message += `${escapeHtml(log)}<br>`;
               const logLine = document.getElementById(`log-${log}`);
               if (!!logLine) {
                 logLine.remove();
@@ -536,7 +538,8 @@ async function clearOldLogs() {
               'success',
               'Successfully cleaned house! <br>' + message,
               3000,
-              'clicked'
+              'clicked',
+              true
             );
           }
         }

@@ -554,10 +554,10 @@ export default class FileManagerService {
           const prettyFolderList = [];
           const prettyFilesList = [];
           deletedList.deletedFiles.forEach((file) => {
-            prettyFilesList.push(`${file}<br>`);
+            prettyFilesList.push(`${escapeHtml(file)}<br>`);
           });
           deletedList.deletedFolders.forEach((folder) => {
-            prettyFolderList.push(`${folder}<br>`);
+            prettyFolderList.push(`${escapeHtml(folder)}<br>`);
           });
 
           setTimeout(async () => {
@@ -567,17 +567,19 @@ export default class FileManagerService {
             if (deletedList.deletedFiles.length > 0) {
               UI.createAlert(
                 'success',
-                'Successfully deleted files: <br>' + prettyFilesList,
+                'Successfully deleted files: <br>' + prettyFilesList.join(''),
                 5000,
-                'Clicked'
+                'Clicked',
+                true
               );
             }
             if (deletedList.deletedFolders.length > 0) {
               UI.createAlert(
                 'success',
-                'Successfully deleted folders: <br>' + prettyFolderList,
+                'Successfully deleted folders: <br>' + prettyFolderList.join(''),
                 5000,
-                'Clicked'
+                'Clicked',
+                true
               );
             }
             await FileManagerSortingService.loadSort(printer._id);
@@ -1549,9 +1551,15 @@ export class FileActions {
       // Sticky: a partial failure is the case worth reading, and it names both
       // the printer and OctoPrint's own reason.
       const detail = failed
-        .map((entry) => `${entry.printerName ?? entry.id}: ${entry.reason}`)
+        .map((entry) => `${escapeHtml(entry.printerName ?? entry.id)}: ${escapeHtml(entry.reason)}`)
         .join('<br>');
-      UI.createAlert('error', `${fileName} did not reach:<br>${detail}`, 0, 'clicked');
+      UI.createAlert(
+        'error',
+        `${escapeHtml(fileName)} did not reach:<br>${detail}`,
+        0,
+        'clicked',
+        true
+      );
     }
   }
 

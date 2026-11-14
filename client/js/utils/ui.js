@@ -1,4 +1,5 @@
 import Noty from 'noty';
+import { escapeHtml } from './html.utils';
 
 const printerSettingsModal = document.getElementById('printerSettingsModal');
 const printerManagerModal = document.getElementById('printerManagerModal');
@@ -58,8 +59,16 @@ export default class UI {
     message.insertAdjacentHTML('beforeend', row);
   }
 
-  //Create toast notification
-  static createAlert(type, message, delay, click) {
+  /**
+   * Toast notification.
+   *
+   * Noty renders `text` as HTML. Nearly every call site interpolates values we
+   * do not control - printer names, gcode file and folder paths, statusText
+   * relayed from an OctoPrint instance - so `message` is escaped by default.
+   * The handful of callers that genuinely need markup pass `allowHtml` and are
+   * responsible for escaping their own interpolations with escapeHtml.
+   */
+  static createAlert(type, message, delay, click, allowHtml = false) {
     if (click != undefined) {
       click = ['click'];
     } else {
@@ -73,7 +82,7 @@ export default class UI {
       closeWith: click,
       timeout: delay,
       layout: 'bottomRight',
-      text: message,
+      text: allowHtml ? message : escapeHtml(message),
     });
     alert.show();
     return alert;

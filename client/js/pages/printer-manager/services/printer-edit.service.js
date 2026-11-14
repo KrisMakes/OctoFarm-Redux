@@ -1,4 +1,5 @@
 import UI from '../../../utils/ui';
+import { escapeHtml } from '../../../utils/html.utils';
 import OctoFarmClient from '../../../services/octofarm-client.service';
 import { findIndex } from 'lodash';
 
@@ -69,9 +70,12 @@ export default class PrinterEditService {
         printerNameElement.value = newPrinterName;
         UI.createAlert(
           'success',
-          `Successfully generated new printer name! ${newPrinterName}<br> Don't forget to save!`,
+          `Successfully generated new printer name! ${escapeHtml(
+            newPrinterName
+          )}<br> Don't forget to save!`,
+          3000,
           'clicked',
-          3000
+          true
         );
       } else {
         UI.createAlert(
