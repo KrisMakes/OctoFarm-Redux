@@ -178,7 +178,7 @@ passport.serializeUser((user, done) => done(null, user._id));
 passport.deserializeUser((id, done) =>
   id === 'deleted-user'
     ? done(null, false)
-    : done(null, { _id: id, name: 'Kris', username: 'kris', group: 'Administrator' })
+    : done(null, { _id: id, name: 'Test User', username: 'testuser', group: 'Administrator' })
 );
 
 const app = express();

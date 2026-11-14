@@ -1,3 +1,12 @@
+// node-input-validator's own `mime` and `dimensions` rules are unusable here.
+// The library pins vulnerable `file-type` and `image-size` versions, so
+// server/package.json overrides both to patched majors whose call shapes the
+// library's rules no longer match -- `file-type` is ESM-only from v17 and
+// `image-size` changed its export in v2, so loading either rule would throw.
+// Nothing in this codebase uses them (no file-upload route validates a mime
+// type or image size), so the overrides are safe. If an upload route ever
+// needs those checks, write them as `extend`ed rules below against the
+// override'd APIs rather than reaching for the built-ins.
 const nodeInputValidator = require('node-input-validator');
 const { ValidationException } = require('../exceptions/runtime.exceptions');
 const { databaseNamesList } = require('../constants/database.constants');

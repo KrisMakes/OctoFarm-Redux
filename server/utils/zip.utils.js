@@ -1,6 +1,9 @@
 const { createWriteStream, createReadStream } = require('fs');
 const { join } = require('path');
-const archiver = require('archiver');
+// archiver 8 is ESM-only and no longer exports a format factory; the format
+// classes are named exports instead. The instance API (append, directory,
+// finalize, pointer) is unchanged.
+const { ZipArchive } = require('archiver');
 const Logger = require('../handlers/logger.js');
 const { LOGGER_ROUTE_KEYS } = require('../constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.UTILS_ZIP);
@@ -17,7 +20,7 @@ async function createZipFile(fileName, filePaths) {
   await checkIfFileFileExistsAndDeleteIfSo(currentZipFile);
 
   const output = createWriteStream(currentZipFile);
-  const archive = archiver('zip', {
+  const archive = new ZipArchive({
     zlib: { level: 9 }, // Sets the compression level.
   });
 

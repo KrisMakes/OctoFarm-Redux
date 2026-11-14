@@ -95,7 +95,29 @@ const FROZEN_IF_LATE_BY_MS = 20000;
 // cost that scales with the number of tabs. The caution that made a wake wait
 // instead of reattaching was aimed at a thundering herd of sockets that this
 // cannot produce.
-const WAKE_ANSWER_MS = 2000;
+//
+// Two seconds was the first guess at "short" and it turned out to be the whole
+// of the delay. Measured from six trails this farm's own browser sent back over
+// a day, every one of them a return after at least thirty-five seconds away:
+// the wake check found the port silent at 2003ms, 2012ms, 2045ms and 2162ms --
+// never anything else, because a dead port is dead immediately and the only
+// variable was this timer -- and the reattach that fixed it took 28ms, with the
+// worker id unchanged either side. So the picture came back about two seconds
+// after a return and all but thirty milliseconds of that was this page waiting
+// to be sure.
+//
+// Half a second is still two orders of magnitude more than the answer takes
+// when there is one, and the cost of being wrong is the paragraph above: a
+// MessagePort, no reconnection, nothing the server sees. Being wrong early is
+// cheaper than being right late.
+//
+// It also stops the camera multiplexer's own detector firing on top of this
+// one. That one gives the frames two seconds to reappear and then rebuilds the
+// whole connection, which in the trails landed in the same millisecond as the
+// reattach -- a socket thrown away immediately after a port swap had already
+// put it right. A reattach at half a second has the frames back long before
+// that check runs.
+const WAKE_ANSWER_MS = 500;
 
 // How long a reattach may take before everything riding on the socket is told
 // it is gone.

@@ -2,7 +2,10 @@
   "name": "octofarm",
   "version": "2.0.0",
   "main": "server/app.js",
-  "author": "James Mackay (NotExpectedYet)",
+  "author": "KrisMakes",
+  "contributors": [
+    "James Mackay (NotExpectedYet) - original author of OctoFarm"
+  ],
   "description": "OctoFarm is a easy to setup and install web interface that unifies your Octoprint instances for easy monitoring of all your printers. OctoFarm allows you to connect to multiple octoprint instances on your network allowing creating a farm management system. You can control, manage, upload files to any of your instances without ever leaving the tab it's open in.",
   "scripts": {
     "start": "cd server && npm run start",
@@ -25,9 +28,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/DaniSim-Dev/OctoFarm-Redux"
+    "url": "https://github.com/KrisMakes/OctoFarm-Redux"
   },
-  "license": "ISC",
+  "license": "AGPL-3.0-only",
   "devDependencies": {
     "@babel/core": "^7.23.3",
     "@babel/eslint-parser": "^7.23.3",

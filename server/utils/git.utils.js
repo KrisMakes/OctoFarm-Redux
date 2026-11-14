@@ -1,4 +1,6 @@
-const simpleGit = require('simple-git');
+// simple-git 4 dropped the CommonJS default export; the factory is a named
+// export now. Everything else this file uses kept the same signature.
+const { simpleGit } = require('simple-git');
 const { resolve, join } = require('path');
 const { existsSync } = require('fs');
 

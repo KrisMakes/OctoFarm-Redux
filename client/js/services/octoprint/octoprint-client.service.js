@@ -9,6 +9,7 @@ import {
   lengthsForCurrentJob,
   lengthsForFile,
 } from '../filament-preflight.service';
+import { escapeHtml } from '../../utils/html.utils';
 
 // A cancelled print leaves the nozzle parked over the plate, in the way of
 // whatever has to come off it. The lift is relative, so it is ten centimetres
@@ -129,7 +130,7 @@ export default class OctoPrintClient {
   static async system(printer, action) {
     const url = 'system/commands/core/' + action;
     bootbox.confirm({
-      message: `Are your sure you want to ${action} ${printer.printerName}?`,
+      message: `Are your sure you want to ${action} ${escapeHtml(printer.printerName)}?`,
       buttons: {
         cancel: {
           label: '<i class="fa fa-times"></i> No',

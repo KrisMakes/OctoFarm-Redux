@@ -1,4 +1,4 @@
-![Status](https://img.shields.io/badge/status-private%20fork-orange)
+![Status](https://img.shields.io/badge/status-maintained%20fork-brightgreen)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 ![Based on](https://img.shields.io/badge/based%20on-OctoFarm-9b59b6)
 
@@ -8,14 +8,15 @@
   <img src="server/assets/images/navbar-logo.png" alt="OctoFarm-Redux logo" width="180px">
 
   <p align="center">
-    OctoFarm-Redux is a personal, private fork of <a href="https://github.com/OctoFarm/OctoFarm">OctoFarm</a>, created by <a href="https://github.com/NotExpectedYet">James Mackay (NotExpectedYet)</a> and its contributors - a single pane of glass that combines multiple OctoPrint instances into one interface, monitoring and managing a 3D printer farm over the OctoPrint API and websocket systems.
+    OctoFarm-Redux is a personal fork of <a href="https://github.com/OctoFarm/OctoFarm">OctoFarm</a>, created by <a href="https://github.com/NotExpectedYet">James Mackay (NotExpectedYet)</a> and its contributors - a single pane of glass that combines multiple OctoPrint instances into one interface, monitoring and managing a 3D printer farm over the OctoPrint API and websocket systems.
   </p>
 
   <p align="center">
     <strong>Everything here rests on their work.</strong> The application, its architecture, and very nearly all of the
     code are theirs; they built it, and they gave it away for free under the AGPL. This fork only maintains what they
     made. Upstream OctoFarm is no longer being updated, so this repository keeps bugfixes and small improvements
-    landing on top of it. It is not a public project, a successor, or a community fork - just their work, kept running.
+    landing on top of it. It is not a successor or a community fork - just their work, kept running, and shared in case it is
+    useful to anyone else.
   </p>
 </div>
 
@@ -311,6 +312,9 @@ plugin not installed on that printer) rather than disappearing.
 - Spool weight bookkeeping and snapshot capture had inverted or incomplete guard conditions.
 - A database write failure could silently look like it succeeded to the code that requested it.
 - Task presets used by more than one scheduled task could cross-contaminate each other's settings.
+- Log and plugin-manager downloads produced a zero-byte or broken zip, and the Git-based version check threw on
+  startup. Both were the same class of break: `archiver` and `simple-git` changed how they export their factory
+  across a major version, so the old `require(...)` call silently produced something that was not a function.
 
 ### Security
 
@@ -322,6 +326,16 @@ plugin not installed on that printer) rather than disappearing.
 - Removed a long-deprecated HTTP library and a stale dependency with a known sandbox-escape vulnerability.
 - The live event stream no longer responds to unauthenticated requests.
 - Your session cookie is no longer forwarded to third-party printers through the camera/file proxy.
+- Every advisory `npm audit` reports against the server is resolved: thirteen down to none, ten of which were in
+  the production tree. Where an upgrade existed it was taken; where a library pinned a vulnerable transitive
+  dependency and upstream had gone quiet, that dependency is pinned to a patched version through an `overrides`
+  entry; and `node-upnp-ssdp`, unmaintained since 2015, was dropped for a small built-in SSDP client that does
+  only what printer auto-discovery actually needs.
+- The client's bundled libraries went from thirty advisories to one. The remaining one is bootbox, and it has no
+  fix: it renders dialog messages and titles as HTML by design, and upstream closed the report as out of scope,
+  so there is no patched release to move to. Instead, every untrusted value that reaches a dialog - gcode file and
+  folder paths, printer names, spool labels, strings relayed from an OctoPrint instance - is escaped at the call
+  site, behind one shared helper that documents why.
 
 ### Developer / build
 
@@ -346,13 +360,13 @@ fork is in this README.
 
 ### Requirements
 - Git
-- NodeJS > v14
+- Node.js >= 20.19.0 (the Docker image and CI both use Node 24)
 - npm
 
 1. Clone the repo
 
 ```sh
-git clone https://github.com/DaniSim-Dev/OctoFarm-Redux.git
+git clone https://github.com/KrisMakes/OctoFarm-Redux.git
 ```
 
 2. Install the mono-repo eslint dependencies (eslint, prettier and nodemon)
@@ -376,7 +390,7 @@ OCTOFARM_PORT=4000
 
 5. Build the latest client
 ```sh
-npm run build-client
+npm run build
 ```
 
 6. (Optional) Watch for client changes, requires a secondary console.
@@ -387,14 +401,14 @@ npm run dev-client
 7. Start the server
 
 ```sh
-npm run server-dev
+npm run dev-server
 ```
 - The developer version uses nodemon for live server reloading on changes, and outputs all logs to the console.
 
 ## Deployment
 
-The running instance is built from `monolithic.Dockerfile` (bundles MongoDB in one image) rather than the plain
-`Dockerfile` at the repo root, which expects an external Mongo:
+The running instance is built from `monolithic.Dockerfile`, which bundles MongoDB into the same image, so there is
+nothing else to deploy alongside it:
 
 ```sh
 docker build -f monolithic.Dockerfile -t octofarm-redux:local .
@@ -442,7 +456,7 @@ Like upstream, this fork stays under the same [AGPL-3.0 licence](LICENSE.txt) it
 ## Support
 
 OctoFarm-Redux is free. If the work in this fork - the fixes and additions listed above - has been useful to you,
-you can leave a tip at [ko-fi.com/danisim](https://ko-fi.com/danisim). Entirely optional; nothing is locked behind
+you can leave a tip at [ko-fi.com/krismakes](https://ko-fi.com/krismakes). Entirely optional; nothing is locked behind
 it.
 
 [DashboardScreenshot]: screenshots/dashboard.png

@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/DaniSim-Dev/OctoFarm-Redux"
+    "url": "https://github.com/KrisMakes/OctoFarm-Redux"
   },
   "keywords": [
     "octofarm",
@@ -26,7 +26,7 @@
     "node"
   ],
   "author": "James Mackay (NotExpectedYet)",
-  "license": "ISC",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
@@ -55,13 +55,12 @@
     "multer": "^2.3.0",
     "node-fetch": "^3.3.2",
     "node-input-validator": "^4.5.0",
-    "node-upnp-ssdp": "^0.1.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "passport-remember-me": "0.0.1",
     "sanitize": "^2.1.2",
     "semver": "^7.3.5",
-    "simple-git": "^3.14.1",
+    "simple-git": "^4.0.2",
     "systeminformation": "^5.12.6",
     "table": "^6.8.0",
     "toad-scheduler": "^4.2.0",
@@ -89,6 +88,21 @@
     "utf-8-validate": "^5.0.9"
   },
   "devDependencies": {
-    "nodemon": "^2.0.20"
+    "nodemon": "^3.1.14"
+  },
+  "overrides": {
+    "passport-remember-me": {
+      "passport": "^0.7.0"
+    },
+    "readdir-glob": {
+      "minimatch": "^11.0.8"
+    },
+    "node-input-validator": {
+      "image-size": "^2.1.0",
+      "file-type": "^22.3.0"
+    },
+    "nodemon": {
+      "minimatch": "^11.0.8"
+    }
   }
 }

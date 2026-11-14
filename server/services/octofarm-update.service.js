@@ -41,6 +41,13 @@ async function syncLatestOctoFarmRelease(includePrereleases = false) {
       }
       if (!githubReleases) {
         return Promise.resolve(null);
+      } else if (!Array.isArray(githubReleases)) {
+        // Expected while the repository is private: the releases endpoint 404s.
+        const reason = githubReleases?.message ?? 'unexpected response from github';
+        logger.warning(`Latest release check failed: ${reason}`);
+        lastReleaseCheckFailed = true;
+        lastReleaseCheckError = reason;
+        return Promise.resolve(null);
       } else {
         if (!!githubReleases && githubReleases.length > 0) {
           const latestRelease = findGithubRelease(githubReleases, includePrereleases);
@@ -50,7 +57,16 @@ async function syncLatestOctoFarmRelease(includePrereleases = false) {
             includePrereleases,
             packageVersion
           );
-          if (!!latestRelease && !!latestRelease.tag_name) {
+          if (!latestRelease) {
+            // No release matched: every release is a draft, or they are all
+            // prereleases and prereleases were not requested.
+            logger.debug('Latest release check failed because latestRelease not set');
+            lastReleaseCheckFailed = true;
+          } else if (!latestRelease.tag_name) {
+            // Falsy tag_name is very unlikely - probably tests only
+            lastReleaseCheckFailed = false;
+            notificationReady = false;
+          } else {
             delete latestRelease.body;
             delete latestRelease.author;
             loadedWithPrereleases = includePrereleases;
@@ -59,13 +75,6 @@ async function syncLatestOctoFarmRelease(includePrereleases = false) {
             latestReleaseKnown = latestRelease;
             notificationReady =
               latestRelease.tag_name !== packageVersion && !!installedReleaseFound;
-          } else if (!latestRelease.tag_name) {
-            // Falsy tag_name is very unlikely - probably tests only
-            lastReleaseCheckFailed = false;
-            notificationReady = false;
-          } else {
-            logger.debug('Latest release check failed because latestRelease not set');
-            lastReleaseCheckFailed = true;
           }
         } else {
           logger.debug('Latest release check failed because releases from gitty empty');

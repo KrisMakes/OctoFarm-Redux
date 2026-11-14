@@ -40,6 +40,7 @@ import {
 } from '../../services/printer-filament-selector.service';
 import { checkKlipperState } from '../../services/octoprint/checkKlipperState.actions';
 import { isInViewport } from '../../utils/window.utils';
+import { escapeHtml } from '../../utils/html.utils';
 
 // Keyed by printer id / group name, so plain objects rather than arrays.
 let elems = {};
@@ -131,7 +132,7 @@ async function addListeners(printer) {
       const print = returnPrinterInfo(printer._id);
       const name = printer.printerName;
       bootbox.confirm({
-        message: `${name}: <br>Are you sure you want to cancel the ongoing print?`,
+        message: `${escapeHtml(name)}: <br>Are you sure you want to cancel the ongoing print?`,
         buttons: {
           cancel: {
             label: '<i class="fa fa-times"></i> Cancel',

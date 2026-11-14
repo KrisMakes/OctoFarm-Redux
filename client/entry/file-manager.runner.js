@@ -16,6 +16,7 @@ import { ApplicationError } from '../js/exceptions/application-error.handler';
 import { initFileManagerDensity } from '../js/pages/file-manager/file-manager-density.service';
 import { initFileThumbnailPreview } from '../js/pages/file-manager/file-manager-thumbnail-preview.service';
 import '../js/services/gcode-scripts.service';
+import { escapeHtml } from '../js/utils/html.utils';
 
 initFileManagerDensity();
 initFileThumbnailPreview();
@@ -309,11 +310,6 @@ class Manager {
       FileManagerService.toggleHousekeepingMode();
     });
     fileButtons.fileManager.fileHouseKeepingByAge.addEventListener('click', () => {
-      const escapeHtml = (str) =>
-        str.replace(
-          /[&<>"']/g,
-          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
-        );
       const folderList = printer.fileList.folderList;
       const excludeFoldersHtml =
         folderList.length > 0

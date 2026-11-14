@@ -8,15 +8,15 @@
 // The client has its own copy at client/js/constants/links.constants.js
 // because nothing under client/ imports from server/. Change both together.
 
-const REPO_URL = 'https://github.com/DaniSim-Dev/OctoFarm-Redux';
+const REPO_URL = 'https://github.com/KrisMakes/OctoFarm-Redux';
 
 const LINKS = {
   REPO_URL,
   ISSUES_URL: `${REPO_URL}/issues`,
   README_URL: `${REPO_URL}#readme`,
   RELEASE_TAG_URL: `${REPO_URL}/releases/tag/`,
-  RELEASES_API_URL: 'https://api.github.com/repos/DaniSim-Dev/OctoFarm-Redux/releases',
-  KOFI_URL: 'https://ko-fi.com/danisim',
+  RELEASES_API_URL: 'https://api.github.com/repos/KrisMakes/OctoFarm-Redux/releases',
+  KOFI_URL: 'https://ko-fi.com/krismakes',
 };
 
 module.exports = { LINKS, REPO_URL };

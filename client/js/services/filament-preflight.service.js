@@ -1,5 +1,6 @@
 import OctoFarmClient from './octofarm-client.service';
 import { spoolNumberLabel } from '../pages/filament-manager/filament-manager.templates';
+import { escapeHtml } from '../utils/html.utils';
 
 // Warns before a print starts when the spool assigned to that tool may not
 // have enough filament left to finish it.
@@ -70,13 +71,26 @@ const spoolLabel = (spool) => {
  */
 export const lengthsForFile = (printer, fullPath) => {
   const file = printer?.fileList?.fileList?.find((entry) => entry.fullPath === fullPath);
-  // `length`, not `filamentLength`: the file record is built in
-  // create-octoprint.service.js from gcodeAnalysis.filament[tool].length, one
-  // entry per tool, in millimetres. `filamentLength` is a different, scalar
-  // field that only exists on history records -- reading it here silently
-  // yielded undefined for every file, so this returned null every time and the
-  // whole check short-circuited to "fine" without ever comparing anything.
-  const lengths = file?.length;
+  // `filamentLength`, not `length`. OctoPrint's own file record does call this
+  // `length`, and create-octoprint.service.js builds it from
+  // gcodeAnalysis.filament[tool].length -- but that raw record is not what
+  // reaches the client. file-cleaner.service.js renames the field on the way
+  // out (`filamentLength: file?.length || 0`) and the cleaned record is what
+  // the printer store serves, so `length` is simply absent here.
+  //
+  // Reading `length` therefore matched nothing on every file, lengthsForFile
+  // returned null every time, and confirmEnoughFilament short-circuited to
+  // "fine" before comparing anything -- so the gate was silently dead from
+  // a09e58a6 until this. Verified against a live record on 2026-11-08:
+  //   filamentLength: [10221.537540001562]   length: undefined
+  // taken from the same printerInfo payload whose server-side filamentWarning
+  // already read "has -3527.6g left, this needs 30.5g". The server saw it; only
+  // the dialog could not.
+  //
+  // Absent analysis is `0` rather than an array (see file-cleaner above), which
+  // the Array.isArray guard below turns back into null -- a file OctoPrint has
+  // not finished reading yet is still something this says nothing about.
+  const lengths = file?.filamentLength;
   return Array.isArray(lengths) && lengths.length ? lengths : null;
 };
 
@@ -147,16 +161,16 @@ const isEnabled = async () => {
 const grams = (value) => `${value.toFixed(1)}g`;
 
 const describe = (warning, withPrinterName) => {
-  const who = withPrinterName ? `<b>${warning.printerName}</b> &mdash; ` : '';
+  const who = withPrinterName ? `<b>${escapeHtml(warning.printerName)}</b> &mdash; ` : '';
   const tool = warning.tool > 0 ? ` (tool ${warning.tool})` : '';
   if (warning.short) {
-    return `${who}${warning.spoolLabel}${tool} has ${grams(
+    return `${who}${escapeHtml(warning.spoolLabel)}${tool} has ${grams(
       warning.remaining
     )} left, this print needs ${grams(warning.needed)} &mdash; about ${grams(
       warning.shortfall
     )} short.`;
   }
-  return `${who}${warning.spoolLabel}${tool} has ${grams(
+  return `${who}${escapeHtml(warning.spoolLabel)}${tool} has ${grams(
     warning.remaining
   )} left, this print needs ${grams(warning.needed)}. That is cutting it fine.`;
 };

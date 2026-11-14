@@ -253,7 +253,7 @@ async function restartOctoFarmServer() {
       'error',
       'Service restart failed... ' +
         'Please check: ' +
-        "<a type=”noopener” href='https://github.com/DaniSim-Dev/OctoFarm-Redux#readme'> " +
+        "<a type=”noopener” href='https://github.com/KrisMakes/OctoFarm-Redux#readme'> " +
         'OctoFarm Service Setup </a> for more information ',
       5000,
       'clicked'

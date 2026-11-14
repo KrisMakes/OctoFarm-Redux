@@ -11,7 +11,7 @@ function returnErrorMessage(options) {
      ${options.name} ERROR ${statusCode}: 
      <br>
      <div class="py-3">
-        Please report this error to <a href="https://github.com/DaniSim-Dev/OctoFarm-Redux/issues">OctoFarm Issues</a>!
+        Please report this error to <a href="https://github.com/KrisMakes/OctoFarm-Redux/issues">OctoFarm Issues</a>!
      </div>
      ${options?.message ? options.message : options.toString()}
   `;

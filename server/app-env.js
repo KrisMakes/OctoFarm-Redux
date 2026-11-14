@@ -12,7 +12,7 @@ const { LOGGER_ROUTE_KEYS } = require('./constants/logger.constants');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVER_ENVIRONMENT, false);
 
 // Constants and definition
-const instructionsReferralURL = 'https://github.com/DaniSim-Dev/OctoFarm-Redux#readme';
+const instructionsReferralURL = 'https://github.com/KrisMakes/OctoFarm-Redux#readme';
 const deprecatedConfigFolder = '../middleware';
 const deprecatedConfigFilePath = deprecatedConfigFolder + '/db.js';
 const packageJsonPath = path.join(__dirname, '../package.json');

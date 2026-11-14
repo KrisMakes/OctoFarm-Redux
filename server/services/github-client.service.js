@@ -26,6 +26,17 @@ async function getGithubReleasesPromise() {
     },
   }).then(async (res) => {
     const data = await res.json();
+    if (!Array.isArray(data)) {
+      // A private, renamed or missing repository answers with an object such as
+      // { message: 'Not Found' } rather than the releases array. Returned as-is
+      // so the caller can still read `message` (rate limiting relies on that).
+      logger.warning(
+        `Release check did not return a list (HTTP ${res.status}): ${
+          data?.message ?? 'unexpected response'
+        }`
+      );
+      return data;
+    }
     logger.debug(`Received ${data.length} releases from github.`);
     return data;
   });

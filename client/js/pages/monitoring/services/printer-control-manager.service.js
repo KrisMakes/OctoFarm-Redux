@@ -24,6 +24,7 @@ import { ClientErrors } from '../../../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../../../exceptions/application-error.handler';
 import { setupModalSwitcher } from './modal-switcher.service';
 import { findIndex } from 'lodash';
+import { escapeHtml } from '../../../utils/html.utils';
 
 let currentIndex = 0;
 
@@ -757,7 +758,9 @@ export default class PrinterControlManagerService {
     });
     elements.printerControls.printStop.addEventListener('click', async (e) => {
       bootbox.confirm({
-        message: `${currentPrinter.printerName}: <br>Are you sure you want to cancel the ongoing print?`,
+        message: `${escapeHtml(
+          currentPrinter.printerName
+        )}: <br>Are you sure you want to cancel the ongoing print?`,
         buttons: {
           cancel: {
             label: '<i class="fa fa-times"></i> Cancel',

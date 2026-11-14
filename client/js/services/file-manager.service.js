@@ -26,17 +26,11 @@ import { ClientErrors } from '../exceptions/octofarm-client.exceptions';
 import { ApplicationError } from '../exceptions/application-error.handler';
 import { findIndex } from 'lodash';
 import { readOctoPrintError } from './octoprint/octoprint.helpers-commands.actions';
+import { escapeHtml } from '../utils/html.utils';
 
 // Sentinel for the extra entry in the move dialog's folder list. Not a path any
 // OctoPrint folder could be called.
 const COPY_TO_PRINTER_OPTION = '__octofarm_copy_to_printer__';
-
-const escapeHtml = (value) =>
-  String(value ?? '').replace(
-    /[&<>"']/g,
-    (character) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])
-  );
 
 const fileUploads = new Queue();
 
@@ -1563,7 +1557,7 @@ export class FileActions {
 
   static deleteFile(printer, fullPath) {
     bootbox.confirm({
-      message: `Are you sure you want to delete ${fullPath}?`,
+      message: `Are you sure you want to delete ${escapeHtml(fullPath)}?`,
       buttons: {
         cancel: {
           label: '<i class="fa fa-times"></i> Cancel',
@@ -1639,7 +1633,7 @@ export class FileActions {
 
   static deleteFolder(printer, fullPath) {
     bootbox.confirm({
-      message: `Are you sure you want to delete ${fullPath}?`,
+      message: `Are you sure you want to delete ${escapeHtml(fullPath)}?`,
       buttons: {
         cancel: {
           label: '<i class="fa fa-times"></i> Cancel',

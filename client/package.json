@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/DaniSim-Dev/OctoFarm-Redux"
+    "url": "https://github.com/KrisMakes/OctoFarm-Redux"
   },
   "publishConfig": {
     "access": "public"
@@ -26,19 +26,19 @@
     "3d-printing"
   ],
   "author": "James Mackay (NotExpectedYet)",
-  "license": "ISC",
+  "license": "AGPL-3.0-only",
   "devDependencies": {
     "@babel/core": "^7.19.3",
     "@babel/preset-env": "^7.19.3",
     "apexcharts": "^3.35.5",
-    "axios": "^0.27.2",
+    "axios": "^1.21.1",
     "babel-loader": "^8.2.5",
     "before-build-webpack": "^0.2.12",
     "bootbox": "^5.5.2",
     "bootstrap": "^4.3.1",
     "browserlist": "^1.0.1",
     "css-loader": "^6.7.1",
-    "css-minimizer-webpack-plugin": "^4.2.0",
+    "css-minimizer-webpack-plugin": "^8.0.0",
     "flatted": "^3.2.7",
     "gridstack": "^6.0.2",
     "jquery": "^3.6.1",

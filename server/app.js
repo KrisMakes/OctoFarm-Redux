@@ -9,10 +9,6 @@ const {
   runMigrations,
 } = require('./app-env');
 
-function bootAutoDiscovery() {
-  require('./services/octoprint-auto-discovery.service.js');
-}
-
 // Set environment/.env file and NODE_ENV if not set. Will call startup checks.
 setupEnvConfig();
 
@@ -151,5 +147,3 @@ mongoose
       process.send('ready');
     }
   });
-
-bootAutoDiscovery();

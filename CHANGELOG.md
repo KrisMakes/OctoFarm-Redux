@@ -1,3 +1,43 @@
+## [2.0.0](https://github.com/KrisMakes/OctoFarm-Redux/releases/tag/v2.0.0) - OctoFarm-Redux
+
+The first release of OctoFarm-Redux, a maintained fork of
+[OctoFarm](https://github.com/OctoFarm/OctoFarm) by James Mackay (NotExpectedYet) and its contributors. Upstream
+development stopped after 1.7.3; this picks up from there.
+
+The major version is a fork marker, not a rewrite. The application, its data model and its user interface are
+upstream's; nothing here replaces them. It is 2.0.0 rather than 1.8.0 because the dependency stack underneath it
+moved a long way - Node 20+ only, MongoDB 8, Mongoose 8, Express 5, Webpack 5 - and because the Docker image and
+the update checker now point at this repository instead of upstream's, which is not something a patch release
+should do to an existing install.
+
+The full list of changes - new features, improvements, bug fixes, security and build work - is kept in the README,
+under [What's different from upstream](https://github.com/KrisMakes/OctoFarm-Redux#whats-different-from-upstream),
+because it is long and it is the one place worth keeping current. In outline:
+
+* **Dependencies** - every end-of-life runtime and library brought back up to date, including the Node, MongoDB and
+  Express major versions above. Upstream's own CI could not have passed on the versions it pinned.
+* **Fixes** - a long tail of bugs that were never fixed upstream, in the file manager, the filament and spool
+  manager, history, the live websocket layer, camera handling and the printer connection logic.
+* **Features** - file housekeeping and age-based sweeps, filament preflight checks, a reworked dashboard, camera
+  multiplexing, and other additions on top of what upstream shipped.
+* **Security** - every advisory `npm audit` reports against the server is resolved: 13 down to none, 10 of them in
+  the production tree, by upgrades where one existed, by pinning a patched transitive version where it did not,
+  and by dropping `node-upnp-ssdp` (unmaintained since 2015) for a small built-in SSDP client. The client's
+  bundled libraries went from 30 advisories to one. That one is bootbox, and it has no fix: it renders dialog
+  messages as HTML by design and upstream has declined to change that, so the untrusted values that reach a
+  dialog - gcode file and folder paths, printer names, spool labels - are escaped at the call sites instead.
+  Session and secret handling was tightened separately.
+* **Build** - a working CI workflow, a single `monolithic.Dockerfile` that bundles MongoDB, and a reproducible
+  client build that CI verifies against the committed bundles.
+
+Licensing is unchanged: AGPL-3.0, as upstream released it. See
+[Acknowledgements](https://github.com/KrisMakes/OctoFarm-Redux#acknowledgements) - this fork exists only because
+that work was given away for free.
+
+---
+
+Everything below this line is upstream OctoFarm's own changelog, kept as it was.
+
 ### [1.7.3](https://github.com/OctoFarm/OctoFarm/compare/v1.7.2...v1.7.3) (2022-10-04)
 
 
