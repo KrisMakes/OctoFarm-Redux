@@ -381,7 +381,16 @@ npm install
 npm run setup-dev
 ```
 
-4. Create an `.env` file in the project root, e.g. `OctoFarm-Redux/.env`.
+4. Create an `.env` file in the project root, e.g. `OctoFarm-Redux/.env`. Every
+   setting is documented in [`.env.example`](.env.example), and every one has a
+   default, so copying it unedited is enough to start:
+
+```sh
+cp .env.example .env
+```
+
+   The minimum, if you would rather write it yourself:
+
 ```dotenv
 NODE_ENV=development
 MONGO=mongodb://127.0.0.1:27017/octofarm
