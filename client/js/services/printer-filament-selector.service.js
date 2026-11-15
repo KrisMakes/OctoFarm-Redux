@@ -2,6 +2,7 @@ import OctoFarmClient from './octofarm-client.service';
 import { isFilamentManagerPluginSyncEnabled } from './octoprint/filament-manager-plugin.service';
 import { selectFilament } from '../pages/filament-manager/filament-manager.actions';
 import { spoolNumberLabel } from '../pages/filament-manager/filament-manager.templates';
+import { escapeHtml } from '../utils/html.utils';
 
 const dropDownListTemplate = (spool, multiSelect) => {
   const { spoolID, spoolNumber, spoolRemain, spoolMaterial, spoolManufacturer, selected } = spool;
@@ -10,14 +11,34 @@ const dropDownListTemplate = (spool, multiSelect) => {
   if (selected && !multiSelect) {
     disabled = 'disabled';
   }
-  if (multiSelect) {
-    return `
-        <option value="${spoolID}" ${disabled}>${spoolName} - ${spoolMaterial} (${spoolManufacturer})</option>
+  const label = multiSelect
+    ? `${spoolName} - ${spoolMaterial} (${spoolManufacturer})`
+    : `${spoolName} (${spoolRemain}g) - ${spoolMaterial} (${spoolManufacturer})`;
+  // The label goes in a title too: the selectors are narrow enough that a spool
+  // name is usually cut off mid-word, and `setSelectTooltip` copies the chosen
+  // option's title onto the select so hovering the box shows the whole thing.
+  return `
+        <option value="${escapeHtml(spoolID)}" ${disabled} title="${escapeHtml(
+    label
+  )}">${escapeHtml(label)}</option>
     `;
+};
+
+/**
+ * Mirror the selected option's label onto the <select> itself, so hovering the
+ * collapsed box reveals the full spool name that the fixed width truncates.
+ * "No Spool" is the placeholder rather than a name, so it gets no tooltip.
+ */
+export const setSelectTooltip = (element) => {
+  if (!element) {
+    return;
+  }
+  const selected = element.options[element.selectedIndex];
+  const label = selected?.text?.trim();
+  if (!label || element.value === '0') {
+    element.removeAttribute('title');
   } else {
-    return `
-        <option value="${spoolID}" ${disabled}>${spoolName} (${spoolRemain}g) - ${spoolMaterial} (${spoolManufacturer})</option>
-    `;
+    element.title = label;
   }
 };
 
@@ -52,8 +73,8 @@ export const returnMiniFilamentSelectorTemplate = (printerID, toolNumber) => {
             </div>
             <select class="custom-select bg-secondary text-light" id="tool-${printerID}-${toolNumber}-miniFilamentSelect"></select>
             <div class="input-group-append">
-                <label id="${printerID}-temperature-${toolNumber}" class="input-group-text" for="tool-${printerID}-${toolNumber}-miniFilamentSelect">
-                    <i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</label>
+                <span id="${printerID}-temperature-${toolNumber}" class="input-group-text" title="Actual / target tool temperature">
+                    <i class="far fa-circle"></i>&nbsp;0°C&nbsp;<i class="fas fa-bullseye"></i>&nbsp;0°C</span>
             </div>
         </div>
     `;
@@ -86,6 +107,7 @@ async function redrawMiniFilamentDropDownList(element, printer, toolIndex, filam
       element.value = selectedFilament[toolIndex]._id;
     }
   }
+  setSelectTooltip(element);
 }
 
 async function redrawFilamentDropDownList(element, printer, toolIndex) {
@@ -103,6 +125,7 @@ async function redrawFilamentDropDownList(element, printer, toolIndex) {
       element.value = selectedFilament[toolIndex]._id;
     }
   }
+  setSelectTooltip(element);
 }
 
 export async function drawHistoryDropDown(element, selectedID) {
@@ -117,6 +140,7 @@ export async function drawHistoryDropDown(element, selectedID) {
   } else {
     element.value = '0';
   }
+  setSelectTooltip(element);
 }
 
 export async function fillFilamentDropDownList(element, printer, toolIndex) {
