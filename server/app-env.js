@@ -381,21 +381,37 @@ function fetchSuperSecretKey() {
 }
 
 function ensureSuperSecretKeySet() {
+  if (process.env[AppConstants.SUPER_SECRET_KEY]) {
+    logger.info(`✓ ${AppConstants.SUPER_SECRET_KEY} environment variable set!`);
+    return;
+  }
+
   const newlyGeneratedKey = AppConstants.defaultSuperSecretKey;
 
-  if (!process.env[AppConstants.SUPER_SECRET_KEY]) {
-    logger.info(
-      `~ ${AppConstants.SUPER_SECRET_KEY} environment variable is not set. Setting new randomly generated Key!: ${AppConstants.SUPER_SECRET_KEY}=${newlyGeneratedKey}.`
+  // Never log the key itself. It signs every session cookie, and these logs are
+  // written to disk, shipped in bug reports and readable through `docker logs`.
+  logger.info(
+    `~ ${AppConstants.SUPER_SECRET_KEY} environment variable is not set. Generated a new random key.`
+  );
+
+  // In a container this write is a no-op by design, so the key lives only in
+  // this process and the next start issues a different one - which logs every
+  // user out. Say so, rather than reporting a save that did not happen. The
+  // container entrypoint sets the variable from the data volume to avoid this,
+  // so reaching here under Docker means that was bypassed.
+  if (isDocker()) {
+    logger.warning(
+      `${AppConstants.SUPER_SECRET_KEY} cannot be persisted inside a container, so this key lasts only until the next restart and every session will be invalidated then. Pass ${AppConstants.SUPER_SECRET_KEY} in as an environment variable to keep sessions alive.`
     );
+  } else {
     envUtils.writeVariableToEnvFile(
       path.resolve(dotEnvPath),
       AppConstants.SUPER_SECRET_KEY,
       newlyGeneratedKey
     );
-    process.env[AppConstants.SUPER_SECRET_KEY] = newlyGeneratedKey.toString();
-  } else {
-    logger.info(`✓ ${AppConstants.SUPER_SECRET_KEY} environment variable set!`);
   }
+
+  process.env[AppConstants.SUPER_SECRET_KEY] = newlyGeneratedKey.toString();
 }
 
 module.exports = {

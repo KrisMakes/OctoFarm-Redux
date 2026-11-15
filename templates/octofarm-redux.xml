@@ -25,7 +25,7 @@
 &#xD;
 It is a maintained fork of OctoFarm, whose development stopped at the end of 2022. The application works the same way; this fork is current dependencies, fixes and small additions on top. The image is self-contained - MongoDB runs inside the container - so there is nothing to deploy alongside it.&#xD;
 &#xD;
-Set SUPER_SECRET_KEY to a long random string before you start the container. It is the session signing key, and the container generates a new one whenever the variable is empty, which logs everyone out every time the container is recreated.&#xD;
+The session key can be left empty. The container generates one on first start and keeps it in the data volume, so logins survive a restart. Set SUPER_SECRET_KEY yourself only if you would rather manage the key, or need the same key on two installs.&#xD;
 &#xD;
 Both MongoDB paths have to be mapped. The mongo base image declares /data/db and /data/configdb as volumes, so leaving /data/configdb unmapped strands an anonymous volume on every redeploy.&#xD;
 &#xD;
@@ -51,7 +51,7 @@ Open the web interface after the first start and register the first account; it 
   <Config Name="Scripts" Target="/scripts" Default="/mnt/user/appdata/octofarm-redux/scripts" Mode="rw" Description="Scripts the alert system can run on printer events. Same path as upstream OctoFarm. Leave it mapped even if you use no scripts." Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/octofarm-redux/scripts</Config>
   <Config Name="MongoDB log" Target="/data/logs" Default="/mnt/user/appdata/octofarm-redux/mongo-logs" Mode="rw" Description="Where the bundled mongod writes its own log. Only needed if you want to read it from outside the container." Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/octofarm-redux/mongo-logs</Config>
 
-  <Config Name="Session key" Target="SUPER_SECRET_KEY" Default="" Mode="" Description="Signing key for login sessions. Paste a long random string - 40 or more characters. Leaving it empty is allowed but means a new key on every container start, which logs every user out." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Session key" Target="SUPER_SECRET_KEY" Default="" Mode="" Description="Signing key for login sessions. Leave empty and the container generates one on first start and keeps it in the data volume, so logins survive a restart. Fill it in only to manage the key yourself - a long random string, 40 or more characters." Type="Variable" Display="always" Required="false" Mask="true"></Config>
   <Config Name="Time zone" Target="TZ" Default="" Mode="" Description="Container time zone, for example Europe/London. Leave empty for UTC. Timestamps in the history and log views follow it." Type="Variable" Display="always" Required="false" Mask="false"></Config>
   <Config Name="Site title" Target="OCTOFARM_SITE_TITLE" Default="OctoFarm-Redux" Mode="" Description="Name shown in the browser tab and the navigation bar." Type="Variable" Display="advanced" Required="false" Mask="false">OctoFarm-Redux</Config>
   <Config Name="Log level" Target="LOG_LEVEL" Default="info" Mode="" Description="One of info, debug or silly. Raise it only while chasing a problem - debug and silly are noisy." Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>

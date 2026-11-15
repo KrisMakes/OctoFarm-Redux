@@ -294,7 +294,9 @@ plugin not installed on that printer) rather than disappearing.
 - Old temperature history was never actually cleaned up - over 2 million stale records had piled up.
 - File-action errors (delete, move, select) showed the same vague message for every possible cause.
 - A crashed background task used to bring down the entire app; it's now logged and the app keeps running.
-- Login sessions no longer reset on every restart.
+- Login sessions no longer reset on every restart. The session store moved into MongoDB, and the container now
+  keeps its signing key in the data volume instead of minting a new one each start - either one on its own
+  would still have logged everybody out.
 - Container shutdowns are now clean instead of abrupt (previously risked database corruption).
 - A finished print could keep showing "Complete" and stale progress after the file was unselected.
 - The file manager's upload queue could silently upload the wrong file and drop one from the queue when more than
@@ -368,8 +370,9 @@ install it from there. The image bundles MongoDB, so there is no second containe
 
 Two fields matter on first install:
 
-- **Session key** (`SUPER_SECRET_KEY`) - paste a long random string. The container generates one when it is left
-  empty, which logs every user out each time the container is recreated.
+- **Session key** (`SUPER_SECRET_KEY`) - safe to leave empty. The container generates one on first start and keeps
+  it in the data volume, so logins survive a restart or a recreation. Set it explicitly only if you would rather
+  manage the key yourself, or need the same key across two installs.
 - **Database config** (`/data/configdb`) - leave the mapping in place. The `mongo` base image declares that path
   as a volume, so removing it strands an anonymous volume on every redeploy.
 
@@ -472,8 +475,9 @@ Two things to get right when redeploying, both easy to miss:
 - The base image is `mongo:8.0`, which declares **both** `/data/db` and `/data/configdb` as volumes. Map only
   `/data/db` and Docker invents an anonymous volume for `/data/configdb`; remove the old container without `-v`
   and that volume is stranded, every single deploy. Map both paths, and remove with `docker rm -v`.
-- Pass `SUPER_SECRET_KEY` in explicitly. The container generates one when it is missing, so letting it do that
-  on each deploy invalidates every session and logs everyone out.
+- `SUPER_SECRET_KEY` is kept in `/data/db/.super_secret_key` when it is not passed in, so it survives a redeploy
+  on its own - it sits inside the database mapping rather than beside it, because that is the one mapping the
+  container cannot run without. Wiping the database wipes the key with it, and an explicit variable always wins.
 
 Client-side changes need a client rebuild (`cd client && npm run build`) before committing - the prebuilt webpack
 output is committed under `server/assets/`, and a client-only edit without a rebuild ships stale JS.

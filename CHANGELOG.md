@@ -29,7 +29,9 @@ because it is long and it is the one place worth keeping current. In outline:
   bundled libraries went from 30 advisories to one. That one is bootbox, and it has no fix: it renders dialog
   messages as HTML by design and upstream has declined to change that, so the untrusted values that reach a
   dialog - gcode file and folder paths, printer names, spool labels - are escaped at the call sites instead.
-  Session and secret handling was tightened separately.
+  The session signing key is handled properly now: the container generates one on first start and keeps it in
+  the database volume, so a restart or a recreation no longer logs the whole farm out, and a generated key is
+  never written to the logs.
 * **Build and distribution** - a working CI workflow, a single `monolithic.Dockerfile` that bundles MongoDB, and a
   reproducible client build that CI verifies against the committed bundles. Released images are published to
   `ghcr.io/krismakes/octofarm-redux` by a tag-triggered workflow that refuses to publish an image which does not
