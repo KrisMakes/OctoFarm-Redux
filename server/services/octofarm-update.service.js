@@ -33,10 +33,13 @@ async function syncLatestOctoFarmRelease(includePrereleases = false) {
     .then((githubReleases) => {
       airGapped = !githubReleases;
       if (githubReleases?.message?.includes('API rate')) {
-        logger.error(
-          'Latest release check failed due to API rate limiting... Please input your github token in .env'
+        // Not an error for the installation: github simply rate limited us and
+        // the next scheduled check will try again.
+        logger.warning(
+          'Latest release check skipped: github API rate limit reached. The next scheduled check will retry.'
         );
         lastReleaseCheckFailed = true;
+        lastReleaseCheckError = 'github API rate limit reached';
         return Promise.resolve(null);
       }
       if (!githubReleases) {
@@ -83,8 +86,9 @@ async function syncLatestOctoFarmRelease(includePrereleases = false) {
       }
     })
     .catch((e) => {
-      logger.error(e);
-      lastReleaseCheckError = e;
+      // Being unable to reach github is not a fault of this installation.
+      logger.warning(`Latest release check could not reach github: ${e?.message ?? e}`);
+      lastReleaseCheckError = e?.message ?? String(e);
       lastReleaseCheckFailed = true;
     });
 }
@@ -137,9 +141,9 @@ function getUpdateNotificationIfAny() {
  */
 function checkReleaseAndLogUpdate() {
   if (!!lastReleaseCheckFailed) {
-    logger.error(
-      "Cant check release as it was not fetched yet or the last fetch failed. Call and await 'syncLatestOctoFarmRelease' first."
-    );
+    // The reason was already logged by syncLatestOctoFarmRelease, and an
+    // update check that cannot run does not stop OctoFarm working.
+    logger.debug('Skipping the update check: the latest release could not be fetched.');
     return;
   }
   const latestRelease = getLastReleaseSyncState().latestReleaseKnown;

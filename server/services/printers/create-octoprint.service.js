@@ -39,6 +39,22 @@ const { LOGGER_ROUTE_KEYS } = require('../../constants/logger.constants');
 const { FilamentClean } = require('../filament-cleaner.service');
 const logger = new Logger(LOGGER_ROUTE_KEYS.SERVICE_OCTOPRINT);
 
+/**
+ * A human-readable cause for a failed host check. `reason` comes from the API
+ * layer for socket-level failures (EHOSTUNREACH and friends); otherwise fall
+ * back to what the HTTP status itself tells us.
+ */
+function describeHostFailure(pingTestResults) {
+  if (pingTestResults?.reason) {
+    return pingTestResults.reason;
+  }
+  const status = pingTestResults?.status;
+  if (!status) {
+    return 'no response at all';
+  }
+  return HOST_FAILURES[status]?.state?.hostDescription ?? `OctoPrint answered HTTP ${status}`;
+}
+
 const HOST_FAILURES = {
   408: {
     state: {
@@ -46,7 +62,7 @@ const HOST_FAILURES = {
       hostDescription: 'Printer timed out, will attempt reconnection...',
     },
     reconnect: true,
-    message: 'Failed to test the waters! Please check the connection log',
+    message: 'Printer did not answer in time - check the connection log',
   },
   502: {
     state: {
@@ -480,30 +496,40 @@ class OctoPrintPrinter {
     // Test the waters call (ping to check if host state alive), Fail to Shutdown
 
     const { requiredApiCheckSequence, optionalApiCheckSequence } = apiConfig;
-    if (this.#retryNumber === 0) {
-      this.#apiPrinterTickerWrap('Testing the high sea!', 'Active');
+    // checkStatusNumber below calls reconnectAPI, which increments #retryNumber,
+    // so the retry number has to be read once up front. Reading it again after
+    // the ping meant the "marking offline" ticker entry was gated on a counter
+    // that had already moved to 1, and so was never written at all.
+    const firstAttempt = this.#retryNumber === 0;
+    if (firstAttempt) {
+      this.#apiPrinterTickerWrap(`Checking if ${this.printerURL} answers...`, 'Active');
     }
 
     const pingTestResults = await this.#api.pingTest(this.printerURL);
 
-    const statusCheck = this.checkStatusNumber(pingTestResults?.status);
+    const statusCheck = this.checkStatusNumber(pingTestResults?.status, pingTestResults);
     if (statusCheck !== true) {
-      if (this.#retryNumber === 0) {
-        this.#apiPrinterTickerWrap(
-          'Failed to find the host on the high seas! Marking offline...',
-          'Offline'
-        );
+      // The real cause used to live in the server log only, so the UI could say
+      // nothing more helpful than "offline".
+      const reason = describeHostFailure(pingTestResults);
+      const message = `Could not reach ${this.printerURL}: ${reason}`;
+      if (firstAttempt) {
+        this.#apiPrinterTickerWrap(`${message} Marking offline...`, 'Offline');
       }
-      const failedHighSeas = {
+      logger.warning(message, {
+        status: pingTestResults?.status,
+        errorCode: pingTestResults?.errorCode,
+      });
+      const failedHostCheck = {
         hostState: 'Offline',
-        hostDescription: 'Failed to test the waters! Cannot find host on the high seas!',
+        hostDescription: message,
       };
-      this.setAllPrinterStates(PRINTER_STATES(failedHighSeas).SHUTDOWN);
+      this.setAllPrinterStates(PRINTER_STATES(failedHostCheck).SHUTDOWN);
       this.reconnectAPI();
-      return 'Failed to test the waters! Cannot find host on the high seas!';
+      return message;
     }
-    if (this.#retryNumber === 0) {
-      this.#apiPrinterTickerWrap('Printer found on the high seas!', 'Complete');
+    if (firstAttempt) {
+      this.#apiPrinterTickerWrap('Printer answered, host is online', 'Complete');
       this.#apiPrinterTickerWrap('Attempting API access', 'Active');
     }
 
@@ -584,7 +610,7 @@ class OctoPrintPrinter {
     return 'Successfully enabled printer...';
   }
 
-  checkStatusNumber(status) {
+  checkStatusNumber(status, pingTestResults = undefined) {
     if (status === 200 || status === 201) {
       this.setHostState(PRINTER_STATES().HOST_ONLINE);
       return true;
@@ -594,8 +620,11 @@ class OctoPrintPrinter {
     // shared block scope, and a TDZ hazard -- with the 502 and 503 arms written
     // out identically.
     const failure = HOST_FAILURES[status] ?? HOST_FAILURES.default;
+    const state = pingTestResults?.reason
+      ? { ...failure.state, hostDescription: pingTestResults.reason }
+      : failure.state;
 
-    this.setAllPrinterStates(PRINTER_STATES(failure.state).SHUTDOWN);
+    this.setAllPrinterStates(PRINTER_STATES(state).SHUTDOWN);
     if (failure.reconnect) {
       this.reconnectAPI();
     }

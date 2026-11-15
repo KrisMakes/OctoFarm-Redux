@@ -8,9 +8,9 @@ export function clearConnectionLoader(loader, messageBox, count) {
   if (loader) {
     loader.remove();
     if (count === 0) {
-      messageBox.innerText = 'No logs received ❌';
+      messageBox.innerText = 'Nothing logged yet';
     } else {
-      if (messageBox.innerText.includes('No logs')) {
+      if (messageBox.innerText.includes('Nothing logged yet')) {
         messageBox.innerText = '';
       }
       if (messageBox.classList.contains('d-flex')) {

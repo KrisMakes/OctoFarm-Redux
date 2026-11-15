@@ -92,7 +92,7 @@
     "js/apexcharts.2.0.0.4ee918c3.min.js",
     "js/shared-vendor.2.0.0.b345bedb.min.js",
     "js/shared-app.2.0.0.9617b9a3.min.js",
-    "js/printer-management.runner.2.0.0.ea0b470b.min.js"
+    "js/printer-management.runner.2.0.0.c8baf8f8.min.js"
   ],
   "system.runner": [
     "js/runtime.2.0.0.55f31b19.min.js",

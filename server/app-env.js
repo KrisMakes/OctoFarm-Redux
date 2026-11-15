@@ -158,9 +158,18 @@ function fetchMongoDBConnectionString(persistToEnv = false) {
 function fetchOctoFarmPort() {
   let port = process.env[AppConstants.OCTOFARM_PORT_KEY];
   if (Number.isNaN(parseInt(port))) {
-    logger.warning(
-      `~ The ${AppConstants.OCTOFARM_PORT_KEY} setting was not a correct port number: >= 0 and < 65536. Actual value: ${port}.`
-    );
+    // Leaving the variable unset is the normal, documented case -- the
+    // container template does not set it -- so only complain when somebody
+    // actually set it to something unusable.
+    if (port === undefined || port === '') {
+      logger.debug(
+        `~ No ${AppConstants.OCTOFARM_PORT_KEY} set, falling back to ${AppConstants.defaultOctoFarmPort}.`
+      );
+    } else {
+      logger.warning(
+        `~ The ${AppConstants.OCTOFARM_PORT_KEY} setting was not a correct port number: >= 0 and < 65536. Actual value: ${port}.`
+      );
+    }
 
     // is not isDocker just to be sure, also checked in writeVariableToEnvFile
     if (!isDocker()) {
@@ -329,8 +338,9 @@ async function runMigrations(db, client) {
   const pendingMigrations = migrationsStatus.filter((m) => m.appliedAt === 'PENDING');
 
   if (pendingMigrations.length) {
+    const appliedMigrations = migrationsStatus.length - pendingMigrations.length;
     logger.info(
-      `! MongoDB has ${pendingMigrations.length} migrations left to run (${migrationsStatus.length} are already applied)`
+      `! MongoDB has ${pendingMigrations.length} migrations left to run (${appliedMigrations} of ${migrationsStatus.length} already applied)`
     );
   } else {
     logger.info(`✓ Mongo Database is up to date [${migrationsStatus.length} migration applied]`);

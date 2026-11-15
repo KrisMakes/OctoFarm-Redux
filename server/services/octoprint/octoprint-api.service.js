@@ -72,10 +72,12 @@ async function fetchApiTimeout(url, method, apikey, fetchTimeout, bodyData = und
     return response;
   } catch (e) {
     const timedOut = e?.name === 'AbortError';
+    const reason = describeFetchError(e);
     logger.http(timedOut ? 'Request timed out' : 'Request failed', {
       url,
       method,
       error: e?.message,
+      reason,
     });
     recordTiming();
     ConnectionMonitorService.updateOrAddResponse(
@@ -84,9 +86,46 @@ async function fetchApiTimeout(url, method, apikey, fetchTimeout, bodyData = und
       REQUEST_KEYS.FAILED_RESPONSE
     );
     // 408 for a genuine timeout, 503 for anything else that stopped us reaching
-    // the printer. checkApiStatusResponse reads `.status`.
-    return { ok: false, status: timedOut ? 408 : 503 };
+    // the printer. checkApiStatusResponse reads `.status`; `reason` is carried
+    // along so callers can show the real cause instead of just "offline".
+    return {
+      ok: false,
+      status: timedOut ? 408 : 503,
+      errorCode: e?.cause?.code ?? e?.code,
+      reason,
+    };
   }
+}
+
+/**
+ * Turn a thrown fetch error into something a user can act on. The socket-level
+ * reason (EHOSTUNREACH, ECONNREFUSED, ...) only ever reached the server log, so
+ * the UI could say nothing more useful than "offline".
+ */
+const NETWORK_REASONS = {
+  ENOTFOUND: 'the address could not be resolved (ENOTFOUND) - check the hostname',
+  EAI_AGAIN: 'the DNS lookup failed (EAI_AGAIN) - check your network or DNS server',
+  ECONNREFUSED: 'the connection was refused (ECONNREFUSED) - nothing is listening on that port',
+  EHOSTUNREACH:
+    'the host could not be reached (EHOSTUNREACH) - check the address and that the printer is powered on',
+  ENETUNREACH: 'the network could not be reached (ENETUNREACH)',
+  ECONNRESET: 'the connection was reset by the other end (ECONNRESET)',
+  ETIMEDOUT: 'the connection attempt timed out (ETIMEDOUT)',
+  EPROTO: 'the TLS handshake failed (EPROTO) - is this really an https address?',
+  DEPTH_ZERO_SELF_SIGNED_CERT: 'the https certificate is self-signed and was rejected',
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE: 'the https certificate could not be verified',
+  CERT_HAS_EXPIRED: 'the https certificate has expired',
+};
+
+function describeFetchError(e) {
+  if (e?.name === 'AbortError') {
+    return 'OctoFarm gave up waiting for a reply (timeout)';
+  }
+  const code = e?.cause?.code ?? e?.code;
+  if (code) {
+    return NETWORK_REASONS[code] ?? `the connection failed (${code})`;
+  }
+  return e?.message || 'the connection failed for an unknown reason';
 }
 
 const DEFAULT_API_TIMEOUT = 10000;

@@ -93,6 +93,12 @@ function updatePrinterInfo(printer) {
 
   if (printer?.printerName && printer.printerName !== 'Grabbing from OctoPrint...') {
     printerName = JSON.parse(JSON.stringify(printer?.printerName));
+  } else if (printer?.hostState?.colour?.category === 'Offline') {
+    // The name is read from OctoPrint, so a printer that never connects used to
+    // spin forever with no hint as to why.
+    printerName =
+      '<span class="text-muted">Awaiting OctoPrint</span>' +
+      '<br><small class="text-muted">name is read from OctoPrint once it connects</small>';
   }
 
   UI.doesElementNeedUpdating(printer.sortIndex, printerSortIndex, 'innerHTML');

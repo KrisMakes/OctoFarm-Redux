@@ -21,6 +21,7 @@ RUN apt-get update \
 
 ENV NODE_ENV=production
 ENV MONGO=mongodb://127.0.0.1:27017/octofarm
+ENV OCTOFARM_PORT=4000
 
 RUN npm install -g pm2
 

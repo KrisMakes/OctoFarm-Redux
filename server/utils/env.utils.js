@@ -97,24 +97,23 @@ function ensureBackgroundImageExists(rootPath) {
   }
   const bgFileExists = fs.existsSync(targetBgPath);
   if (!bgFileExists) {
+    // A missing background on first run is entirely normal: the images folder
+    // is a fresh volume, so seed it from the bundled default.
     const defaultBgPath = path.resolve(__dirname, 'bg_default.jpg');
     if (!fs.existsSync(defaultBgPath)) {
-      logger.error('cant find default bg file...', defaultBgPath);
-    } else if (!fs.existsSync('images')) {
-      logger.error('cant find target folder...', path.join(rootPath, targetBgDir));
-    } else {
-      logger.info('everything good', defaultBgPath, targetBgPath);
+      logger.error('Could not find the bundled default background image', defaultBgPath);
+      return;
     }
+    logger.debug('Seeding the default background image', { defaultBgPath, targetBgPath });
 
     // This is the reason why we dont copy under PKG
     // https://github.com/vercel/pkg/issues/420#issuecomment-397392619
-    const fileBuffer = fs.readFileSync(path.resolve(__dirname, defaultBgPath));
+    const fileBuffer = fs.readFileSync(defaultBgPath);
     fs.writeFileSync(targetBgPath, fileBuffer);
 
     // Can't use fs.copy inside of PKG environment...
-    // fs.copyFileSync(defaultBgPath, "C:\\Users\\USER_HERE\\Projects\\NodeJS\\OctoFarm\\package\\images\\roll.jpg");
 
-    logger.info(`✓ Copyied default background image to ${targetBgPath} as it was not found.`);
+    logger.info(`✓ Copied default background image to ${targetBgPath} as it was not found.`);
   }
 }
 
