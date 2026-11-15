@@ -19,7 +19,10 @@ because it is long and it is the one place worth keeping current. In outline:
 * **Fixes** - a long tail of bugs that were never fixed upstream, in the file manager, the filament and spool
   manager, history, the live websocket layer, camera handling and the printer connection logic.
 * **Features** - file housekeeping and age-based sweeps, filament preflight checks, a reworked dashboard, camera
-  multiplexing, and other additions on top of what upstream shipped.
+  multiplexing, and other additions on top of what upstream shipped. One of them, a farm-wide maintenance mode
+  that holds a printer's PSU on through work OctoPrint cannot see, needs a small companion plugin on each printer:
+  [Maintenance Mode (PSU Control)](https://github.com/KrisMakes/OctoPrint-MaintenanceMode), which is optional and
+  off until switched on.
 * **Security** - every advisory `npm audit` reports against the server is resolved: 13 down to none, 10 of them in
   the production tree, by upgrades where one existed, by pinning a patched transitive version where it did not,
   and by dropping `node-upnp-ssdp` (unmaintained since 2015) for a small built-in SSDP client. The client's

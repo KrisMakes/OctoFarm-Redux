@@ -1419,7 +1419,7 @@ class OctoPrintPrinter {
     return this.printerPowerState;
   }
 
-  // The custom "PSU Control - Maintenance Mode" plugin isn't installed on
+  // The custom "Maintenance Mode (PSU Control)" plugin isn't installed on
   // every farm, so this is opt-in via the features.psuMaintenanceMode
   // setting -- otherwise every printer would 404 against this endpoint on
   // every poll, for farms that never installed the plugin at all.
@@ -1428,7 +1428,7 @@ class OctoPrintPrinter {
       return;
     }
 
-    const response = await this.#api.getCalibrationMode().catch((e) => {
+    const response = await this.#api.getMaintenanceMode().catch((e) => {
       logger.http('Failed to acquire maintenance mode state', e.toString());
       return undefined;
     });

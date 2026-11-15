@@ -202,7 +202,7 @@ const ServerSettingsSchema = new mongoose.Schema({
     },
   },
   features: {
-    // Depends on a custom OctoPrint plugin ("PSU Control - Maintenance Mode")
+    // Depends on a custom OctoPrint plugin ("Maintenance Mode (PSU Control)")
     // that not every install has, so it defaults off and stays off until
     // an admin confirms the plugin is present.
     psuMaintenanceMode: {

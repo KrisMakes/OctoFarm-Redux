@@ -87,8 +87,9 @@ claiming success.
 stays powered while you calibrate it, level the bed, or work on it, instead of the PSU cutting out on you
 mid-task because the printer counts as idle. A farm-wide banner names every printer currently left that way, so
 one does not sit powered up overnight because somebody forgot, and it appears the moment you toggle it rather
-than on the next 30-second poll. Needs the "PSU Control - Maintenance Mode" OctoPrint plugin, so it stays off
-until switched on under System > Server > Features.
+than on the next 30-second poll. Needs our companion OctoPrint plugin,
+[Maintenance Mode (PSU Control)](https://github.com/KrisMakes/OctoPrint-MaintenanceMode), on each printer you
+want it for, so it stays off until switched on under System > Server > Features.
 
 **Spool manager** - reworked so the numbers on screen can be trusted:
 - Every spool carries a short number you can write on a sticker and put on the physical roll. Leave it blank and
