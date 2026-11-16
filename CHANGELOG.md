@@ -37,6 +37,10 @@ because it is long and it is the one place worth keeping current. In outline:
   password minimum before it is submitted, an empty connection log reads as empty rather than as a failure, a
   printer that has never connected explains that its name comes from OctoPrint, and an inherited bad
   find-and-replace that had left "Print HistoryRoutes" in the navigation of every page is corrected.
+* **Appearance** - the default background is now an original gold-on-black image drawn for this fork, which both
+  matches the logo and the declared theme colour and replaces a shipped third-party cartoon that this project had
+  no licence to distribute. The stylesheet also carries a dark gradient behind it, so an install whose background
+  file is missing or has been cleared falls back to that rather than to flat black.
 * **Security** - every advisory `npm audit` reports against the server is resolved: 13 down to none, 10 of them in
   the production tree, by upgrades where one existed, by pinning a patched transitive version where it did not,
   and by dropping `node-upnp-ssdp` (unmaintained since 2015) for a small built-in SSDP client. The client's

@@ -161,7 +161,15 @@ textarea {
 }
 body {
   background-color: black;
-  background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('/images/bg.jpg');
+  /* Three layers, front to back: the dimming overlay, the background image, and
+     a gradient that only shows through where the image is missing -- a fresh
+     install that has not seeded images/bg.jpg, or one the user has emptied,
+     then falls back to a dark gold wash rather than to flat black. */
+  background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)),
+    url('/images/bg.jpg'),
+    radial-gradient(ellipse at 15% 10%, rgba(200, 127, 10, 0.22), rgba(0, 0, 0, 0) 55%),
+    radial-gradient(ellipse at 85% 90%, rgba(243, 156, 18, 0.18), rgba(0, 0, 0, 0) 55%),
+    linear-gradient(#000000, #000000);
   background-attachment: fixed;
   background-repeat: no-repeat;
   -webkit-background-size: cover;
