@@ -330,9 +330,12 @@ fork is in this README.
 
 ### Unraid
 
-The Unraid template is in this repository at [`templates/octofarm-redux.xml`](templates/octofarm-redux.xml) and is
-submitted to Community Applications, so the normal route is to search for **OctoFarm-Redux** in the **Apps** tab and
-install it from there. The image bundles MongoDB, so there is no second container to add.
+A Community Applications listing is planned. Until it is live, install it from the
+**Docker** tab with **Add Container** using the values in the [Docker](#docker) section below, or import
+[`templates/octofarm-redux.xml`](templates/octofarm-redux.xml) from this repository. Once the listing is live,
+searching for **OctoFarm-Redux** in the **Apps** tab will do the same thing in one click.
+
+The image bundles MongoDB, so there is no second container to add.
 
 Two fields matter on first install:
 
@@ -355,7 +358,6 @@ Released images are published to GitHub Container Registry as `linux/amd64`:
 ```sh
 docker run -d --name octofarm-redux --restart unless-stopped \
   -p 4000:4000 \
-  -e SUPER_SECRET_KEY='a long random string' \
   -e TZ=Europe/London \
   -v /path/to/appdata/db:/data/db \
   -v /path/to/appdata/configdb:/data/configdb \
@@ -364,6 +366,11 @@ docker run -d --name octofarm-redux --restart unless-stopped \
   -v /path/to/appdata/scripts:/scripts \
   ghcr.io/krismakes/octofarm-redux:latest
 ```
+
+Then open `http://<host>:4000` and register the first account; it becomes the administrator.
+
+The session key is generated on first start and kept in the data volume, so there is nothing to set. Pass
+`-e SUPER_SECRET_KEY=...` only if you would rather manage it yourself, or need the same key across two installs.
 
 Remove the container with `docker rm -v` so its anonymous volumes go with it.
 
