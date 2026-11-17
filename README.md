@@ -8,14 +8,14 @@
   <img src="server/assets/images/navbar-logo.png" alt="OctoFarm-Redux logo" width="180px">
 
   <p align="center">
-    OctoFarm-Redux is a personal fork of <a href="https://github.com/OctoFarm/OctoFarm">OctoFarm</a>, created by <a href="https://github.com/NotExpectedYet">James Mackay (NotExpectedYet)</a> and its contributors - a single pane of glass that combines multiple OctoPrint instances into one interface, monitoring and managing a 3D printer farm over the OctoPrint API and websocket systems.
+    OctoFarm-Redux is a maintained fork of <a href="https://github.com/OctoFarm/OctoFarm">OctoFarm</a>, created by <a href="https://github.com/NotExpectedYet">James Mackay (NotExpectedYet)</a> and its contributors - a single pane of glass that combines multiple OctoPrint instances into one interface, monitoring and managing a 3D printer farm over the OctoPrint API and websocket systems.
   </p>
 
   <p align="center">
     <strong>Everything here rests on their work.</strong> The application, its architecture, and very nearly all of the
-    code are theirs; they built it, and they gave it away for free under the AGPL. This fork only maintains what they
+    code are theirs; they built it, and they gave it away for free under the AGPL. This fork maintains what they
     made. Upstream OctoFarm is no longer being updated, so this repository keeps bugfixes and small improvements
-    landing on top of it. It is not a successor or a community fork - just their work, kept running, and shared in case it is
+    landing on top of it. It is not a successor or a community fork - just their work, kept running and improved, and shared in case it is
     useful to anyone else.
   </p>
 </div>
@@ -62,189 +62,150 @@ bringing dependencies that have since gone end-of-life back up to date.
 ### New features
 
 **File manager overhaul** - built entirely in this fork:
-- Housekeeping mode: check off files (or "select all visible") and bulk-delete them in a single request, instead
-  of one network round-trip per file.
-- Filter the file list down to successful, failed, or never-printed files.
-- Age-based sweep auto-selects files older than X days for review before deleting, with per-folder exclusions.
-- Thumbnail hover preview, a density slider (normal/compact/ultra) to fit more files on screen, search that
-  matches multiple words in any order, and a "Hide Folders" toggle.
-- Copy a file directly to another printer - select one or more targets, with per-printer success/failure reporting.
-- The list resyncs itself after a file or folder is added, removed, or bulk-updated.
-- The temperatures a file was sliced with, shown beside its size: nozzle and bed, for the first layer and for the
-  rest. OctoPrint's file list does not carry them and its own analysis does not look for them, but the slicer
-  writes them into the file - so this reads the end of the gcode, where PrusaSlicer and OrcaSlicer append their
-  configuration. The last 48KB of it, once per file ever, fetched after the list has already drawn, so a folder
-  of two hundred files appears at once and fills in behind itself. Both slicers' spellings are read, so a file
-  sliced in Orca's own dialect is understood as readily as a Prusa one, and a value the file does not carry shows
-  as a dash rather than vanishing, so a half-known pair still says which half is missing. A file from a slicer
-  that writes no configuration block (Cura stores its settings as a base64 blob) simply shows nothing.
+- Housekeeping mode: tick off files (or "select all visible") and delete them in one go, instead of one at a
+  time.
+- Filter the list down to successful, failed, or never-printed files.
+- Age-based sweep ticks everything older than X days for you to review before deleting, with per-folder
+  exclusions.
+- Thumbnail hover preview, a density slider to fit more files on screen, search that matches words in any order,
+  and a "Hide Folders" toggle.
+- Copy a file straight to another printer - pick one or more targets and see which worked.
+- The list refreshes itself after anything is added, removed or bulk-changed.
+- The temperatures a file was sliced with, shown beside its size: nozzle and bed, first layer and the rest.
+  OctoPrint does not track these at all, so they are read out of the gcode itself. PrusaSlicer and OrcaSlicer
+  files both work, anything a file does not carry shows as a dash, and a file from a slicer that writes no
+  settings block (such as Cura) shows nothing.
 
 **Torch** - turn a printer's light on and off from the command panel. A real toggle that reflects the light's
 actual state, and it tells you when the light cannot come on because the printer's PSU is off, instead of
 claiming success.
 
-**Maintenance Mode** - suspends PSU Control's automatic power-off from the printer's command panel, so a printer
-stays powered while you calibrate it, level the bed, or work on it, instead of the PSU cutting out on you
-mid-task because the printer counts as idle. A farm-wide banner names every printer currently left that way, so
-one does not sit powered up overnight because somebody forgot, and it appears the moment you toggle it rather
-than on the next 30-second poll. Needs our companion OctoPrint plugin,
-[Maintenance Mode (PSU Control)](https://github.com/KrisMakes/OctoPrint-MaintenanceMode), on each printer you
-want it for, so it stays off until switched on under System > Server > Features.
+**Maintenance Mode** - stops PSU Control powering a printer off while you are working on it, so the power does
+not cut out mid-calibration just because the printer counts as idle. A farm-wide banner names every printer
+currently left that way, so one does not sit powered up overnight because somebody forgot. Needs our companion
+OctoPrint plugin, [Maintenance Mode (PSU Control)](https://github.com/KrisMakes/OctoPrint-MaintenanceMode), on
+each printer you want it for, so it stays off until switched on under System > Server > Features.
 
 **Spool manager** - reworked so the numbers on screen can be trusted:
 - Every spool carries a short number you can write on a sticker and put on the physical roll. Leave it blank and
-  it takes the next free one, duplicates and half-numbers are refused, and a deleted spool's number is never
-  handed out again in case its sticker is still about.
-- That number shows in the spool manager, the overview table and every spool picker on the printer views
-  ("#1 3DJake ecoPLA Black (901g) - PLA"), and both the search box and the sort dropdown work on it.
-- "Used (g)" now shows what has been used. It used to show what was left, and opening a spool for editing copied
-  that figure into the used field, so a spool could be marked empty just by opening and saving it.
-- Remaining has a read-only column of its own beside it, and sorting by Remaining now really sorts by remaining.
-- A pre-flight check before printing: what the file needs is compared against what is left on the spool assigned
-  to that tool, and you are told before the print starts rather than when it runs dry. The file list flags a file
-  the spool cannot finish, and Multi-Print asks once for the whole batch. It only warns and always offers "print
-  anyway" - both numbers are estimates - it says nothing at all unless a spool is actually assigned and the file
-  has been analysed, and it can be switched off under System > Server > Filament.
-- Filament accounting corrected throughout: cost on cancelled prints, totals on a non-zero tool, spool
-  assignments surviving a history edit, and the weight bookkeeping guards (see the fixes below).
+  it takes the next free one, and a deleted spool's number is never handed out again in case its sticker is
+  still about.
+- That number shows up everywhere the spool does - the spool manager, the overview table and every spool picker
+  ("#1 3DJake ecoPLA Black (901g) - PLA") - and both search and sort work on it.
+- "Used (g)" now shows what has been used. It used to show what was left, and simply opening a spool to edit it
+  could mark the spool empty.
+- Remaining has a read-only column of its own, and sorting by Remaining really sorts by remaining.
+- A pre-flight check before printing: what the file needs against what is left on the assigned spool, so you
+  hear about it before the print starts rather than when it runs dry. The file list flags a file the spool
+  cannot finish, and Multi-Print asks once for the whole batch. It only ever warns and always offers "print
+  anyway" - both numbers are estimates - and it can be switched off under System > Server > Filament.
+- Filament accounting corrected throughout: cost on cancelled prints, totals on a second tool, and spool
+  assignments surviving a history edit.
 
-**Camera streaming** - camera feeds stream through OctoFarm itself (a same-origin proxy) instead of the browser
-connecting to every printer directly, which is also what stopped Safari loading them at all.
+**Camera streaming** - camera feeds come through OctoFarm itself rather than every browser tab connecting to
+every printer directly. This is also what stopped Safari loading them at all.
 
 **One connection per browser, not one per camera per tab** - the single largest change in this fork, and the
-answer to the grey panes and the buttons that stop responding with nothing in the console to explain them.
+answer to grey camera panes and buttons that stop responding with nothing on screen to explain why.
 
-A browser allows about six connections to one address over HTTP/1.1, shared across every tab, and anything that
-streams holds one of them open for as long as it is on screen. Two cameras in two tabs is four of the six, plus
-the event stream and the monitoring stream, and the budget is gone - and nothing fails cleanly when it does.
-Every later request queues behind a stream that never ends, so the page renders with no printers on it and every
-button stops working, with no error anywhere saying why. Measured in a tab that had run out: a `fetch()` had not
-started after eight seconds, while a WebSocket opened in 42ms, because WebSockets are a separate pool.
+A browser only allows about six connections to one address, shared across every tab, and anything that streams
+holds one of them open for as long as it is on screen. Two cameras in two tabs, plus the event and monitoring
+streams, and the budget is gone - and nothing fails cleanly when it does. The page simply renders with no
+printers on it and every button stops working, with no error anywhere saying why.
 
-So the number of connections stops following the number of viewers:
+So the number of connections stopped following the number of viewers. The server opens one connection per
+camera however many people are watching, cameras nobody is looking at are not fetched at all, and everything -
+cameras, events and monitoring alike - now arrives down a single shared connection per browser instead of one
+per tab. A second tab showing the same camera costs nothing, and each printer's Pi serves one stream rather than
+one per pane. The old direct endpoints are untouched and still work as a fallback.
 
-- The server opens one connection per camera however many people are watching, splits the multipart stream back
-  into whole JPEGs and fans them out over a single WebSocket. Cameras nobody can see are not subscribed at all,
-  and the printer's Pi serves one stream instead of one per pane. Frames are painted into the same `<img>`
-  elements the templates already draw, so every CSS flip, aspect-ratio class and layout rule keeps working.
-- The event stream and the monitoring stream moved onto that same socket, so a tab holds no permanent HTTP
-  connection at all and tab count stops mattering. The HTTP endpoints are untouched and still serve the same
-  payloads - this is a second way in, not a replacement, and a browser that cannot open the socket falls back to
-  them unchanged.
-- The socket lives in a SharedWorker, so there is one for the whole browser rather than one per tab. Each tab
-  reaches it down a MessagePort, which costs no connection, and the worker keeps the union of what the tabs want:
-  a camera is subscribed when the first tab asks for it and dropped when the last one stops, and a second tab
-  showing the same camera costs nothing. This is what the budget actually ran out of in Safari, which counts
-  WebSockets against it where Chrome does not.
+One per browser rather than one per tab is the part that matters in Safari, which counts a WebSocket against the
+same six-connection budget where Chrome does not. A socket per tab would have gone on eating the very budget
+this was meant to free - which is why there is one for the whole browser, shared between every tab you have
+open.
 
-The camera half is opt-in, under System > Server > Cameras > Multiplexer: the direct streams work, and this
-changes how every camera on the farm is delivered, so an upgrade does not inherit it. Switching it off takes
-effect immediately on every open tab rather than at the next reload.
+The camera half is opt-in, under System > Server > Cameras > Multiplexer, because it changes how every camera on
+the farm is delivered and an upgrade should not switch that on for you. Turning it off takes effect immediately
+on every open tab rather than at the next reload.
 
 **Raise the head after cancelling** - a cancelled print used to leave the nozzle parked over the plate, in the
-way of whatever has to come off it. Cancelling now lifts it ten centimetres clear. The move is relative, so it
-is ten centimetres from wherever the print stopped rather than a fixed height, and the firmware's soft limit
-clips it at the top of the Z axis. It waits for the printer first - a cancel is not instant, and OctoPrint
-refuses commands outright while a job is still running - and if it gives up waiting it says so, rather than
-leaving the impression the head moved. Hooked into the job action rather than the buttons, so it covers every
-way a print is cancelled: the panel card, the control modal and bulk actions alike.
+way of whatever has to come off it. Cancelling now lifts it ten centimetres clear of wherever the print stopped,
+clipped at the top of the Z axis. It waits for the printer to actually stop first, and says so if it gives up
+waiting rather than leaving the impression the head moved. It covers every way a print is cancelled - the panel
+card, the control modal and bulk actions alike.
 
-**Cancel a single object mid-print** - when one part of a multi-object plate lifts or turns into spaghetti, cancel
-just that one from the job modal and let the rest of the plate finish. The objects of the current file are listed
-with a Cancel button each, the one being printed right now is marked, and cancelling asks first and says plainly
-what it does and does not do - the rest carries on, but what is already printed stays on the bed and the nozzle
-still travels over it.
+**Cancel a single object mid-print** - when one part of a multi-object plate lifts or turns into spaghetti,
+cancel just that one and let the rest of the plate finish.
 
-Each object is described by where it sits *relative to the others* ("back left"), not by bed quadrant and not by
-the name the slicer gave it. Four copies of one STL are all "front left" in absolute terms, and
-"Part4.STL (Instance 2)" identifies nothing you can see while looking at a failed print.
+It leads with a plate map: a top-down plan of the bed, drawn automatically from the running job, with every
+object in its real position and at its real footprint, numbered and clickable to cancel straight from the
+drawing. The one printing right now is highlighted and cancelled ones are dimmed, so a single look lines up
+what is on screen with what is in front of you - no counting down a list of filenames and hoping. Nothing has to
+be configured, measured or drawn by hand: the plate fills itself in over the first layer as each object starts.
 
-Above the list is a top-down plan of the bed, with every object drawn where it actually prints, numbered to match
-the list and clickable to cancel. The one printing now is highlighted and cancelled ones are dimmed. Bounds come
-from the plugin, which learns them as each object prints, so the plan fills in over the first layer and anything
-not yet known is left out rather than guessed at.
+The list underneath names each object by where it sits relative to the others ("back left") rather than by
+whatever the slicer called it, because "Part4.STL (Instance 2)" identifies nothing you can see while looking at
+a failed print. Cancelling asks first and says plainly what it does and does not do: the rest carries on, but
+what is already printed stays on the bed and the nozzle still travels over it.
 
-Goes through the Cancel Object OctoPrint plugin rather than sending `M486` directly, so it does not depend on the
-printer's firmware understanding object cancellation - the plugin suppresses the extrusion host-side as the file
-is streamed. The section is always present, and says why it is empty (file sliced without object labels, or the
-plugin not installed on that printer) rather than disappearing.
+It works through the Cancel Object OctoPrint plugin, so it does not depend on your printer's firmware supporting
+object cancellation. The section is always there and tells you why it is empty - file sliced without object
+labels, or the plugin not installed on that printer - rather than quietly disappearing.
 
 **Everything else:**
-- Corrected, actionable error messages when OctoPrint's own reported state contradicts itself (e.g. "already
+- Error messages that say what is actually wrong when OctoPrint contradicts itself (for example "already
   printing" while the printer shows disconnected), instead of a generic conflict message.
-- Health check failures now name the specific check that failed (printer settings, required API, websocket,
-  connection defaults, webcam settings, or history collection) instead of one generic "Failed health check!".
-- A page under System that says what is actually connected: how many live sockets are open, what each has sent
-  and dropped, what the camera hub is doing, and how many clients are still on the HTTP form of each stream -
-  which is where a connection nobody closed shows up by name. Deliberately not administrator-only: this is what
-  to look at when a tab will not load, and a browser that has run out of connections cannot open an administrator
-  session to ask why.
+- Health check failures name the check that failed - printer settings, API, websocket, connection defaults,
+  webcam or history - instead of one generic "Failed health check!".
+- A page under System showing what is really connected: how many live connections are open, what each has sent
+  and dropped, and what the camera hub is doing. It is deliberately not administrator-only, because this is what
+  you want to look at when a tab will not load, and a browser in that state cannot sign you in to ask.
 - Replaced the toilet-roll filament icon with a real spool.
 
 ### Improvements
 
-- Coming back to a tab no longer throws the whole page away and rebuilds it, which is why switching between open
-  tabs used to feel slow. It used to, and that was right at the time: everything the page held across a switch
-  away was a long-lived HTTP connection, WebKit abandons those when the window goes behind another application
-  without reporting it, and a request queued behind an abandoned one never errors - it simply never happens,
-  which is both the grey camera pane and the buttons that stop responding with no message. From inside the page an
-  abandoned stream cannot be told apart from a healthy one, so there was nothing to check and discarding the lot
-  was the only reliable cure. Carrying the streams and the cameras on one socket removed that premise: a socket,
-  unlike a stream, can be asked whether it is still there, and it is asked on every return and rebuilt if nothing
-  answers. The reload now runs only where the old reasoning still holds - the socket refused, an older server, or
-  the multiplexer switched off - and there it behaves exactly as before: held back while a dialog is open or
-  something is being typed, and coming back in the same scroll position.
-- A tab left open across a deploy reloads itself once, instead of running the old build until somebody remembers
-  to refresh it. Bundle names carry a content hash, so after a deploy a stale tab's files no longer exist - but
-  nothing told the tab, and whatever bug it was built with carried on. Three tabs left open across a day of
-  deploys were still holding one connection per camera, a whole browser's budget between them, a week after that
-  limit had been removed. The id a page compares itself against covers every bundle rather than one of them:
-  webpack splits the shared code out of the entries, and two deploys in a row once changed only that shared
-  chunk, so the id never moved and neither fix reached the browser that had reported the bug. Once per build
-  rather than once per page, so a tab picks up the next deploy too but can never loop.
-- Camera frames are painted on the display's beat rather than the instant they arrive. A camera sends thirty
-  frames a second, a screen redraws sixty times a second, and the two are not in step - handing the element each
-  frame as it lands means the gap between one appearing and the next varies by however far its arrival fell from
-  the next redraw. Chrome hides that; WebKit shows it as judder. Measured on the wire both browsers were being
-  sent the same even thirty frames a second, so the server was never the thing at fault.
-- How far behind a browser is, is now measured by the browser. Nothing on the server can see it: `bufferedAmount`
-  counts only what is queued above the socket, and `send`'s callback fires when the kernel accepted the bytes,
-  which it keeps doing until its own buffer is full - and Linux grows that into the megabytes. Both readings were
-  blind to a steady 1-2MB backlog per viewer that never drained, which is about a second of latency on every
-  camera, permanently. The browser now counts what it has received and says so a few times a second, the server
-  counts what it has sent and not had acknowledged, and a viewer that falls behind has frames dropped rather than
-  queued behind it.
-- A page that loses its cameras writes down why. What the socket did, what each camera was told, how many frames
-  each pane has drawn and how long since one arrived - saved every few seconds where a reload cannot take it with
-  it, and sent by the next page to load. The reload that ends the broken state is therefore how the evidence
-  arrives rather than the end of it, and a page that recovers on its own reports itself just as readily, so a
-  case that heals is as visible as one that does not.
-- Printer cards on the panel, camera and group views are sized by width rather than by a column count, so the
-  number of columns follows the window and the printer count instead of a stored number that cannot know either.
-  A column count is wrong on at least one screen the moment it is saved - six per row is comfortable on a large
-  monitor and unreadable on a laptop - so the setting is now a card size (compact, default, large) that still
-  means the same thing on any display. Replaces the separate Camera and Group column settings.
-- Leaving the page hands every camera connection back, so a tab sitting behind another window no longer holds one
-  per camera, and the pane keeps showing its last frame rather than going blank while it is away.
-- A camera that dies while you are watching is recovered without any of the above, and one showing an unchanging
-  picture (a dark enclosure overnight) is still not mistaken for a dead one and reconnected all night.
-- Camera panes no longer leak a connection every time a printer card is redrawn. A discarded `<img>` keeps its
-  stream open in WebKit - detaching it from the page does not end the response - so streams accumulated until the
-  browser's per-site connection limit was gone, at which point the cameras went blank and no amount of
-  reconnecting could help, because the reconnect could not get a connection either.
-- A printer's camera only streams into its modal while that modal is open. Each printer used to hold a second
-  live stream for a modal nobody had opened, which on a two-printer farm was four of the six connections a
-  browser allows per site.
-- Monitoring cards are sized by how wide they should be rather than by a fixed column count, so the panel and
-  camera views fill the row properly at any window size.
+- Switching back to an open tab no longer throws the whole page away and rebuilds it, which is why moving
+  between tabs used to feel slow. The rebuild was there for a good reason - a connection the browser had quietly
+  abandoned in the background could not be told apart from a working one, so discarding the lot was the only
+  reliable cure. Now that everything runs over one connection, the page can just ask whether it is still alive
+  and rebuild only if nothing answers. The full reload still happens where it is still needed, and still holds
+  back while a dialog is open or something is half-typed.
+- A tab left open across a deploy reloads itself once, instead of running yesterday's build until somebody
+  thinks to refresh it. Three tabs left open across a day of deploys were still holding a camera connection
+  each - a whole browser's worth between them - a week after that limit had been lifted.
+- Camera frames are painted in step with the display rather than the instant they arrive. A camera sends thirty
+  frames a second and a screen redraws sixty times a second, so drawing each frame the moment it lands made the
+  spacing uneven. Chrome hid it; Safari showed it as judder.
+- How far behind a browser has fallen is now measured by the browser itself. Nothing on the server could see it,
+  so a viewer could sit a full second behind on every camera, permanently, while the server was satisfied
+  everything was fine. A viewer that falls behind now has frames dropped rather than piled up.
+- A page that loses its cameras writes down why - what the connection did, what each camera was told, and how
+  long since each pane last drew a frame - and the next page to load sends it on. The reload that ends the
+  problem is therefore how the evidence arrives rather than the end of it, and a page that recovers on its own
+  reports itself just as readily.
+- Printer cards on the panel, camera and group views are sized by width rather than by a fixed column count, so
+  the number of columns follows the window and the printer count. Six per row is comfortable on a large monitor
+  and unreadable on a laptop, so the setting is now a card size - compact, default or large - that means the
+  same thing on any screen. Replaces the separate Camera and Group column settings.
+- Leaving the page hands every camera connection back, so a tab sitting behind another window no longer holds
+  one per camera, and the pane keeps showing its last frame rather than going blank while it is away.
+- A camera that dies while you are watching is recovered on its own, and one showing an unchanging picture (a
+  dark enclosure overnight) is not mistaken for a dead one and reconnected all night.
+- Camera panes no longer leak a connection every time a printer card is redrawn. In Safari a discarded camera
+  element keeps its stream open, so they piled up until the browser ran out of connections and every camera went
+  blank - at which point reconnecting could not help either, because the reconnect could not get a connection
+  of its own.
+- A printer's camera only streams into its modal while that modal is actually open. Each printer used to hold a
+  second live stream for a modal nobody had opened, which on a two-printer farm was four of the six connections
+  a browser allows.
 - The camera aspect-ratio setting is applied to the camera views, instead of being saved and then ignored.
-- Print-finish time now displays in full (was silently truncated) and is now actually correct (was silently off by
-  hours due to a container timezone bug).
-- Panel/camera view cards stay a consistent height regardless of printer state.
-- Static assets now cache correctly in the browser, so a deployed fix is guaranteed to reach you rather than
-  possibly serving stale JS.
-- Entire stack updated to current, supported versions - Node, MongoDB, Express, Mongoose, and all major
-  dependencies (previously years out of date, several end-of-life).
+- Print-finish time now displays in full (it was silently truncated) and is actually correct (it was off by
+  hours, from a container timezone bug).
+- Panel and camera cards stay a consistent height regardless of printer state.
+- Static assets cache correctly in the browser, so a deployed fix is guaranteed to reach you rather than
+  possibly serving stale code.
+- Entire stack updated to current, supported versions - Node, MongoDB, Express, Mongoose and all major
+  dependencies, several of which were end-of-life.
 
 ### Bug fixes
 
@@ -261,34 +222,21 @@ plugin not installed on that printer) rather than disappearing.
   left the picture half grey with nothing to recover it.
 - The camera proxy dropped healthy cameras 30 seconds after a tab was backgrounded, mistaking the browser having
   stopped reading for the printer having gone quiet.
-- The camera view spread its cards across the row with empty gaps between them - on a two-printer farm, one card
-  at each end. An unclosed tag in the template left an empty element after every card, which counted as a column
-  of its own once the monitoring views moved to a grid.
-- A camera that was simply switched off was retried every fifteen seconds indefinitely. Ending a stream points
-  the image at a blank pixel, which counts as a load, which was read as the camera coming back and reset the
-  back-off each time it was applied.
+- The camera view spread its cards across the row with empty gaps between them - on a two-printer farm, one
+  card at each end. A stray empty element after each card was being counted as a column of its own.
+- A camera that was simply switched off was retried every fifteen seconds forever, because shutting a stream
+  down looked to the browser like the camera coming back.
 - Quick Connect's state could stop syncing entirely if one button was missing from the page.
-- The Torch and Maintenance Mode toggles could double-fire and flip straight back, or deadlock a button
-  permanently.
 - Spool cost was being silently under-reported on cancelled/failed prints (double-applied completion-ratio bug).
 - Thumbnails could silently fail to save for any printer with API access control enabled.
-- Gcode thumbnails never actually displayed. The URL was built straight at the printer, from the browser, and
-  OctoPrint serves thumbnails behind its access control - so it answered 403, because the browser has no API key
-  and deliberately is not given one. They now go through the same proxy as every other OctoPrint call, which adds
-  the key server-side. Fixed in the job modal, the file manager, and both camera fallbacks.
-- The job modal rendered a broken image for any file with no thumbnail at all: the check was `!== null`, and a
-  job without one leaves the field `undefined`, which is not `null`.
-- The job modal showed "NaN / NaN" for electricity, maintenance and printer-total costs. Those are only worked
-  out when the matching options are enabled in server settings; with them off the figure never arrives and the
-  display parsed `undefined`. It now says the cost was not calculated.
-- The filament pre-flight check never fired, for any print, since it was written. It looked up `filamentLength`
-  on the file record, but the server stores the per-tool lengths as `length`, so the lookup always came back
-  empty and the check passed everything through without comparing anything. Found when a 189g print started
-  against a spool holding 36.8g and said nothing.
-- The spool Remaining column printed the full floating-point result of weight minus used -
-  "36.811371464054105g". Used is accumulated from per-print filament lengths, so the subtraction lands on
-  floating-point noise. It now shows whole grams, while the stored value keeps its precision so repeated small
-  deductions still accumulate correctly.
+- Gcode thumbnails never actually displayed. The browser was asking each printer for them directly, and
+  OctoPrint serves thumbnails behind its access control, so it refused every time. They now go through the same
+  proxy as every other OctoPrint call. Fixed in the job modal, the file manager and both camera fallbacks.
+- The job modal rendered a broken image for any file that had no thumbnail at all.
+- The job modal showed "NaN / NaN" for electricity, maintenance and printer-total costs whenever the matching
+  options were switched off in server settings. It now says the cost was not calculated.
+- The spool Remaining column printed "36.811371464054105g". It now shows whole grams, while the stored value
+  keeps its precision so repeated small deductions still add up correctly.
 - Camera streams rendered as empty boxes in Safari inside the card grid.
 - Printer setup could hang forever on "Setting Up" and never appear in the dashboard.
 - Old temperature history was never actually cleaned up - over 2 million stale records had piled up.
@@ -316,9 +264,6 @@ plugin not installed on that printer) rather than disappearing.
 - Spool weight bookkeeping and snapshot capture had inverted or incomplete guard conditions.
 - A database write failure could silently look like it succeeded to the code that requested it.
 - Task presets used by more than one scheduled task could cross-contaminate each other's settings.
-- Log and plugin-manager downloads produced a zero-byte or broken zip, and the Git-based version check threw on
-  startup. Both were the same class of break: `archiver` and `simple-git` changed how they export their factory
-  across a major version, so the old `require(...)` call silently produced something that was not a function.
 
 ### Security
 
@@ -349,7 +294,7 @@ plugin not installed on that printer) rather than disappearing.
   build/manifest verification.
 - Working lint config (previously silently never ran) and a cleaned-up, drift-free dependency lockfile.
 - Removed dead code (an old camera-snapshot path fully superseded by the streaming proxy), nine unused server
-  dependencies, a Dockerfile that could no longer build this deployment, and the Patreon/supporter feature.
+  dependencies, and a Dockerfile that could no longer build this deployment.
 - Stopped shipping webpack source maps in the built image.
 - Various icon/favicon fixes for correct rendering in Safari.
 
