@@ -22,6 +22,7 @@
 
 - [About](#about)
 - [What's different from upstream](#whats-different-from-upstream)
+- [Screenshots](#screenshots)
 - [Getting Started](#getting-started)
 - [Installation](#installation)
 - [Development setup](#development-setup)
@@ -297,6 +298,26 @@ labels, or the plugin not installed on that printer - rather than quietly disapp
   dependencies, and a Dockerfile that could no longer build this deployment.
 - Stopped shipping webpack source maps in the built image.
 - Various icon/favicon fixes for correct rendering in Safari.
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><a href="screenshots/panelView.png"><img src="screenshots/panelView.png" alt="Panel view"></a><br><b>Panel view</b> - every printer as a card, with its camera, temperatures and progress at a glance.</td>
+<td width="50%"><a href="screenshots/listView.png"><img src="screenshots/listView.png" alt="List view"></a><br><b>List view</b> - the same farm as a dense table when you have more printers than screen.</td>
+</tr>
+<tr>
+<td width="50%"><a href="screenshots/printerManager.png"><img src="screenshots/printerManager.png" alt="Printer manager"></a><br><b>Printer manager</b> - add, edit and troubleshoot instances, including OctoPrint updates and plugin installs.</td>
+<td width="50%"><a href="screenshots/fileManager.png"><img src="screenshots/fileManager.png" alt="File manager"></a><br><b>File manager</b> - browse and upload gcode across the whole farm, with sliced settings read from the files themselves.</td>
+</tr>
+<tr>
+<td width="50%"><a href="screenshots/history.png"><img src="screenshots/history.png" alt="History"></a><br><b>History</b> - every finished print with its cost, filament use and outcome.</td>
+<td width="50%"><a href="screenshots/filament.png"><img src="screenshots/filament.png" alt="Filament manager"></a><br><b>Filament manager</b> - spools, what is loaded where, and what each print consumed.</td>
+</tr>
+<tr>
+<td colspan="2"><a href="screenshots/cameraView.png"><img src="screenshots/cameraView.png" alt="Camera view"></a><br><b>Camera view</b> - every camera on the farm on one screen, served through a single shared stream per printer.</td>
+</tr>
+</table>
 
 ## Getting Started
 
