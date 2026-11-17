@@ -1,6 +1,6 @@
 ![Status](https://img.shields.io/badge/status-maintained%20fork-brightgreen)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
-![Based on](https://img.shields.io/badge/based%20on-OctoFarm-9b59b6)
+![Based on](https://img.shields.io/badge/based%20on-OctoFarm-f39c12)
 
 # OctoFarm-Redux
 
