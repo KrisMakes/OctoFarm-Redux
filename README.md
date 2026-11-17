@@ -221,12 +221,6 @@ labels, or the plugin not installed on that printer - rather than quietly disapp
   monitoring for the whole farm down with it.
 - A camera that failed to reconnect when returning to a tab never tried again, and a partially delivered frame
   left the picture half grey with nothing to recover it.
-- The camera proxy dropped healthy cameras 30 seconds after a tab was backgrounded, mistaking the browser having
-  stopped reading for the printer having gone quiet.
-- The camera view spread its cards across the row with empty gaps between them - on a two-printer farm, one
-  card at each end. A stray empty element after each card was being counted as a column of its own.
-- A camera that was simply switched off was retried every fifteen seconds forever, because shutting a stream
-  down looked to the browser like the camera coming back.
 - Quick Connect's state could stop syncing entirely if one button was missing from the page.
 - Spool cost was being silently under-reported on cancelled/failed prints (double-applied completion-ratio bug).
 - Thumbnails could silently fail to save for any printer with API access control enabled.
