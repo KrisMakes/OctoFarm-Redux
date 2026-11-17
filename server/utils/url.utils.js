@@ -26,18 +26,13 @@ function sanitizeURL(url) {
 }
 
 function parseOutIPAddress(string) {
-  if (!!string) {
-    const r = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/;
-
-    const t = string.match(r);
-
-    if (Array.isArray(t)) {
-      return false;
-    }
-
-    return t[0];
-  }
-  return false;
+  // The old version had its Array check inverted: a successful match returns an
+  // array, so it answered false on every hit, and on a miss it dereferenced
+  // null. It could therefore only ever return false or throw, which is how
+  // 'Socket authed for: false' reached the connection log.
+  if (!string) return false;
+  const match = String(string).match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
+  return Array.isArray(match) ? match[0] : false;
 }
 
 function convertHttpUrlToWebsocket(url) {

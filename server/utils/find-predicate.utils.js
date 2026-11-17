@@ -9,14 +9,17 @@ const findFileIndex = (fileList, fullPath) => {
 };
 
 const matchRemoteAddressToOctoFarm = (networkIpAddresses, remoteAddress) => {
-  if (networkIpAddresses.includes(parseOutIPAddress(remoteAddress))) {
-    return process.env[AppConstants.OCTOFARM_SITE_TITLE_KEY];
-  }
-  if (!!remoteAddress) {
-    return parseOutIPAddress(remoteAddress);
+  // parseOutIPAddress answers false for anything without an IP in it, so a bare
+  // pass-through would return the boolean and render as 'false'.
+  const parsedAddress = parseOutIPAddress(remoteAddress);
+
+  if (parsedAddress && networkIpAddresses.includes(parsedAddress)) {
+    return (
+      process.env[AppConstants.OCTOFARM_SITE_TITLE_KEY] || AppConstants.defaultOctoFarmPageTitle
+    );
   }
 
-  return 'Unknown IP';
+  return parsedAddress || 'Unknown IP';
 };
 
 module.exports = {

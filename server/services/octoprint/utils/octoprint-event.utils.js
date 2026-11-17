@@ -56,10 +56,15 @@ const captureClientAuthed = (id, data) => {
 
   let detectedAddress = 'Socket authed for: ';
 
-  if (networkIpAddresses.includes(parseOutIPAddress(remoteAddress))) {
-    detectedAddress += process.env[AppConstants.OCTOFARM_SITE_TITLE_KEY];
-  } else if (!!remoteAddress) {
-    detectedAddress += parseOutIPAddress(remoteAddress);
+  // parseOutIPAddress returns false when there is no IP in the string, so both
+  // branches have to be guarded or the log reads 'Socket authed for: false'.
+  const parsedAddress = parseOutIPAddress(remoteAddress);
+
+  if (parsedAddress && networkIpAddresses.includes(parsedAddress)) {
+    detectedAddress +=
+      process.env[AppConstants.OCTOFARM_SITE_TITLE_KEY] || AppConstants.defaultOctoFarmPageTitle;
+  } else if (parsedAddress) {
+    detectedAddress += parsedAddress;
   } else {
     detectedAddress += 'Unknown IP';
   }
