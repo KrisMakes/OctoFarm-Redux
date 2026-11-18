@@ -21,9 +21,9 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/KrisMakes/OctoFarm-Redux/issues</Support>
   <Project>https://github.com/KrisMakes/OctoFarm-Redux</Project>
-  <Overview>OctoFarm-Redux unifies multiple OctoPrint instances into one web interface: live status and cameras for every printer, file and filament management, print history and statistics, and bulk commands across the farm.&#xD;
+  <Overview>OctoFarm-Redux is a maintained fork of OctoFarm, whose development stopped at the end of 2022. It unifies multiple OctoPrint instances into one web interface: live status and cameras for every printer, file and filament management, print history and statistics, and bulk commands across the farm.&#xD;
 &#xD;
-It is a maintained fork of OctoFarm, whose development stopped at the end of 2022. The application works the same way; this fork is current dependencies, fixes and small additions on top. The image is self-contained - MongoDB runs inside the container - so there is nothing to deploy alongside it.&#xD;
+The application works the same way day to day. This fork brings it to current dependencies, fixes the faults that had accumulated, and adds new features - a rebuilt file manager, camera streaming through the server instead of every browser tab, printer light and maintenance-mode controls, a reworked spool manager, and cancelling a single object mid-print. The image is self-contained - MongoDB runs inside the container - so there is nothing to deploy alongside it.&#xD;
 &#xD;
 The session key can be left empty. The container generates one on first start and keeps it in the data volume, so logins survive a restart. Set SUPER_SECRET_KEY yourself only if you would rather manage the key, or need the same key on two installs.&#xD;
 &#xD;
