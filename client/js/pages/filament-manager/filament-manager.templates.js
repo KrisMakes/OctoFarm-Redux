@@ -16,6 +16,17 @@ export const formatSpoolRemaining = (weight, used) => {
   return Number.isFinite(remaining) ? Math.round(remaining) : remaining;
 };
 
+// Used carries the same fractional tail, and the column is only wide enough for
+// a number input and its spinner. Show whole grams -- but the exact amount has
+// to survive, because editing a row copies each placeholder into its input and
+// saving posts that back, so a rounded placeholder would quietly round the
+// stored amount every time any other field on the row was saved. It rides along
+// in data-exact, which edit/save prefer over the displayed value.
+export const formatSpoolUsed = (used) => {
+  const value = parseFloat(used);
+  return Number.isFinite(value) ? Math.round(value) : used;
+};
+
 export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
   let multiple = '';
   let unassignSpools = '';
@@ -53,9 +64,9 @@ export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
         }</span><input class="form-control" type="number" step="1" placeholder="${
     spool.weight
   }" disabled></td>
-        <td><input class="form-control" type="number" step="1" placeholder="${
+        <td><input class="form-control" type="number" step="1" data-exact="${
           spool.used
-        }" disabled></td>
+        }" placeholder="${formatSpoolUsed(spool.used)}" disabled></td>
         <td><span class="d-none grams">${formatSpoolRemaining(
           spool.weight,
           spool.used

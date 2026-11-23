@@ -1,7 +1,7 @@
 import OctoFarmClient from '../../services/octofarm-client.service';
 import UI from '../../utils/ui';
 import { reRenderPageInformation, printErrors, getSelectValues } from './filament-manager-ui.utils';
-import { formatSpoolRemaining } from './filament-manager.templates';
+import { formatSpoolRemaining, formatSpoolUsed } from './filament-manager.templates';
 
 export async function selectFilament(spools, id) {
   let printerIds = [];
@@ -208,7 +208,10 @@ export const editSpool = async (e) => {
   const id = e.parentElement.parentElement.firstElementChild.innerHTML.trim();
   editable.forEach((edit) => {
     edit.disabled = false;
-    edit.value = edit.placeholder;
+    // Used shows whole grams but carries the exact amount in data-exact, so
+    // saving a change to some other field on the row re-posts the precise
+    // figure instead of the rounded one on display.
+    edit.value = edit.dataset.exact ?? edit.placeholder;
   });
   document.getElementById(`spoolsPrinterAssignment-${id}`).disabled = false;
   document.getElementById(`spoolsProfile-${id}`).disabled = false;
@@ -250,8 +253,13 @@ export const saveSpool = async (e) => {
   const spool = [];
   editable.forEach((edit) => {
     edit.disabled = true;
-    edit.placeholder = edit.value;
     spool.push(edit.value);
+    if ('exact' in edit.dataset) {
+      edit.dataset.exact = edit.value;
+      edit.placeholder = formatSpoolUsed(edit.value);
+    } else {
+      edit.placeholder = edit.value;
+    }
     edit.value = '';
   });
 

@@ -168,13 +168,13 @@
                         </nav>
                     </div>
                     <div class="col-12">
-                        <table class="table-hover table table-responsive-sm table-responsive-md">
+                        <table class="table-hover table table-responsive">
                             <thead>
                             <tr>
                                 <th scope="col" style="min-width: 250px">Manufacturer</th>
                                 <th scope="col" style="min-width: 250px">Material</th>
-                                <th scope="col" style="max-width: 50px">Density</th>
-                                <th scope="col" style="max-width: 50px">Diameter</th>
+                                <th scope="col" style="min-width: 100px">Density</th>
+                                <th scope="col" style="min-width: 100px">Diameter</th>
                                 <th scope="col" style="min-width: 250px"></th>
                             </tr>
                             </thead>
@@ -191,6 +191,27 @@
     </div>
 </div>
 <!-- Spool Modal -->
+<style>
+    /* The spool table is wider than a stock modal-xl, so it scrolls sideways on
+       most screens -- which used to push the action buttons out of sight. Let the
+       modal use the screen, let the buttons wrap when the column is squeezed, and
+       pin the column to the right edge so it stays reachable while the rest
+       scrolls underneath. The background is inherited all the way down from the
+       modal so the pinned cells are opaque in any theme. */
+    #spoolManagerModal .modal-dialog { max-width: min(96vw, 1700px); }
+    #spoolManagerModal #addSpoolModalBody,
+    #spoolManagerModal table.spool-manager-table,
+    #spoolManagerModal table.spool-manager-table thead,
+    #spoolManagerModal table.spool-manager-table tbody,
+    #spoolManagerModal table.spool-manager-table tr { background-color: inherit; }
+    #spoolManagerModal table.spool-manager-table { padding-right: 0; }
+    #spoolManagerModal table.spool-manager-table th:last-child,
+    #spoolManagerModal table.spool-manager-table td:last-child {
+        position: sticky;
+        right: 0;
+        background-color: inherit;
+    }
+</style>
 <div class="modal fade" id="spoolManagerModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -416,20 +437,20 @@
                         </table>
                     </div>
                 </div>
-                <table class="table-hover table table-responsive-sm table-responsive-md col-lg-12">
+                <table class="table-hover table table-responsive col-lg-12 spool-manager-table">
                     <thead>
                     <tr>
                         <th scope="col" style="min-width: 90px;">No.</th>
-                        <th scope="col" style="min-width: 250px;">Name</th>
-                        <th scope="col" style="min-width: 200px">Profile</th>
-                        <th scope="col" style="max-width: 50px">Price</th>
-                        <th scope="col" style="max-width: 100px">Weight (g)</th>
-                        <th scope="col" style="max-width: 100px">Used (g)</th>
-                        <th scope="col" style="max-width: 100px">Remaining (g)</th>
-                        <th scope="col" style="max-width: 50px">Tool Offset (°C)</th>
-                        <th scope="col" style="max-width: 50px">Bed Offset (°C)</th>
-                        <th scope="col" style="min-width: 300px">Printer Assignment</th>
-                        <th scope="col" style="min-width: 200px"></th>
+                        <th scope="col" style="min-width: 200px;">Name</th>
+                        <th scope="col" style="min-width: 170px">Profile</th>
+                        <th scope="col" style="min-width: 120px">Price</th>
+                        <th scope="col" style="min-width: 100px">Weight (g)</th>
+                        <th scope="col" style="min-width: 100px">Used (g)</th>
+                        <th scope="col" style="min-width: 100px">Remaining (g)</th>
+                        <th scope="col" style="min-width: 95px">Tool Offset (°C)</th>
+                        <th scope="col" style="min-width: 95px">Bed Offset (°C)</th>
+                        <th scope="col" style="min-width: 240px">Printer Assignment</th>
+                        <th scope="col" style="min-width: 130px; width: 190px"></th>
                     </tr>
                     </thead>
                     <tbody id="addSpoolsTable" data-jplist-group="spools">
