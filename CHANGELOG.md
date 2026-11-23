@@ -14,7 +14,9 @@ A patch release: OctoPrint 2.0 support and a round of spool manager fixes.
   profile, price, offsets or printer assignment, for putting a fresh roll on an existing entry. The table's
   columns no longer crush their own inputs, and its row of action buttons no longer wraps onto a second line. A
   spool name is escaped before it reaches the table or a confirmation dialog.
-* **Fixes** - a printer that has no current profile no longer breaks the page that lists it.
+* **Fixes** - a printer that has no current profile no longer breaks the page that lists it. A printer whose serial
+  port was closed when OctoFarm first read it, which OctoPrint 2.0 answers with no profile name, no longer shows
+  no temperatures: the profile OctoPrint marks as current is used instead.
 
 ## [2.0.0](https://github.com/KrisMakes/OctoFarm-Redux/releases/tag/v2.0.0) - OctoFarm-Redux
 

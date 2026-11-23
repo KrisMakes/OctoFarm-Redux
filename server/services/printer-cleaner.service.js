@@ -230,11 +230,20 @@ class PrinterCleanerService {
   }
 
   static sortProfile(profile, current) {
-    if (!!profile && !!current) {
-      return profile[current.printerProfile];
-    } else {
+    if (!profile || !current) {
       return null;
     }
+    const named = profile[current.printerProfile];
+    if (named) {
+      return named;
+    }
+    // OctoPrint 2.0 reports `printerProfile: null` from /api/connection while
+    // the printer is not connected, and that answer is only fetched once. Looking
+    // the null up by id found nothing, so the card had no extruder or bed count
+    // and drew no temperature row at all, even though temps were streaming in.
+    // Fall back to the profile OctoPrint itself marks as current, then default.
+    const all = Object.values(profile);
+    return all.find((p) => p?.current) ?? all.find((p) => p?.default) ?? all[0] ?? null;
   }
 
   static sortTemps(temps) {
