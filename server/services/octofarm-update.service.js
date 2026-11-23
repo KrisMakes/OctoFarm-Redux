@@ -13,11 +13,20 @@ let loadedWithPrereleases = null;
 let installedReleaseFound = null;
 let notificationReady = false;
 
+// Release tags are `v2.0.1` while package.json carries `2.0.1`. Compared
+// verbatim the installed release was never found, so no update was ever
+// announced; compare the versions without the leading `v`.
+function normaliseVersion(version) {
+  return String(version ?? '')
+    .trim()
+    .replace(/^v/i, '');
+}
+
 function findGithubRelease(releases, prerelease = false, tag_name = null) {
   return releases.find(
     (r) =>
       r.draft === false &&
-      (tag_name ? r.tag_name === tag_name : true) &&
+      (tag_name ? normaliseVersion(r.tag_name) === normaliseVersion(tag_name) : true) &&
       (r.prerelease === false || prerelease)
   );
 }
@@ -77,7 +86,8 @@ async function syncLatestOctoFarmRelease(includePrereleases = false) {
             lastReleaseCheckFailed = false;
             latestReleaseKnown = latestRelease;
             notificationReady =
-              latestRelease.tag_name !== packageVersion && !!installedReleaseFound;
+              normaliseVersion(latestRelease.tag_name) !== normaliseVersion(packageVersion) &&
+              !!installedReleaseFound;
           }
         } else {
           logger.debug('Latest release check failed because releases from gitty empty');
@@ -164,7 +174,7 @@ function checkReleaseAndLogUpdate() {
     return;
   }
 
-  if (!!packageVersion && packageVersion !== latestReleaseTag) {
+  if (!!packageVersion && normaliseVersion(packageVersion) !== normaliseVersion(latestReleaseTag)) {
     if (!!airGapped) {
       logger.warning(
         `Installed release: ${packageVersion}. Skipping update check (air-gapped/disconnected from internet)`
