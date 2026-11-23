@@ -71,11 +71,15 @@ const acquirePrinterFilesAndFolderData = function (fileList) {
       let success = 0;
       let failed = 0;
       let last = null;
+      // Unix seconds of the most recent print of this file, null if never printed.
+      let lastPrinted = null;
 
       if (typeof entry.prints !== 'undefined') {
         success = entry.prints.success;
         failed = entry.prints.failure;
-        last = entry.prints.last.success;
+        // `last` is absent for a file that has never been printed.
+        last = entry.prints.last?.success ?? null;
+        lastPrinted = entry.prints.last?.date ?? null;
       }
 
       const file = {
@@ -91,6 +95,7 @@ const acquirePrinterFilesAndFolderData = function (fileList) {
         success: success,
         failed: failed,
         last: last,
+        lastPrinted,
       };
       printerFiles.push(file);
     }
