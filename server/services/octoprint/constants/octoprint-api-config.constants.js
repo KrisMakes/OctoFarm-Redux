@@ -17,14 +17,21 @@ const octoPrintBase = '/';
 const apiBase = octoPrintBase + 'api';
 
 const apiVersion = apiBase + '/version';
-const apiUsers = apiBase + '/users';
+// OctoPrint 2.0 removed /api/users. /api/access/users has existed since the
+// 1.4.0 access-control rework and answers identically on 1.11.x, so this one
+// path covers every version OctoFarm supports -- no version sniffing needed.
+const apiUsers = apiBase + '/access/users';
 const apiSettings = apiBase + '/settings';
 const apiSystem = apiBase + '/system';
 const apiSystemInfo = apiSystem + '/info';
 const apiSystemCommands = apiSystem + '/commands';
 const apiPrinterProfiles = apiBase + '/printerprofiles';
 const apiConnection = apiBase + '/connection';
-const apiPluginManager = apiBase + '/plugin/pluginmanager';
+// Likewise /api/plugin/pluginmanager is gone in 2.0 (it answers 204 with an
+// empty body, which looks like a success and then blows up on .json()). The
+// split routes it was replaced by are served by 1.6.0 onwards, and only
+// /plugins is needed here -- same {plugins: [...]} payload on both versions.
+const apiPluginManager = octoPrintBase + 'plugin/pluginmanager/plugins';
 const apiSoftwareUpdateCheck = (force = false) =>
   octoPrintBase + 'plugin/softwareupdate/check' + (force ? '?force=true' : '');
 const apiFiles = (recursive = true) => apiBase + '/files?recursive=' + recursive;

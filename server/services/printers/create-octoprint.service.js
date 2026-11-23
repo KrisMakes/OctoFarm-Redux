@@ -658,7 +658,23 @@ class OctoPrintPrinter {
       return apiCall?.status ? apiCall.status : 408;
     }
 
-    const jsonResponse = await apiCall.json();
+    // A 204 is `ok`, so it gets this far and then throws on an empty body --
+    // which is what OctoPrint 2.0 answers on routes it has retired. The throw
+    // escapes into the Promise.allSettled that fires these checks, so the
+    // ticker never moves off "Acquiring" and the real cause never surfaces.
+    // Treat a body-less success as the failure it is.
+    let jsonResponse;
+    try {
+      jsonResponse = await apiCall.json();
+    } catch (e) {
+      logger.error(`Empty or malformed response acquiring ${tickerMessage}`, e);
+      this.#apiPrinterTickerWrap(`Failed to acquire ${tickerMessage}`, 'Offline');
+
+      if (!!apiCheck) {
+        this.#apiChecksUpdateWrap(apiCheck, 'danger');
+      }
+      return apiCall.status;
+    }
     // Say yes on the ticker
 
     // Grab the required keys
@@ -1039,7 +1055,7 @@ class OctoPrintPrinter {
     return this.#acquire({
       label: 'plugin lists data',
       systemCheck: ALLOWED_SYSTEM_CHECKS().PLUGINS,
-      request: () => this.#api.getPluginManager(this.octoPrintVersion),
+      request: () => this.#api.getPluginManager(),
       apply: ({ plugins }) => {
         this.pluginsListEnabled = plugins.filter((plugin) => plugin.enabled);
         this.pluginsListDisabled = plugins.filter((plugin) => !plugin.enabled);

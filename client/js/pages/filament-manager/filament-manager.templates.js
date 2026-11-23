@@ -1,6 +1,8 @@
 // Written on a sticker on the physical spool, so shown on its own wherever a
 // spool is picked. Spools created before numbering existed may lack one until
 // the migration has run.
+import { escapeHtml } from '../../utils/html.utils';
+
 export const spoolNumberLabel = (spoolNumber) =>
   typeof spoolNumber === 'number' ? `#${spoolNumber}` : '';
 
@@ -46,9 +48,11 @@ export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
         }</span><input class="form-control spool-number" type="number" min="1" step="1" placeholder="${
     spool.spoolNumber ?? ''
   }" disabled></td>
-        <th scope="row"><span class="d-none name">${
+        <th scope="row"><span class="d-none name">${escapeHtml(
           spool.name
-        }</span><input class="form-control" type="text" placeholder="${spool.name}" disabled></th>
+        )}</span><input class="form-control" type="text" placeholder="${escapeHtml(
+    spool.name
+  )}" disabled></th>
         <td>
             <span class="d-none material" id="spoolsMaterialText-${spool._id}"></span>
             <select id="spoolsProfile-${spool._id}" class="form-control" disabled>

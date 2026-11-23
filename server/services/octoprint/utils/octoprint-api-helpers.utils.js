@@ -1,7 +1,16 @@
+// OctoPrint 2.0 dropped the derived `admin` flag from user payloads: group
+// membership is now the only record of it. `groups` has been there since the
+// 1.4.0 access-control rework, so it is the test that works on every supported
+// version -- `admin` is kept purely as a belt-and-braces fallback. Without this
+// the user list came back empty on 2.0, and an empty user list is a hard
+// shutdown for the printer.
+const isOctoPrintAdmin = (user) =>
+  !!user?.admin || (Array.isArray(user?.groups) && user.groups.includes('admins'));
+
 const parseAllOctoPrintUsers = (userList) => {
   const users = [];
   for (let currentUser of userList) {
-    if (!!currentUser.admin) {
+    if (isOctoPrintAdmin(currentUser)) {
       if (!users.includes(currentUser.name)) {
         users.push(currentUser.name);
       }

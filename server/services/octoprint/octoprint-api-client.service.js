@@ -12,14 +12,16 @@ const apiSystem = apiBase + '/system';
 const apiSystemInfo = apiSystem + '/info';
 const apiSystemCommands = apiSystem + '/commands';
 const apiVersion = apiBase + '/version';
-const apiUsers = apiBase + '/users';
+// See octoprint-api-config.constants.js: /api/users is gone in OctoPrint 2.0.
+const apiUsers = apiBase + '/access/users';
 const apiLogin = (passive = true) => apiBase + '/login' + (passive ? '?passive=true' : '');
 const apiProfiles = apiBase + '/printerprofiles/'; //expects a profile id param
 const apiSettings = apiBase + '/settings';
 
 // Both constants were the same string, which made checkPluginManagerAPIDeprecation
-// a no-op. Keep the single working route and drop the pretence of a choice.
-const apiPluginManager = apiBase + '/plugin/pluginmanager';
+// a no-op. OctoPrint 2.0 dropped /api/plugin/pluginmanager for split routes that
+// 1.6.0+ also serves, so there is still only one route worth having.
+const apiPluginManager = octoPrintBase + 'plugin/pluginmanager/plugins';
 // Both arms of the old ternary were the empty string, so `force` did nothing
 // and OctoPrint always answered from its cache.
 const apiSoftwareUpdateCheck = (force) =>
@@ -96,8 +98,10 @@ class OctoprintApiClientService extends OctoprintApiService {
     return this.get(apiPrinterProfiles);
   }
 
-  async getPluginManager(octoPrintVersion = undefined) {
-    if (!octoPrintVersion) throw new Error('Version not supplied...');
+  // The version argument used to pick between two identical URLs and threw when
+  // it was missing. One route now covers every supported version, so a printer
+  // whose version has not been read yet is no longer a reason to fail.
+  async getPluginManager() {
     return this.get(apiPluginManager);
   }
 

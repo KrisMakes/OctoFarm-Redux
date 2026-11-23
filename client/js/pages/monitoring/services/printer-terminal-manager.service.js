@@ -279,10 +279,19 @@ export default class PrinterTerminalManagerService {
       const tempCheck = document.getElementById('tempMessages').checked;
       const sdCheck = document.getElementById('sdMessages').checked;
       for (let l = 0; l < printer.terminal.length; l++) {
-        const tempMess = /(Send: (N\d+\s+)?M105)|(Recv:\s+(ok\s+)?.*(B|T\d*):\d+)/;
-        const sdMess = /(Send: (N\d+\s+)?M27)|(Recv: SD printing byte)/;
-        const sdMess2 = /Recv: Not SD printing/;
-        const waitMess = /Recv: wait/;
+        // OctoPrint 2.0 relabelled the serial log: "Send:" became ">>>" and
+        // "Recv:" became "<<<" (serial_connector/serial_comm.py). Matching only
+        // the old prefixes left every filter checkbox doing nothing on a 2.0
+        // printer -- the temperature chatter they exist to hide just scrolled
+        // past. Both spellings are accepted so one build serves 1.11 and 2.0.
+        const sent = '(?:Send:|>>>)';
+        const recv = '(?:Recv:|<<<)';
+        const tempMess = new RegExp(
+          `(${sent} (N\\d+\\s+)?M105)|(${recv}\\s+(ok\\s+)?.*(B|T\\d*):\\d+)`
+        );
+        const sdMess = new RegExp(`(${sent} (N\\d+\\s+)?M27)|(${recv} SD printing byte)`);
+        const sdMess2 = new RegExp(`${recv} Not SD printing`);
+        const waitMess = new RegExp(`${recv} wait`);
         if (printer.terminal[l].match(tempMess)) {
           if (tempCheck) {
             elements.terminal.terminalWindow.insertAdjacentHTML(
