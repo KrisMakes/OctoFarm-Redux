@@ -123,6 +123,10 @@ export default class PrinterFileManagerService {
                 <a class="dropdown-item" id="sortDateDown"><i class="fas fa-sort-numeric-down"></i> Upload Date</a>
 
                 <a class="dropdown-item" id="sortDateUp"><i class="fas fa-sort-numeric-up"></i> Upload Date</a>
+                       <div class="dropdown-divider"></div>
+                <a class="dropdown-item" id="sortLastPrintedDown"><i class="fas fa-sort-numeric-down"></i> Last Printed</a>
+
+                <a class="dropdown-item" id="sortLastPrintedUp"><i class="fas fa-sort-numeric-up"></i> Last Printed</a>
                     </div>
                   </div>
                   <label class="btn btn-success float-left mr-1 mb-0 bg-colour-1" for="fileUploadBtn"><i class="fas fa-file-import"></i> Upload File(s)</label>

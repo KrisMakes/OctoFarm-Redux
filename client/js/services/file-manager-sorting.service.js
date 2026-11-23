@@ -26,6 +26,13 @@ export default class FileManagerSortingService {
           this.sortUploadDate(updatedPrinter, reverse);
         }
       }
+      if (fileSortStorage.meta === 'printed') {
+        if (typeof recursive !== 'undefined') {
+          this.sortLastPrinted(updatedPrinter, reverse, recursive);
+        } else {
+          this.sortLastPrinted(updatedPrinter, reverse);
+        }
+      }
       if (fileSortStorage.meta === 'time') {
         if (typeof recursive !== 'undefined') {
           this.sortPrintTime(updatedPrinter, reverse, recursive);
@@ -75,6 +82,47 @@ export default class FileManagerSortingService {
       dateDown.addEventListener('click', (e) => {
         this.sortUploadDate(printer, true);
       });
+    }
+    const lastPrintedUp = document.getElementById('sortLastPrintedUp');
+    const lastPrintedDown = document.getElementById('sortLastPrintedDown');
+    if (lastPrintedUp) {
+      lastPrintedUp.addEventListener('click', (e) => {
+        this.sortLastPrinted(printer);
+      });
+    }
+    if (lastPrintedDown) {
+      lastPrintedDown.addEventListener('click', (e) => {
+        this.sortLastPrinted(printer, true);
+      });
+    }
+  }
+
+  // Most recently printed first when `reverse` is set (matching the other
+  // "down" options). Files never printed count as 0, so they land at the
+  // bottom of that view instead of being mixed in.
+  static sortLastPrinted(printer, reverse, recursive) {
+    const sortHeader = document.getElementById('fileSortDropdownMenu');
+    if (sortHeader) {
+      printer.fileList.fileList = sortBy(printer.fileList.fileList, [
+        function (o) {
+          return o.lastPrinted || 0;
+        },
+      ]);
+      printer.fileList.folderList = sortBy(printer.fileList.folderList, [
+        function (o) {
+          return o.name;
+        },
+      ]);
+      if (reverse) {
+        printer.fileList.fileList = printer.fileList.fileList.reverse();
+        printer.fileList.folderList = printer.fileList.folderList.reverse();
+        sortHeader.innerHTML = '<i class="fas fa-sort-numeric-down"></i> Last Printed';
+        this.saveSort('printed', true);
+      } else {
+        sortHeader.innerHTML = '<i class="fas fa-sort-numeric-up"></i> Last Printed';
+        this.saveSort('printed', false);
+      }
+      FileManagerService.updatePrinterFilesList(printer, recursive);
     }
   }
 

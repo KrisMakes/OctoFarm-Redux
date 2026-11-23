@@ -1157,11 +1157,15 @@ class OctoPrintPrinter {
       let success = 0;
       let failed = 0;
       let last = null;
+      // Unix seconds of the most recent print of this file, null if never printed.
+      let lastPrinted = null;
 
       if (typeof fileEntry.prints !== 'undefined') {
         success = fileEntry.prints.success;
         failed = fileEntry.prints.failure;
-        last = fileEntry.prints.last.success;
+        // `last` is absent for a file that has never been printed.
+        last = fileEntry.prints.last?.success ?? null;
+        lastPrinted = fileEntry.prints.last?.date ?? null;
       }
 
       const fileInformation = {
@@ -1177,6 +1181,7 @@ class OctoPrintPrinter {
         success: success,
         failed: failed,
         last: last,
+        lastPrinted,
       };
 
       const fileIndex = findIndex(this.fileList.fileList, function (o) {
