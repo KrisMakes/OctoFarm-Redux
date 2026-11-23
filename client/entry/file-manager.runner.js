@@ -141,7 +141,9 @@ class Manager {
 
       dragAndDropEnable(listItem, printer);
 
-      for (let i = 0; i < printer.currentProfile.extruder.count; i++) {
+      // Matches the extruderList loop above: currentProfile is null for any
+      // printer whose serial port is disconnected, so this must tolerate it too.
+      for (let i = 0; i < printer?.currentProfile?.extruder?.count; i++) {
         await fillFilamentDropDownList(
           document.getElementById(`tool-${printer._id}-${i}-bigFilamentSelect`),
           printer,

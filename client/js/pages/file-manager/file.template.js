@@ -294,23 +294,44 @@ export const noFilesToShow = () => {
 };
 
 export const printerProfileTemplate = (printer) => {
-  let defaultProfileString = '<i class="fas fa-cube"></i> Couldn\'t find profile';
-
+  // currentProfile is sortProfile(profiles, current), and that returns null
+  // whenever OctoPrint reports no current state -- which is every printer that
+  // answers over HTTP but has its serial port disconnected. The volume line was
+  // guarded; the extruder line below it was not, so rendering the file manager
+  // threw on the first such printer and the rest of the list never appeared.
   const { currentProfile } = printer;
 
-  if (!!currentProfile) {
-    defaultProfileString = `<b>H:</b> ${printer.currentProfile.volume.height}mm x <b>W:</b> ${printer.currentProfile.volume.width}mm x <b>D:</b> ${printer.currentProfile.volume.depth}mm`;
+  if (!currentProfile) {
+    return `
+    <small class="pt-2 float-left">
+        <i class="fas fa-cube"></i> Couldn't find profile
+    </small>
+    `;
+  }
+
+  const { volume, extruder } = currentProfile;
+
+  const volumeString = volume
+    ? `<b>H:</b> ${volume.height}mm x <b>W:</b> ${volume.width}mm x <b>D:</b> ${volume.depth}mm`
+    : '<i class="fas fa-cube"></i> Couldn\'t find profile';
+
+  if (!extruder) {
+    return `
+    <small class="pt-2 float-left">
+        ${volumeString}
+    </small>
+    `;
   }
 
   return `
     <small class="pt-2 float-left">
-        ${defaultProfileString}
+        ${volumeString}
     </small>
     <br><!--Fix for firefox-->
     <small class="pt-2 pb-2 float-left"><i class="fas fa-pen"></i> <b>Extruders:</b>
-       ${printer.currentProfile.extruder.count}
+       ${extruder.count}
        <b>Nozzle Size:</b> 
-       ${printer.currentProfile.extruder.nozzleDiameter}mm
+       ${extruder.nozzleDiameter}mm
     </small>
     `;
 };

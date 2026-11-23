@@ -9,6 +9,10 @@ import { findIndex, isEmpty } from 'lodash';
 
 let currentPrinterIndex;
 let printerOnline;
+// A printer that answers over HTTP with its serial port disconnected is not
+// Offline, but OctoPrint reports no current state for it, so the farm has no
+// current profile to show. The profile tab is the only tab that needs one.
+let profileAvailable;
 let currentPrinter;
 let pageElements;
 let currentPrintersInformation;
@@ -26,6 +30,8 @@ export async function updatePrinterSettingsModal(printersInformation, printerID)
       // Make sure online state is latest...
       printerOnline =
         printersInformation[currentPrinterIndex]?.printerState?.colour?.category !== 'Offline';
+      profileAvailable =
+        printerOnline && !!printersInformation[currentPrinterIndex]?.currentProfile;
       PrinterSettingsService.updateStateElements(printersInformation[currentPrinterIndex]);
     }
   } else {
@@ -34,6 +40,7 @@ export async function updatePrinterSettingsModal(printersInformation, printerID)
     currentPrinter = await OctoFarmClient.refreshPrinterSettings(printerID);
     //Convert online state to a boolean
     printerOnline = currentPrinter?.printerState?.colour?.category !== 'Offline';
+    profileAvailable = printerOnline && !!currentPrinter?.currentProfile;
     PrinterSettingsService.updateStateElements(currentPrinter);
     // Clear the page of old values.
     UI.clearSelect('ps');
@@ -51,10 +58,12 @@ export async function updatePrinterSettingsModal(printersInformation, printerID)
     // Setup Alerts Tab
     await PrinterSettingsService.setupAlertsTab();
     PrinterSettingsService.enablePanel(pageElements.menu.printerAlertsBtn);
-    if (printerOnline) {
+    if (profileAvailable) {
       // Setup Profile Tab
       PrinterSettingsService.setupProfileTab();
       PrinterSettingsService.enablePanel(pageElements.menu.printerProfileBtn);
+    }
+    if (printerOnline) {
       // Setup Gcode Script Tab
       PrinterSettingsService.setupGcodeTab();
       PrinterSettingsService.enablePanel(pageElements.menu.printerGcodeBtn);
@@ -977,7 +986,7 @@ class PrinterSettingsService {
         ),
       },
     };
-    if (printerOnline) {
+    if (profileAvailable) {
       let printerName = UI.getValueOrPlaceHolder(document.getElementById('psProfileName'));
       let printerModel = UI.getValueOrPlaceHolder(document.getElementById('psPrinterModel'));
       if (printerName === '') {
