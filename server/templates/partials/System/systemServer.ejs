@@ -2,7 +2,7 @@
 <% const modal = base + '/octofarm-modal.ejs' %>
 
 <% const instructionsURL = links.README_URL %>
-<% const updateURL = links.README_URL %>
+<% const updateURL = links.UPDATE_URL %>
 <% const installationURL = links.README_URL %>
 
 <% let updateDisabled = "disabled"; %>
@@ -18,7 +18,7 @@
     <div class="alert alert-warning text-dark" role="alert">
         Your system is not running with PM2! Some commands below may not work... Please
         setup your system correctly as instructed here: <a
-                rel=”noopener” href='<%= instructionsURL %>' target='_blank'>Click Here</a>
+                rel="noopener noreferrer" href='<%= instructionsURL %>' target='_blank'>Click Here</a>
     </div>
 <% } %>
 <% if(serviceInformation?.isNodemon){ %>
@@ -30,11 +30,9 @@
 <% if(serviceInformation?.isDockerContainer){ %>
     <div class="alert alert-warning text-dark" role="alert">
         The "Update OctoFarm" function has been disabled due to
-        Docker having it's own update mechanism
-        Please check the <a
-                rel=”noopener” href="<%= updateURL %>">Installation
-            Instructions</a> for more information on how to update
-        your docker container.
+        Docker having its own update mechanism.
+        See <a rel="noopener noreferrer" target="_blank" href="<%= updateURL %>">Updating</a>
+        for how to update your docker container.
     </div>
     <% systemButtonsDisabled = true; %>
 <% } %>
@@ -42,7 +40,7 @@
     <div class="alert alert-warning text-dark" role="alert">
         The "Update OctoFarm" function has been disabled due to not been
         able to detect the use of the pm2 process manager.
-        Please re-install OctoFarm following the <a rel=”noopener” target="_blank" href="<%= instructionsURL %>">Installation
+        Please re-install OctoFarm following the <a rel="noopener noreferrer" target="_blank" href="<%= instructionsURL %>">Installation
             Instructions</a>.
     </div>
     <% systemButtonsDisabled = true; %>
@@ -51,7 +49,7 @@
     <div class="alert alert-warning text-dark" role="alert">
         The "Update OctoFarm" function has been disabled due to not been
         able to detect a git repository.
-        Please check the <a rel=”noopener” target="_blank" href="<%= instructionsURL %>">Installation
+        Please check the <a rel="noopener noreferrer" target="_blank" href="<%= instructionsURL %>">Installation
             Instructions</a> for more information on how to set this
         up.
     </div>
@@ -72,7 +70,8 @@
         <button title="Performs an update command on OctoFarm to the latest version"
                 id="updateOctoFarmBtn" type="button"
                 class="btn btn-success ml-3 float-right btn-lg"
-                <% updateDisabled %>>
+                <% if (systemButtonsDisabled) { %>data-update-blocked="true"<% } %>
+                <%= (systemButtonsDisabled || updateDisabled) ? 'disabled' : '' %>>
             <i class="fas fa-thumbs-up"></i> Update OctoFarm
         </button>
     </div>

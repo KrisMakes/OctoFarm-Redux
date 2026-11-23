@@ -447,11 +447,18 @@ async function checkForOctoFarmUpdates() {
   if (updateCheck?.update_available) {
     UI.createAlert(
       'success',
-      'We found a new update, please use the update button to action!',
+      document.getElementById('updateOctoFarmBtn')?.dataset.updateBlocked === 'true'
+        ? `A new version is available: ${updateCheck.latestReleaseKnown?.tag_name ?? 'see the releases page'}. See the notice above for how to update this install.`
+        : 'We found a new update, please use the update button to action!',
       5000,
       'Clicked'
     );
-    document.getElementById('updateOctoFarmBtn').disabled = false;
+    const updateBtn = document.getElementById('updateOctoFarmBtn');
+    // In-app update is blocked for Docker and non-git installs; the banner
+    // above the buttons says why, so never re-enable the button there.
+    if (updateBtn && updateBtn.dataset.updateBlocked !== 'true') {
+      updateBtn.disabled = false;
+    }
   } else {
     UI.createAlert('warning', 'Sorry there are no new updates available!', 5000, 'Clicked');
   }

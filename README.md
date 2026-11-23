@@ -366,6 +366,21 @@ Then open `http://<host>:4000` and register the first account; it becomes the ad
 The session key is generated on first start and kept in the data volume, so there is nothing to set. Pass
 `-e SUPER_SECRET_KEY=...` only if you would rather manage it yourself, or need the same key across two installs.
 
+### Updating
+
+The in-app **Update OctoFarm** button is disabled in the container because the image is the unit of update. To
+update, pull the new image and recreate the container; your data lives in the mounted volumes and carries over.
+
+```sh
+docker pull ghcr.io/krismakes/octofarm-redux:latest
+docker stop octofarm-redux && docker rm octofarm-redux
+# then run the same `docker run` command as above
+```
+
+On **Unraid**, use the **Docker** tab: **Check for Updates**, then **apply update** on the container. Pin a
+version tag (for example `:2.0.1`) instead of `:latest` if you want updates to happen only when you say so.
+**Check for Update** on the System page tells you when a newer release exists.
+
 Remove the container with `docker rm -v` so its anonymous volumes go with it.
 
 ## Development setup

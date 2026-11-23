@@ -14,6 +14,7 @@ const LINKS = {
   REPO_URL,
   ISSUES_URL: `${REPO_URL}/issues`,
   README_URL: `${REPO_URL}#readme`,
+  UPDATE_URL: `${REPO_URL}#updating`,
   RELEASE_TAG_URL: `${REPO_URL}/releases/tag/`,
   RELEASES_API_URL: 'https://api.github.com/repos/KrisMakes/OctoFarm-Redux/releases',
   KOFI_URL: 'https://ko-fi.com/krismakes',
