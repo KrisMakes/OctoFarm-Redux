@@ -1,4 +1,7 @@
-const { exec } = require('child_process');
+const { promisify } = require('util');
+// exec() with a callback returns a ChildProcess, which has no .catch, so the
+// old restart code threw inside its own setTimeout and crashed the process.
+const execAsync = promisify(require('child_process').exec);
 const { isPm2 } = require('../utils/env.utils.js');
 const { isNodemon } = require('../utils/env.utils.js');
 const { lookpath } = require('lookpath');
@@ -29,8 +32,14 @@ class SystemCommands {
         let doesFunctionExist = await lookpath('pm2');
 
         if (doesFunctionExist) {
+          // Restart the process we are actually running as. pm2 sets pm_id for
+          // its children, so this still works if the app was not named
+          // "OctoFarm" (the old hard-coded name).
+          const pm2Target = /^\d+$/.test(String(process.env.pm_id ?? ''))
+            ? process.env.pm_id
+            : 'OctoFarm';
           setTimeout(() => {
-            exec('pm2 restart OctoFarm').catch((e) => {
+            execAsync(`pm2 restart ${pm2Target}`).catch((e) => {
               logger.error('pm2 restart command failed', e.toString());
             });
           }, 5000);
@@ -48,7 +57,7 @@ class SystemCommands {
 
         if (doesFunctionExist) {
           setTimeout(() => {
-            exec('touch ./app.js').catch((e) => {
+            execAsync('touch ./app.js').catch((e) => {
               logger.error('nodemon restart command failed', e.toString());
             });
           }, 5000);
@@ -79,6 +88,18 @@ class SystemCommands {
       await makeSureBranchIsUpToDateWithRemote();
 
       const gitCurrentStatus = await returnCurrentGitStatus();
+
+      // A checkout of a tag or commit (detached HEAD), or a branch that tracks
+      // nothing, has no upstream to be "behind", so it would be reported as up
+      // to date forever. Say so instead of giving a false all-clear.
+      if (gitCurrentStatus.detached || !gitCurrentStatus.tracking) {
+        clientResponse.statusTypeForUser = 'warning';
+        clientResponse.message =
+          'This install is not on a branch that follows a remote (for example a release tag is checked out), so it cannot update itself. ' +
+          'Switch to a branch first, e.g. run <code>git checkout master</code> in the OctoFarm folder, or check out the newer release tag manually.';
+        return clientResponse;
+      }
+
       // Check if branch is already up to date. Nothing to do, return response to user.
       const gitBranchUpToDate = isBranchUpToDate(gitCurrentStatus);
       if (gitBranchUpToDate) {

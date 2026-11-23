@@ -383,6 +383,12 @@ version tag (for example `:2.0.1`) instead of `:latest` if you want updates to h
 
 Remove the container with `docker rm -v` so its anonymous volumes go with it.
 
+**Running from source (for example on a Raspberry Pi):** the **Update OctoFarm** button works for a git checkout
+started with pm2 (`npm start`). It runs `git pull` on the branch you have checked out, then `npm ci`, then
+restarts. Keep the checkout on a branch such as `master` (a checked-out release tag cannot update itself), and
+keep `origin` pointing at this repository. Without pm2 the button stays disabled; update by hand with
+`git pull && npm run install-server` and restart.
+
 ## Development setup
 
 ### Requirements
