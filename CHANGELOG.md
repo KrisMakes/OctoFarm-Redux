@@ -1,3 +1,20 @@
+## [2.0.2](https://github.com/KrisMakes/OctoFarm-Redux/releases/tag/v2.0.2) - OctoFarm-Redux
+
+A patch release: update notifications that actually fire, safer in-app updates, and a Last Printed sort.
+
+* **Update notifications** - the installed release was matched against the release tag by exact string, and the tag
+  carries a leading `v` that `package.json` does not, so no update was ever found: Check for Update always answered
+  "no updates" and the background notification never fired. Versions are now compared without the `v`.
+* **In-app update** - the update button is now properly disabled in Docker, where the container is updated by pulling
+  a new image, and the README says how. For installs run from a git checkout with pm2 the button works end to end
+  (`git pull`, `npm ci`, restart). The restart step used to crash the server on every pm2 or nodemon restart, and an
+  install on a detached HEAD or a branch with no upstream (for example a checked-out release tag) reported "already
+  up to date"; it now says it cannot update itself and what to do about it. Restarts target the pm2 process that is
+  actually running.
+* **Last Printed sort** - the printer file lists can now be sorted by when each file was last printed, most recent
+  first or last. The date comes from OctoPrint's own print history for the file, so a printer's file list needs one
+  Re-Sync before the sort has data; files that were never printed sort to the end.
+
 ## [2.0.1](https://github.com/KrisMakes/OctoFarm-Redux/releases/tag/v2.0.1) - OctoFarm-Redux
 
 A patch release: OctoPrint 2.0 support and a round of spool manager fixes.
