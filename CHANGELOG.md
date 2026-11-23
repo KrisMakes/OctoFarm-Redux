@@ -1,3 +1,21 @@
+## [2.0.1](https://github.com/KrisMakes/OctoFarm-Redux/releases/tag/v2.0.1) - OctoFarm-Redux
+
+A patch release: OctoPrint 2.0 support and a round of spool manager fixes.
+
+* **OctoPrint 2.0** - 2.0 removed `/api/users` and `/api/plugin/pluginmanager`. The user list and the plugin list
+  are now read from `/api/access/users` and `/plugin/pluginmanager/plugins`, which 1.4.0 and 1.6.0 respectively
+  added, so one code path serves every supported version and there is no version sniffing to get wrong. A printer
+  whose user list came back empty used to shut its own connection down, which is what a fresh 2.0 instance would
+  have done. Alongside it: an administrator is recognised from its `admins` group now that 2.0 has dropped the
+  `admin` field from user payloads, the terminal's filter checkboxes understand 2.0's `>>>` and `<<<` serial log
+  prefixes as well as 1.11's `Send:` and `Recv:`, and an endpoint that answers 204 with an empty body is reported
+  rather than thrown out of the printer setup.
+* **Spool manager** - a reset button on each row sets a spool's used weight back to 0 without touching its number,
+  profile, price, offsets or printer assignment, for putting a fresh roll on an existing entry. The table's
+  columns no longer crush their own inputs, and its row of action buttons no longer wraps onto a second line. A
+  spool name is escaped before it reaches the table or a confirmation dialog.
+* **Fixes** - a printer that has no current profile no longer breaks the page that lists it.
+
 ## [2.0.0](https://github.com/KrisMakes/OctoFarm-Redux/releases/tag/v2.0.0) - OctoFarm-Redux
 
 The first release of OctoFarm-Redux, a maintained fork of
