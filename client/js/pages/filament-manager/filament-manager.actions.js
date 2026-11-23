@@ -2,6 +2,7 @@ import OctoFarmClient from '../../services/octofarm-client.service';
 import UI from '../../utils/ui';
 import { reRenderPageInformation, printErrors, getSelectValues } from './filament-manager-ui.utils';
 import { formatSpoolRemaining, formatSpoolUsed } from './filament-manager.templates';
+import { escapeHtml } from '../../utils/html.utils';
 
 export async function selectFilament(spools, id) {
   let printerIds = [];
@@ -291,6 +292,55 @@ export const saveSpool = async (e) => {
     printErrors(post.errors);
   }
   // UI.reApplyScrollPosition(document.getElementById("addSpoolModalBody"))
+};
+
+// Putting a fresh roll on an existing spool entry. Clearing `used` by hand
+// meant opening the row for editing and remembering which box held the figure;
+// deleting and re-adding the spool lost its number, offsets and printer
+// assignment. Everything but the used weight is left alone.
+export const resetSpool = async (e) => {
+  const row = e.parentElement.parentElement;
+  const id = row.firstElementChild.innerHTML.trim();
+  const name = row.querySelector('.name')?.textContent ?? 'this spool';
+  const usedInput = row.querySelector('input[data-exact]');
+  const weight = row.querySelector('.weight')?.textContent;
+
+  const confirmed = await new Promise((resolve) => {
+    bootbox.confirm({
+      title: 'Reset spool?',
+      // bootbox renders these with jQuery's .html(), and the spool name is
+      // whatever the user typed. See escapeHtml.
+      message: `Set the used weight of <b>${escapeHtml(
+        name
+      )}</b> back to 0g? Its number, profile, price, offsets and printer assignment stay as they are. Past print history is not affected.`,
+      buttons: {
+        confirm: { label: 'Reset', className: 'btn-warning' },
+        cancel: { label: 'Cancel', className: 'btn-secondary' },
+      },
+      callback: resolve,
+    });
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  const post = await OctoFarmClient.post('filament/reset/filament', { id });
+  if (post && post.errors.length === 0) {
+    // The row is rendered once and patched in place, so the reset has to be
+    // reflected in both the displayed figure and the exact one that editing
+    // the row would re-post.
+    if (usedInput) {
+      usedInput.dataset.exact = 0;
+      usedInput.placeholder = formatSpoolUsed(0);
+    }
+    const remaining = formatSpoolRemaining(weight, 0);
+    row.querySelector('.spool-remaining').textContent = remaining;
+    row.querySelector('.grams').textContent = remaining;
+    UI.createAlert('success', `Reset the used weight of ${name}.`, 3000, 'Clicked');
+    await reRenderPageInformation();
+  } else {
+    printErrors(post?.errors ?? []);
+  }
 };
 
 export const unAssignSpool = async (e) => {

@@ -19,6 +19,7 @@ import {
   addSpool,
   addProfile,
   unAssignSpool,
+  resetSpool,
 } from './filament-manager.actions';
 import { isFilamentManagerPluginSyncEnabled } from '../../services/octoprint/filament-manager-plugin.service';
 import { findIndex } from 'lodash';
@@ -318,6 +319,13 @@ export const addSpoolTableListeners = () => {
       await saveSpool(e.target);
     } else if (e.target.classList.contains('clone')) {
       await cloneSpool(e.target);
+    } else if (e.target.closest('.reset')) {
+      // closest() rather than a class check on the target: Font Awesome swaps
+      // the <i> for an <svg>, so a click can land on the glyph instead of the
+      // button. The other branches work around that with a second "...Icon"
+      // class; the icon is not what the handler wants anyway, it wants the
+      // button, whose parentElement chain leads to the row.
+      await resetSpool(e.target.closest('.reset'));
     } else if (e.target.classList.contains('unassign')) {
       await unAssignSpool(e.target);
     }

@@ -200,6 +200,41 @@ router.post('/edit/filament', ensureAuthenticated, async (req, res) => {
     });
 });
 
+// Swapping an empty spool for a fresh one of the same filament is the common
+// case, and the alternative was deleting the row and adding it back -- which
+// loses the spool number, the printer assignment and the offsets. Only `used`
+// is cleared; everything identifying the spool stays put. History keeps its
+// own per-print snapshots, so the record of what this spool printed before the
+// swap survives, and the filament cleaner only reads `used`, so the reset is
+// not recomputed away on its next run.
+router.post('/reset/filament', ensureAuthenticated, async (req, res) => {
+  const searchId = req.bodyString('id');
+  const errors = [];
+
+  const spool = await Spool.findById(searchId);
+  if (!spool) {
+    errors.push('Unable to find that spool... please resync!');
+    return res.send({ errors });
+  }
+
+  logger.info('Resetting used weight for spool: ', searchId);
+
+  spool.spools.used = 0;
+  spool.markModified('spools');
+
+  await spool
+    .save()
+    .catch((e) => {
+      errors.push("Couldn't save to OctoFarms database!");
+      logger.error('Unable to reset spool used weight', e);
+    })
+    .finally(() => {
+      logger.info('Spool used weight reset, running filament cleaner');
+      TaskManager.forceRunTask('FILAMENT_CLEAN_TASK');
+      return res.send({ errors });
+    });
+});
+
 router.post('/save/profile', ensureAuthenticated, async (req, res) => {
   const newProfile = req.body;
   const errors = [];

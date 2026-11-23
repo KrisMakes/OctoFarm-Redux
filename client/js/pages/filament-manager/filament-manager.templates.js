@@ -92,6 +92,11 @@ export const spoolsManagerTableRow = (spool, allowMultiSelectIsEnabled) => {
             }" type="button" class="btn btn-sm btn-success clone">
                 <i class="far fa-copy"></i>
             </button>
+            <button title="Reset Used Weight" id="reset-${
+              spool._id
+            }" type="button" class="btn btn-sm btn-info reset">
+                <i class="fas fa-rotate-left resetIcon"></i>
+            </button>
             <button title="Edit Spool" id="edit-${
               spool._id
             }" type="button" class="btn btn-sm btn-primary edit">
