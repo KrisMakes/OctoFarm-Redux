@@ -1,3 +1,11 @@
+## [2.0.3](https://github.com/KrisMakes/OctoFarm-Redux/releases/tag/v2.0.3) - OctoFarm-Redux
+
+A patch release: the Last Printed sort from 2.0.2 now gets its dates.
+
+* **Last Printed** - a full Re-Sync of a printer's file list built its entries in a second place that 2.0.2 did not
+  update, so no last-printed date was ever stored and the sort had nothing to order by. A Re-Sync now keeps the date.
+  The same code also threw on a file that has print counts but no recorded last print; it no longer does.
+
 ## [2.0.2](https://github.com/KrisMakes/OctoFarm-Redux/releases/tag/v2.0.2) - OctoFarm-Redux
 
 A patch release: update notifications that actually fire, safer in-app updates, and a Last Printed sort.
