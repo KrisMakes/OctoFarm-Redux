@@ -10,6 +10,13 @@ name: Publish image
 #      otherwise an anonymous `docker pull` gets a 401 and Community
 #      Applications reports the image as missing;
 #   2. nothing else - GITHUB_TOKEN already has the push permission granted below.
+#
+# Optional: a Docker Hub mirror, only so Unraid Community Applications can show
+# a "Last Update" date. CA maps ghcr.io/<owner>/<name> to the Docker Hub repo
+# <owner>/<name> and reads last_updated from there; without that repo it shows
+# "Unknown". Update notifications do not depend on it. The mirror step is skipped
+# unless the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN repository secrets exist, and
+# the Docker Hub account must be named like the GitHub owner (krismakes).
 on:
   push:
     tags: ['v*']
@@ -92,3 +99,27 @@ jobs:
           docker logs smoke | tail -40
           docker rm -f smoke >/dev/null
           [ "$state" = "healthy" ]
+
+      # Copies the exact image that was just smoke-tested (same digest, no
+      # rebuild) to Docker Hub. Tag pushes only, and a failure here warns
+      # instead of failing the release - the GHCR image is already published
+      # and is what the template points at.
+      - name: Mirror to Docker Hub
+        if: github.ref_type == 'tag'
+        continue-on-error: true
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "${DOCKERHUB_USERNAME}" ] || [ -z "${DOCKERHUB_TOKEN}" ]; then
+            echo "Docker Hub secrets not set - skipping the mirror"
+            exit 0
+          fi
+          echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          version="${GITHUB_REF_NAME#v}"
+          src="ghcr.io/${owner}/octofarm-redux:${version}"
+          docker buildx imagetools create \
+            -t "docker.io/${owner}/octofarm-redux:${version}" \
+            -t "docker.io/${owner}/octofarm-redux:latest" \
+            "${src}"
