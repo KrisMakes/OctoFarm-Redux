@@ -402,9 +402,11 @@ export default class FileManagerService {
       }
       formData.append('file', file.file);
       formData.append('path', path);
-      if (file.print) {
-        formData.append('print', 'true');
-      }
+      // "print" is deliberately not sent with the upload. OctoPrint does not tell
+      // the caller when it skips the print because the printer is not ready yet,
+      // so the upload looks successful and the printer just sits idle. The file is
+      // uploaded on its own and the print is started afterwards, with retries.
+      const printAfterUpload = !!file.print;
       const url = `/octoprint/${printerInfo._id}/api/files/local`;
       const xhr = new XMLHttpRequest();
       file = file.file;
@@ -460,6 +462,13 @@ export default class FileManagerService {
           if (!!uploadsSpinnerIcon) {
             uploadsSpinnerIcon.innerHTML = "<i class='fas fa-spinner'></i>";
           }
+          if (printAfterUpload) {
+            // Not awaited: the retries can take ~20s and must not hold up the
+            // upload queue behind this file.
+            FileManagerService.startUploadedPrint(printerInfo, xhr.response, path, file.name).catch(
+              (e) => console.error('Failed to start the print after upload', e)
+            );
+          }
         } else {
           fileUploads.remove(queueRecord);
           resolve(xhr.response);
@@ -495,6 +504,39 @@ export default class FileManagerService {
         );
       }
     });
+  }
+
+  // OctoPrint reports where it stored the file (it can rewrite the name), so use
+  // that and only fall back to the folder + original name when it is missing.
+  static async startUploadedPrint(printer, uploadResponse, folder, fileName) {
+    let storedPath;
+    try {
+      storedPath = JSON.parse(uploadResponse)?.files?.local?.path;
+    } catch (e) {
+      // Not JSON; use the fallback below.
+    }
+    if (!storedPath) {
+      storedPath = folder ? `${folder.replace(/\/$/, '')}/${fileName}` : fileName;
+    }
+    const url = encodeURIComponent(`files/local/${storedPath}`);
+    const opt = { command: 'select', print: true };
+    const post = await OctoPrintClient.startWithRetry(printer, () =>
+      OctoPrintClient.post(printer, url, opt)
+    );
+    await OctoFarmClient.updateUserActionsLog(printer._id, {
+      action: 'File: print',
+      opts: opt,
+      fullPath: storedPath,
+      status: post?.status,
+    });
+    if (post?.status >= 200 && post?.status < 300) {
+      UI.createAlert(
+        'success',
+        `${printer.printerName}: Successfully started printing ${storedPath}`,
+        3000,
+        'Clicked'
+      );
+    }
   }
 
   static async actionBtnGate(printer, btn) {
@@ -1316,7 +1358,21 @@ export class FileActions {
     const opts = {
       command: 'start',
     };
-    await OctoPrintClient.file(printer, filePath, 'load', false);
+    // Select the file first, retrying while the printer boots. If this never
+    // succeeds there is nothing selected, and "start" would run whatever file
+    // happened to be loaded before, so stop here instead of carrying on.
+    const load = await OctoPrintClient.startWithRetry(printer, () =>
+      OctoPrintClient.file(printer, filePath, 'load')
+    );
+    if (!(load?.status >= 200 && load?.status < 300)) {
+      UI.createAlert(
+        'warning',
+        `${printer.printerName}: could not select ${filePath}, the print was not started`,
+        5000,
+        'Clicked'
+      );
+      return;
+    }
     const ret = await OctoPrintClient.jobAction(printer, opts);
     if (!!ret?.status) {
       if (ret?.status === 200 || ret?.status === 201 || ret?.status === 204) {

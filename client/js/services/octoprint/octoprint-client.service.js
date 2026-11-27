@@ -10,6 +10,7 @@ import {
   lengthsForFile,
 } from '../filament-preflight.service';
 import { escapeHtml } from '../../utils/html.utils';
+import { startWithRetry } from './print-start-retry.service';
 
 // A cancelled print leaves the nozzle parked over the plate, in the way of
 // whatever has to come off it. The lift is relative, so it is ten centimetres
@@ -46,6 +47,36 @@ export default class OctoPrintClient {
     }).catch((e) => {
       console.error(e);
       return e;
+    });
+  }
+
+  // Sends a command that starts a print, retrying while the printer is still
+  // booting. `attempt` performs one request and returns its response. The final
+  // failure is a persistent toast: the old single short toast was easy to miss,
+  // which left people believing a print had started on an idle printer.
+  static startWithRetry(printer, attempt) {
+    const name = printer.printerName;
+    return startWithRetry({
+      attempt,
+      getState: () => OctoPrintClient.get(printer, 'api/printer'),
+      onRetry: ({ attempt: n, maxAttempts, delayMs, reason }) => {
+        UI.createAlert(
+          'warning',
+          `${name}: ${reason}. Trying to start the print again in ${
+            delayMs / 1000
+          }s (attempt ${n} of ${maxAttempts} failed)`,
+          delayMs,
+          'clicked'
+        );
+      },
+      onGiveUp: ({ attempts, reason }) => {
+        UI.createAlert(
+          'error',
+          `${name}: the print was NOT started after ${attempts} attempts (${reason}). The printer is not printing, check it and start the print again.`,
+          0,
+          'clicked'
+        );
+      },
     });
   }
 
@@ -271,7 +302,9 @@ export default class OctoPrintClient {
       }
       await printStartSequence(printer);
 
-      const post = await OctoPrintClient.post(printer, encodeURIComponent(url), opt);
+      const post = await OctoPrintClient.startWithRetry(printer, () =>
+        OctoPrintClient.post(printer, encodeURIComponent(url), opt)
+      );
 
       const body = {
         action: `File: ${action}`,
@@ -342,6 +375,17 @@ export default class OctoPrintClient {
     }
   }
 
+  // Only "start" is retried. Pause, resume and cancel must never be repeated:
+  // a second attempt ten seconds later would act on a different print state.
+  static postJobAction(printer, opts) {
+    if (opts.command === 'start') {
+      return OctoPrintClient.startWithRetry(printer, () =>
+        OctoPrintClient.post(printer, 'job', opts)
+      );
+    }
+    return OctoPrintClient.post(printer, 'job', opts);
+  }
+
   static async jobAction(printer, opts, element) {
     if (opts.command === 'start') {
       // The Print button reprints whatever is loaded, so the estimate comes
@@ -388,7 +432,7 @@ export default class OctoPrintClient {
         async callback(result) {
           if (!result) {
             await printStartSequence(printer);
-            const { status } = await OctoPrintClient.post(printer, 'job', opts);
+            const { status } = await OctoPrintClient.postJobAction(printer, opts);
             const body = {
               action: `Print: ${opts.command}`,
               opts,
@@ -401,7 +445,7 @@ export default class OctoPrintClient {
       });
     } else {
       await printStartSequence(printer);
-      const post = await OctoPrintClient.post(printer, 'job', opts);
+      const post = await OctoPrintClient.postJobAction(printer, opts);
 
       const body = {
         action: `Print: ${opts.command}`,
