@@ -114,6 +114,15 @@ export const getTemperatureLine = (settings) => {
 };
 
 export const getFileTemplate = (file, printerURL, id) => {
+  // Through the OctoFarm proxy, not the printer's own address: the proxy adds the
+  // API key, whereas a bare request to OctoPrint from the browser is anonymous
+  // and gets a 403. Segments are encoded one by one so folders keep their
+  // slashes; the quote is escaped as well because this lands inside an inline
+  // onclick="window.open('...')" where a literal ' would end the string.
+  const downloadUrl = `/octoprint/${id}/downloads/files/local/${file.fullPath
+    .split('/')
+    .map((segment) => encodeURIComponent(segment).replace(/'/g, '%27'))
+    .join('/')}`;
   let toolInfo = '';
   if (file.toolUnits.length === 0) {
     toolInfo = getSpinnerElement();
@@ -254,9 +263,7 @@ export const getFileTemplate = (file, printerURL, id) => {
   }" type="button" class="btn btn-warning">
       <i class="fas fa-people-carry"></i> Move
           </button>
-          <button          title="Download file" onclick="window.open('${printerURL}/downloads/files/local/${encodeURI(
-    file.fullPath
-  )}')" type="button" class="btn btn-dark">
+          <button          title="Download file" onclick="window.open('${downloadUrl}')" type="button" class="btn btn-dark">
     <i class="fas fa-download"></i> Download
         </button>
         <button title="Delete file" id="${printerURL}*fileActionDelete*${
